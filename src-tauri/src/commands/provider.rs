@@ -325,3 +325,29 @@ pub fn sync_universal_provider(
 
     Ok(result)
 }
+
+/// 更新供应商权重（负载均衡功能）
+///
+/// # Arguments
+/// * `state` - 应用状态
+/// * `app` - 应用类型（"claude" | "codex" | "gemini"）
+/// * `id` - 供应商ID
+/// * `weight` - 权重值 (0-10, 0表示禁用, 1表示每轮都使用)
+///
+/// # Returns
+/// 成功返回 `true`，失败返回错误信息
+#[tauri::command]
+pub fn update_provider_weight(
+    state: State<'_, AppState>,
+    app: String,
+    id: String,
+    weight: u32,
+) -> Result<bool, String> {
+    let app_type = AppType::from_str(&app).map_err(|e| e.to_string())?;
+
+    state
+        .db
+        .update_provider_weight(app_type.as_str(), &id, weight)
+        .map(|_| true)
+        .map_err(|e: AppError| e.to_string())
+}

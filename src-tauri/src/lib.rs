@@ -3,6 +3,7 @@ mod app_store;
 mod auto_launch;
 mod claude_mcp;
 mod claude_plugin;
+pub mod cli;
 mod codex_config;
 mod commands;
 mod config;
@@ -874,6 +875,7 @@ pub fn run() {
             commands::upsert_universal_provider,
             commands::delete_universal_provider,
             commands::sync_universal_provider,
+            commands::update_provider_weight,  // 【新增】负载均衡权重更新
             // Global upstream proxy
             commands::get_global_proxy_url,
             commands::set_global_proxy_url,

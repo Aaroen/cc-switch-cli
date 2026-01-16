@@ -95,6 +95,8 @@ pub struct RequestForwarder {
     rectifier_config: RectifierConfig,
     /// 非流式请求超时（秒）
     non_streaming_timeout: std::time::Duration,
+    /// 【新增】分层转发器（插件化扩展）
+    layered_forwarder: Option<Arc<super::layered_forwarder::LayeredForwarder>>,
 }
 
 impl RequestForwarder {
@@ -111,6 +113,19 @@ impl RequestForwarder {
         _streaming_idle_timeout: u64,
         rectifier_config: RectifierConfig,
     ) -> Self {
+        // 【新增】检查是否启用分层转发器（通过环境变量）
+        let layered_forwarder = if std::env::var("CC_ENABLE_LAYERED_FORWARDER")
+            .unwrap_or_default()
+            .eq_ignore_ascii_case("true")
+        {
+            log::info!("分层转发器已启用（环境变量 CC_ENABLE_LAYERED_FORWARDER=true）");
+            // TODO: 需要传入Database引用以读取weight
+            // 当前Phase 3暂时禁用，Phase 4完成后再启用
+            None
+        } else {
+            None
+        };
+
         Self {
             router,
             status,
@@ -120,6 +135,7 @@ impl RequestForwarder {
             current_provider_id_at_start,
             rectifier_config,
             non_streaming_timeout: std::time::Duration::from_secs(non_streaming_timeout),
+            layered_forwarder,
         }
     }
 
@@ -139,9 +155,21 @@ impl RequestForwarder {
         headers: axum::http::HeaderMap,
         providers: Vec<Provider>,
     ) -> Result<ForwardResult, ForwardError> {
+        // 【新增】扩展点：如果启用了分层转发器，使用增强的分层轮询逻辑
+        if let Some(ref layered_forwarder) = self.layered_forwarder {
+            log::debug!("[{}] 使用分层转发器（插件化扩展）", app_type.as_str());
+            return layered_forwarder
+                .forward_with_layered_retry(app_type, endpoint, body, headers, providers)
+                .await;
+        }
+
+        // 【官方原有逻辑完全不变】
         // 获取适配器
         let adapter = get_adapter(app_type);
         let app_type_str = app_type.as_str();
+
+        // 记录请求开始时间
+        let request_start = std::time::Instant::now();
 
         if providers.is_empty() {
             return Err(ForwardError {
@@ -160,6 +188,14 @@ impl RequestForwarder {
         // 单 Provider 场景下跳过熔断器检查（故障转移关闭时）
         let bypass_circuit_breaker = providers.len() == 1;
 
+        // 日志：开始轮询
+        log::info!(
+            "[{}] ╔═══ 请求转发开始 ═══",
+            app_type_str
+        );
+        log::info!("[{}] ║ 可用供应商: {} 个", app_type_str, providers.len());
+        log::info!("[{}] ║ 故障转移: {}", app_type_str, if bypass_circuit_breaker { "关闭" } else { "开启" });
+
         // 依次尝试每个供应商
         for provider in providers.iter() {
             // 发起请求前先获取熔断器放行许可（HalfOpen 会占用探测名额）
@@ -177,6 +213,17 @@ impl RequestForwarder {
             if !allowed {
                 continue;
             }
+
+            // 日志：尝试供应商
+            log::info!(
+                "[{}] ║ 【{}/{}】尝试供应商: {} (ID: {}, 权重: {})",
+                app_type_str,
+                attempted_providers + 1,
+                providers.len(),
+                provider.name,
+                provider.id,
+                provider.weight
+            );
 
             attempted_providers += 1;
 
@@ -244,6 +291,17 @@ impl RequestForwarder {
                                 * 100.0;
                         }
                     }
+
+                    // 日志：请求成功
+                    let latency = request_start.elapsed();
+                    log::info!(
+                        "[{}] ║ ✓ 请求成功 | 供应商: {} | 状态: {} | 延迟: {}ms",
+                        app_type_str,
+                        provider.name,
+                        response.status(),
+                        latency.as_millis()
+                    );
+                    log::info!("[{}] ╚═══ 请求完成 ═══", app_type_str);
 
                     return Ok(ForwardResult {
                         response,
@@ -462,6 +520,16 @@ impl RequestForwarder {
                         )
                         .await;
 
+                    // 日志：请求失败
+                    let latency = request_start.elapsed();
+                    log::warn!(
+                        "[{}] ║ ✗ 请求失败 | 供应商: {} | 错误: {:?} | 延迟: {}ms",
+                        app_type_str,
+                        provider.name,
+                        e,
+                        latency.as_millis()
+                    );
+
                     // 分类错误
                     let category = self.categorize_proxy_error(&e);
 
@@ -537,6 +605,13 @@ impl RequestForwarder {
             }
         }
 
+        // 日志：所有供应商均失败
+        log::error!(
+            "[{}] ╚═══ 所有供应商均失败 ({}/{}) ═══",
+            app_type_str,
+            attempted_providers,
+            providers.len()
+        );
         log::warn!("[{app_type_str}] [FWD-002] 所有 Provider 均失败");
 
         Err(ForwardError {
@@ -584,6 +659,11 @@ impl RequestForwarder {
         // 过滤私有参数（以 `_` 开头的字段），防止内部信息泄露到上游
         // 默认使用空白名单，过滤所有 _ 前缀字段
         let filtered_body = filter_private_params_with_whitelist(request_body, &[]);
+
+        // 调试日志：打印工具定义以诊断 input_schema 问题
+        if let Some(tools) = filtered_body.get("tools") {
+            log::info!("[Forwarder] 发送到上游的工具定义: {}", serde_json::to_string_pretty(tools).unwrap_or_default());
+        }
 
         // 每次请求时获取最新的全局 HTTP 客户端（支持热更新代理配置）
         let client = super::http_client::get();

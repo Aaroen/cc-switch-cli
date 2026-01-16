@@ -40,6 +40,14 @@ pub struct Provider {
     #[serde(default)]
     #[serde(rename = "inFailoverQueue")]
     pub in_failover_queue: bool,
+    /// 负载均衡权重 (0-10, 0表示禁用, 1表示每轮都使用)
+    #[serde(default = "default_weight")]
+    pub weight: u32,
+}
+
+/// 默认权重值
+fn default_weight() -> u32 {
+    1
 }
 
 impl Provider {
@@ -63,6 +71,7 @@ impl Provider {
             icon: None,
             icon_color: None,
             in_failover_queue: false,
+            weight: 1,  // 默认权重
         }
     }
 }
@@ -366,6 +375,7 @@ impl UniversalProvider {
             icon: self.icon.clone(),
             icon_color: self.icon_color.clone(),
             in_failover_queue: false,
+            weight: 1,  // 默认权重
         })
     }
 
@@ -424,6 +434,7 @@ requires_openai_auth = true"#
             icon: self.icon.clone(),
             icon_color: self.icon_color.clone(),
             in_failover_queue: false,
+            weight: 1,  // 默认权重
         })
     }
 
@@ -459,6 +470,7 @@ requires_openai_auth = true"#
             icon: self.icon.clone(),
             icon_color: self.icon_color.clone(),
             in_failover_queue: false,
+            weight: 1,  // 默认权重
         })
     }
 }

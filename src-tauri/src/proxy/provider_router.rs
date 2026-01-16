@@ -27,26 +27,58 @@ impl ProviderRouter {
         }
     }
 
-    /// 选择可用的供应商（支持故障转移）
+    /// 选择可用的供应商（支持故障转移和权重轮询）
     ///
     /// 返回按优先级排序的可用供应商列表：
-    /// - 故障转移关闭时：仅返回当前供应商
+    /// - 权重轮询开启时：按权重选择供应商（权重越小频率越高）
     /// - 故障转移开启时：完全按照故障转移队列顺序返回，忽略当前供应商设置
+    /// - 都关闭时：仅返回当前供应商
     pub async fn select_providers(&self, app_type: &str) -> Result<Vec<Provider>, AppError> {
         let mut result = Vec::new();
         let mut total_providers = 0usize;
         let mut circuit_open_count = 0usize;
 
-        // 检查该应用的自动故障转移开关是否开启（从 proxy_config 表读取）
-        let auto_failover_enabled = match self.db.get_proxy_config_for_app(app_type).await {
-            Ok(config) => config.auto_failover_enabled,
+        // 读取代理配置
+        let (auto_failover_enabled, weight_round_robin_enabled) = match self.db.get_proxy_config_for_app(app_type).await {
+            Ok(config) => (config.auto_failover_enabled, config.weight_round_robin_enabled),
             Err(e) => {
-                log::error!("[{app_type}] 读取 proxy_config 失败: {e}，默认禁用故障转移");
-                false
+                log::error!("[{app_type}] 读取 proxy_config 失败: {e}，默认禁用故障转移和权重轮询");
+                (false, false)
             }
         };
 
-        if auto_failover_enabled {
+        if weight_round_robin_enabled {
+            // 权重轮询模式：获取所有启用的供应商，按权重排序
+            let all_providers = self.db.get_all_providers(app_type)?;
+            let mut weighted_providers: Vec<Provider> = all_providers
+                .into_iter()
+                .filter(|(_, p)| p.weight > 0) // 过滤掉权重为0的（禁用的）
+                .map(|(_, p)| p)
+                .collect();
+
+            // 按权重排序（权重小的优先，频率高）
+            weighted_providers.sort_by_key(|p| p.weight);
+
+            total_providers = weighted_providers.len();
+
+            for provider in weighted_providers {
+                let circuit_key = format!("{}:{}", app_type, provider.id);
+                let breaker = self.get_or_create_circuit_breaker(&circuit_key).await;
+
+                if breaker.is_available().await {
+                    result.push(provider);
+                } else {
+                    circuit_open_count += 1;
+                }
+            }
+
+            log::debug!(
+                "[{app_type}] 权重轮询模式: {} 个可用供应商 (共 {} 个, {} 个熔断)",
+                result.len(),
+                total_providers,
+                circuit_open_count
+            );
+        } else if auto_failover_enabled {
             // 故障转移开启：使用 in_failover_queue 标记的供应商，按 sort_index 排序
             let failover_providers = self.db.get_failover_providers(app_type)?;
             total_providers = failover_providers.len();

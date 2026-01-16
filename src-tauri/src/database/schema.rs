@@ -32,6 +32,7 @@ impl Database {
                 meta TEXT NOT NULL DEFAULT '{}',
                 is_current BOOLEAN NOT NULL DEFAULT 0,
                 in_failover_queue BOOLEAN NOT NULL DEFAULT 0,
+                weight INTEGER NOT NULL DEFAULT 1,
                 PRIMARY KEY (id, app_type)
             )",
             [],
@@ -114,6 +115,7 @@ impl Database {
             proxy_enabled INTEGER NOT NULL DEFAULT 0, listen_address TEXT NOT NULL DEFAULT '127.0.0.1',
             listen_port INTEGER NOT NULL DEFAULT 15721, enable_logging INTEGER NOT NULL DEFAULT 1,
             enabled INTEGER NOT NULL DEFAULT 0, auto_failover_enabled INTEGER NOT NULL DEFAULT 0,
+            weight_round_robin_enabled INTEGER NOT NULL DEFAULT 0,
             max_retries INTEGER NOT NULL DEFAULT 3, streaming_first_byte_timeout INTEGER NOT NULL DEFAULT 60,
             streaming_idle_timeout INTEGER NOT NULL DEFAULT 120, non_streaming_timeout INTEGER NOT NULL DEFAULT 600,
             circuit_failure_threshold INTEGER NOT NULL DEFAULT 4, circuit_success_threshold INTEGER NOT NULL DEFAULT 2,
@@ -345,6 +347,16 @@ impl Database {
                         log::info!("迁移数据库从 v2 到 v3（Skills 统一管理架构）");
                         Self::migrate_v2_to_v3(conn)?;
                         Self::set_user_version(conn, 3)?;
+                    }
+                    3 => {
+                        log::info!("迁移数据库从 v3 到 v4（添加Provider权重字段）");
+                        Self::migrate_v3_to_v4(conn)?;
+                        Self::set_user_version(conn, 4)?;
+                    }
+                    4 => {
+                        log::info!("迁移数据库从 v4 到 v5（添加权重轮询开关字段）");
+                        Self::migrate_v4_to_v5(conn)?;
+                        Self::set_user_version(conn, 5)?;
                     }
                     _ => {
                         return Err(AppError::Database(format!(
@@ -845,6 +857,58 @@ impl Database {
             "skills 表已迁移到 v3 结构。\n\
              注意：旧的安装记录已清除，首次启动时将自动扫描文件系统重建数据。"
         );
+
+        Ok(())
+    }
+
+    /// v3 -> v4 迁移：添加Provider权重字段（负载均衡功能）
+    ///
+    /// 新增字段：
+    /// - providers.weight (INTEGER NOT NULL DEFAULT 1) - 权重0-10，1表示每轮都使用
+    fn migrate_v3_to_v4(conn: &Connection) -> Result<(), AppError> {
+        // 检查是否已经有weight列
+        if Self::has_column(conn, "providers", "weight")? {
+            log::info!("providers 表已有 weight 列，跳过迁移");
+            return Ok(());
+        }
+
+        log::info!("开始迁移 providers 表到 v4 结构（添加权重字段）...");
+
+        // 添加weight列，默认值为1（每轮都使用）
+        Self::add_column_if_missing(
+            conn,
+            "providers",
+            "weight",
+            "INTEGER NOT NULL DEFAULT 1",
+        )?;
+
+        log::info!("providers 表已成功添加 weight 列（默认值: 1）");
+
+        Ok(())
+    }
+
+    /// v4 -> v5 迁移：添加权重轮询开关字段
+    ///
+    /// 新增字段：
+    /// - proxy_config.weight_round_robin_enabled (INTEGER NOT NULL DEFAULT 0) - 权重轮询开关
+    fn migrate_v4_to_v5(conn: &Connection) -> Result<(), AppError> {
+        // 检查是否已经有 weight_round_robin_enabled 列
+        if Self::has_column(conn, "proxy_config", "weight_round_robin_enabled")? {
+            log::info!("proxy_config 表已有 weight_round_robin_enabled 列，跳过迁移");
+            return Ok(());
+        }
+
+        log::info!("开始迁移 proxy_config 表到 v5 结构（添加权重轮询开关字段）...");
+
+        // 添加 weight_round_robin_enabled 列，默认值为 0（禁用）
+        Self::add_column_if_missing(
+            conn,
+            "proxy_config",
+            "weight_round_robin_enabled",
+            "INTEGER NOT NULL DEFAULT 0",
+        )?;
+
+        log::info!("proxy_config 表已成功添加 weight_round_robin_enabled 列（默认值: 0）");
 
         Ok(())
     }

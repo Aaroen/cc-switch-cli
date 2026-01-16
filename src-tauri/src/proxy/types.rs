@@ -172,6 +172,9 @@ pub struct AppProxyConfig {
     pub enabled: bool,
     /// 该 app 自动故障转移开关
     pub auto_failover_enabled: bool,
+    /// 该 app 权重轮询开关（启用后按权重分配请求到不同供应商）
+    #[serde(default)]
+    pub weight_round_robin_enabled: bool,
     /// 最大重试次数
     pub max_retries: u32,
     /// 流式首字超时（秒）

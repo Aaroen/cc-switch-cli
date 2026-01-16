@@ -17,7 +17,7 @@ impl Database {
     ) -> Result<IndexMap<String, Provider>, AppError> {
         let conn = lock_conn!(self.conn);
         let mut stmt = conn.prepare(
-            "SELECT id, name, settings_config, website_url, category, created_at, sort_index, notes, icon, icon_color, meta, in_failover_queue
+            "SELECT id, name, settings_config, website_url, category, created_at, sort_index, notes, icon, icon_color, meta, in_failover_queue, weight
              FROM providers WHERE app_type = ?1
              ORDER BY COALESCE(sort_index, 999999), created_at ASC, id ASC"
         ).map_err(|e| AppError::Database(e.to_string()))?;
@@ -36,6 +36,7 @@ impl Database {
                 let icon_color: Option<String> = row.get(9)?;
                 let meta_str: String = row.get(10)?;
                 let in_failover_queue: bool = row.get(11)?;
+                let weight: u32 = row.get(12)?;
 
                 let settings_config =
                     serde_json::from_str(&settings_config_str).unwrap_or(serde_json::Value::Null);
@@ -56,6 +57,7 @@ impl Database {
                         icon,
                         icon_color,
                         in_failover_queue,
+                        weight,
                     },
                 ))
             })
@@ -131,7 +133,7 @@ impl Database {
     ) -> Result<Option<Provider>, AppError> {
         let conn = lock_conn!(self.conn);
         let result = conn.query_row(
-            "SELECT name, settings_config, website_url, category, created_at, sort_index, notes, icon, icon_color, meta, in_failover_queue
+            "SELECT name, settings_config, website_url, category, created_at, sort_index, notes, icon, icon_color, meta, in_failover_queue, weight
              FROM providers WHERE id = ?1 AND app_type = ?2",
             params![id, app_type],
             |row| {
@@ -146,6 +148,7 @@ impl Database {
                 let icon_color: Option<String> = row.get(8)?;
                 let meta_str: String = row.get(9)?;
                 let in_failover_queue: bool = row.get(10)?;
+                let weight: u32 = row.get(11)?;
 
                 let settings_config = serde_json::from_str(&settings_config_str).unwrap_or(serde_json::Value::Null);
                 let meta: ProviderMeta = serde_json::from_str(&meta_str).unwrap_or_default();
@@ -163,6 +166,7 @@ impl Database {
                     icon,
                     icon_color,
                     in_failover_queue,
+                    weight,
                 })
             },
         );
@@ -188,18 +192,19 @@ impl Database {
         let mut meta_clone = provider.meta.clone().unwrap_or_default();
         let endpoints = std::mem::take(&mut meta_clone.custom_endpoints);
 
-        // 检查是否存在（用于判断新增/更新，以及保留 is_current 和 in_failover_queue）
-        let existing: Option<(bool, bool)> = tx
+        // 检查是否存在（用于判断新增/更新，以及保留 is_current）
+        let existing: Option<bool> = tx
             .query_row(
-                "SELECT is_current, in_failover_queue FROM providers WHERE id = ?1 AND app_type = ?2",
+                "SELECT is_current FROM providers WHERE id = ?1 AND app_type = ?2",
                 params![provider.id, app_type],
-                |row| Ok((row.get(0)?, row.get(1)?)),
+                |row| row.get(0),
             )
             .ok();
 
         let is_update = existing.is_some();
-        let (is_current, in_failover_queue) =
-            existing.unwrap_or((false, provider.in_failover_queue));
+        let is_current = existing.unwrap_or(false);
+        // 使用传入的 in_failover_queue 值，允许 CLI 命令更新此字段
+        let in_failover_queue = provider.in_failover_queue;
 
         if is_update {
             // 更新模式：使用 UPDATE 避免触发 ON DELETE CASCADE
@@ -216,8 +221,9 @@ impl Database {
                     icon_color = ?9,
                     meta = ?10,
                     is_current = ?11,
-                    in_failover_queue = ?12
-                WHERE id = ?13 AND app_type = ?14",
+                    in_failover_queue = ?12,
+                    weight = ?13
+                WHERE id = ?14 AND app_type = ?15",
                 params![
                     provider.name,
                     serde_json::to_string(&provider.settings_config).map_err(|e| {
@@ -235,6 +241,7 @@ impl Database {
                     )))?,
                     is_current,
                     in_failover_queue,
+                    provider.weight,
                     provider.id,
                     app_type,
                 ],
@@ -245,8 +252,8 @@ impl Database {
             tx.execute(
                 "INSERT INTO providers (
                     id, app_type, name, settings_config, website_url, category,
-                    created_at, sort_index, notes, icon, icon_color, meta, is_current, in_failover_queue
-                ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14)",
+                    created_at, sort_index, notes, icon, icon_color, meta, is_current, in_failover_queue, weight
+                ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15)",
                 params![
                     provider.id,
                     app_type,
@@ -264,6 +271,7 @@ impl Database {
                         .map_err(|e| AppError::Database(format!("Failed to serialize meta: {e}")))?,
                     is_current,
                     in_failover_queue,
+                    provider.weight,
                 ],
             )
             .map_err(|e| AppError::Database(e.to_string()))?;
@@ -338,6 +346,67 @@ impl Database {
             ],
         )
         .map_err(|e| AppError::Database(e.to_string()))?;
+        Ok(())
+    }
+
+    /// 更新供应商的权重（负载均衡功能）
+    ///
+    /// # Arguments
+    /// * `app_type` - 应用类型
+    /// * `provider_id` - 供应商ID
+    /// * `weight` - 权重值 (0-10, 0表示禁用, 1表示每轮都使用)
+    ///
+    /// # Errors
+    /// - 权重超出范围 (0-10)
+    /// - 供应商不存在
+    /// - 数据库操作失败
+    pub fn update_provider_weight(
+        &self,
+        app_type: &str,
+        provider_id: &str,
+        weight: u32,
+    ) -> Result<(), AppError> {
+        // 验证权重范围
+        if weight > 10 {
+            return Err(AppError::Config(format!(
+                "权重必须在0-10范围内，当前值: {weight}"
+            )));
+        }
+
+        let conn = lock_conn!(self.conn);
+
+        // 检查Provider是否存在
+        let exists: bool = conn
+            .query_row(
+                "SELECT COUNT(*) > 0 FROM providers WHERE id = ?1 AND app_type = ?2",
+                params![provider_id, app_type],
+                |row| row.get(0),
+            )
+            .map_err(|e| AppError::Database(e.to_string()))?;
+
+        if !exists {
+            return Err(AppError::Config(format!(
+                "供应商不存在: {} ({})",
+                provider_id, app_type
+            )));
+        }
+
+        // 更新权重
+        let rows_affected = conn
+            .execute(
+                "UPDATE providers SET weight = ?1 WHERE id = ?2 AND app_type = ?3",
+                params![weight, provider_id, app_type],
+            )
+            .map_err(|e| AppError::Database(e.to_string()))?;
+
+        if rows_affected == 0 {
+            return Err(AppError::Database(format!(
+                "更新权重失败: {} ({})",
+                provider_id, app_type
+            )));
+        }
+
+        log::info!("[{}] 供应商 {} 权重已更新为 {}", app_type, provider_id, weight);
         Ok(())
     }
 
