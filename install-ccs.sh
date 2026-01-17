@@ -231,15 +231,23 @@ cd "$SCRIPT_DIR"
 
 # 检查是否需要重新编译
 #
-# 注意：用目录 mtime 做比较在某些情况下不可靠（目录时间戳不一定反映上次编译时间），
-# 这里改为以最终二进制文件作为基准。
+# 说明：
+# - 不能用目录 mtime 判断（不可靠），改为以最终二进制文件作为基准。
+# - 增加“构建戳”机制：记录当前 git commit，避免出现“代码更新了但仍复用旧二进制”的情况。
+# - 增加“特征字符串”检测：如果二进制里还包含调试期标记（如 request trace），强制重编译。
 BIN_PATH="src-tauri/target/release/cc-switch"
+STAMP_FILE="src-tauri/target/release/.build_git_commit"
 NEED_REBUILD=false
+
+CURRENT_COMMIT=""
+if [ -d ".git" ]; then
+    CURRENT_COMMIT=$(git rev-parse HEAD 2>/dev/null || echo "")
+fi
 
 if [ ! -f "$BIN_PATH" ]; then
     NEED_REBUILD=true
 else
-    # 任何 Rust 源码/配置文件比二进制新，都触发重编译
+    # 1) 源码/配置文件比二进制新，触发重编译
     if [ -n "$(find src-tauri/src -name '*.rs' -newer "$BIN_PATH" 2>/dev/null)" ]; then
         NEED_REBUILD=true
     elif [ -f "src-tauri/Cargo.toml" ] && [ "src-tauri/Cargo.toml" -nt "$BIN_PATH" ]; then
@@ -247,15 +255,37 @@ else
     elif [ -f "src-tauri/Cargo.lock" ] && [ "src-tauri/Cargo.lock" -nt "$BIN_PATH" ]; then
         NEED_REBUILD=true
     fi
+
+    # 2) git commit 变化，触发重编译（更可靠地覆盖“文件时间戳异常”的情况）
+    if [ -n "$CURRENT_COMMIT" ]; then
+        if [ ! -f "$STAMP_FILE" ] || [ "$(cat "$STAMP_FILE" 2>/dev/null)" != "$CURRENT_COMMIT" ]; then
+            NEED_REBUILD=true
+        fi
+    fi
+
+    # 3) 二进制仍包含调试期特征字符串，触发重编译（避免部署后仍输出 request trace）
+    if strings "$BIN_PATH" 2>/dev/null | grep -q "\[Codex\] request trace"; then
+        NEED_REBUILD=true
+    fi
+    if strings "$BIN_PATH" 2>/dev/null | grep -q "\[Forwarder\] invalid_claude_config"; then
+        NEED_REBUILD=true
+    fi
 fi
 
 if [ "$NEED_REBUILD" = true ]; then
+    # 强制删除旧二进制，避免后续步骤误用旧文件
+    rm -f "$BIN_PATH" 2>/dev/null || true
+
     # 运行Tauri构建，跳过 AppImage 打包（避免网络下载问题）
     # 只生成 deb 和 rpm 包
     pnpm tauri build --bundles deb,rpm > "$LOG_DIR/tauri_build.log" 2>&1 || true
 
     # 检查二进制文件是否成功生成
-    if [ -f "src-tauri/target/release/cc-switch" ]; then
+    if [ -f "$BIN_PATH" ]; then
+        # 写入构建戳
+        if [ -n "$CURRENT_COMMIT" ]; then
+            echo -n "$CURRENT_COMMIT" > "$STAMP_FILE" 2>/dev/null || true
+        fi
         step_done $CURRENT_STEP $TOTAL_STEPS "编译 Tauri 应用 (新编译)"
     else
         step_error $CURRENT_STEP $TOTAL_STEPS "编译失败"
