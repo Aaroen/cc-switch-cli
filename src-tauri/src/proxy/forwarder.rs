@@ -6,6 +6,7 @@ use super::{
     body_filter::filter_private_params_with_whitelist,
     error::*,
     failover_switch::FailoverSwitchManager,
+    file_logger::get_file_logger,
     provider_router::ProviderRouter,
     providers::{get_adapter, ProviderAdapter, ProviderType},
     thinking_rectifier::{rectify_anthropic_request, should_rectify_thinking_signature},
@@ -700,7 +701,7 @@ impl RequestForwarder {
 
         // 过滤私有参数（以 `_` 开头的字段），防止内部信息泄露到上游
         // 默认使用空白名单，过滤所有 _ 前缀字段
-        let mut filtered_body = filter_private_params_with_whitelist(request_body, &[]);
+        let filtered_body = filter_private_params_with_whitelist(request_body, &[]);
 
         // NOTE: 不对第三方网关做“字段裁剪”兼容（避免削弱 Codex 原生能力）。
 
