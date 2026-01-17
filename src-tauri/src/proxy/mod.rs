@@ -8,6 +8,7 @@ pub mod error;
 pub mod error_mapper;
 pub mod extensions;  // 【新增】扩展模块
 pub(crate) mod failover_switch;
+pub mod file_logger;  // 【新增】文件日志模块
 mod forwarder;
 pub mod handler_config;
 pub mod handler_context;
@@ -39,6 +40,8 @@ pub use error::ProxyError;
 pub use extensions::{BenchmarkManager, TrafficController, UrlSelector};  // 【新增】扩展模块导出
 #[allow(unused_imports)]
 pub use layered_forwarder::LayeredForwarder;  // 【新增】分层转发器导出
+#[allow(unused_imports)]
+pub use file_logger::{get_file_logger, FileLogger};  // 【新增】文件日志器导出
 #[allow(unused_imports)]
 pub use load_balancer::{FrequencyControlledRR, WeightedProvider};  // 【新增】负载均衡器导出（频率控制）
 #[allow(unused_imports)]

@@ -54,6 +54,12 @@ async fn run_cli_mode() {
             cli::ProviderCommands::Weight { app, id, weight } => {
                 cli::commands::provider_set_weight(&app, &id, weight).await
             }
+            cli::ProviderCommands::ModelMap { app, id, from, to } => {
+                cli::commands::provider_set_model_mapping(&app, &id, &from, &to).await
+            }
+            cli::ProviderCommands::EnvSet { app, id, key, value } => {
+                cli::commands::provider_set_env(&app, &id, &key, &value).await
+            }
             cli::ProviderCommands::Show { app, id } => {
                 cli::commands::provider_show(&app, &id).await
             }

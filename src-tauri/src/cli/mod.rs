@@ -161,6 +161,46 @@ pub enum ProviderCommands {
         weight: u32,
     },
 
+    /// 设置供应商模型映射（单条）
+    #[command(alias = "map")]
+    ModelMap {
+        /// 应用类型
+        #[arg(short, long)]
+        app: String,
+
+        /// 供应商ID
+        #[arg(short, long)]
+        id: String,
+
+        /// 原始模型名
+        #[arg(long)]
+        from: String,
+
+        /// 映射模型名
+        #[arg(long)]
+        to: String,
+    },
+
+    /// 设置供应商 env 配置
+    #[command(alias = "env")]
+    EnvSet {
+        /// 应用类型
+        #[arg(short, long)]
+        app: String,
+
+        /// 供应商ID
+        #[arg(short, long)]
+        id: String,
+
+        /// 配置键（例如 ANTHROPIC_DEFAULT_SONNET_MODEL）
+        #[arg(long)]
+        key: String,
+
+        /// 配置值
+        #[arg(long)]
+        value: String,
+    },
+
     /// 查看供应商详情
     #[command(alias = "info")]
     Show {

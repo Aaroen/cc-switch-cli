@@ -6,6 +6,7 @@ use super::{
     body_filter::filter_private_params_with_whitelist,
     error::*,
     failover_switch::FailoverSwitchManager,
+    file_logger::get_file_logger,  // 【新增】文件日志器
     provider_router::ProviderRouter,
     providers::{get_adapter, ProviderAdapter, ProviderType},
     thinking_rectifier::{rectify_anthropic_request, should_rectify_thinking_signature},
@@ -113,18 +114,11 @@ impl RequestForwarder {
         _streaming_idle_timeout: u64,
         rectifier_config: RectifierConfig,
     ) -> Self {
-        // 【新增】检查是否启用分层转发器（通过环境变量）
-        let layered_forwarder = if std::env::var("CC_ENABLE_LAYERED_FORWARDER")
-            .unwrap_or_default()
-            .eq_ignore_ascii_case("true")
-        {
-            log::info!("分层转发器已启用（环境变量 CC_ENABLE_LAYERED_FORWARDER=true）");
-            // TODO: 需要传入Database引用以读取weight
-            // 当前Phase 3暂时禁用，Phase 4完成后再启用
-            None
-        } else {
-            None
-        };
+        // 分层转发器已废弃，权重轮询功能已集成到 ProviderRouter 中
+        // 通过 proxy_config.weight_round_robin_enabled 配置控制
+        // 可通过 CLI: csc config lb --app <app> --enabled true/false
+        // 或 GUI 进行配置
+        let layered_forwarder = None;
 
         Self {
             router,
@@ -294,11 +288,31 @@ impl RequestForwarder {
 
                     // 日志：请求成功
                     let latency = request_start.elapsed();
+                    let status_code = response.status().as_u16();
+                    let model = {
+                        let (mapped_body, _original, _mapped) =
+                            super::model_mapper::apply_model_mapping(body.clone(), provider);
+                        mapped_body
+                            .get("model")
+                            .and_then(|v| v.as_str())
+                            .unwrap_or("unknown")
+                            .to_string()
+                    };
+
+                    // 【新增】记录成功到文件日志
+                    get_file_logger().log_success(
+                        app_type_str,
+                        status_code,
+                        &provider.name,
+                        latency.as_millis() as u64,
+                        &model,
+                    );
+
                     log::info!(
                         "[{}] ║ ✓ 请求成功 | 供应商: {} | 状态: {} | 延迟: {}ms",
                         app_type_str,
                         provider.name,
-                        response.status(),
+                        status_code,
                         latency.as_millis()
                     );
                     log::info!("[{}] ╚═══ 请求完成 ═══", app_type_str);
@@ -522,6 +536,30 @@ impl RequestForwarder {
 
                     // 日志：请求失败
                     let latency = request_start.elapsed();
+                    let model = {
+                        let (mapped_body, _original, _mapped) =
+                            super::model_mapper::apply_model_mapping(body.clone(), provider);
+                        mapped_body
+                            .get("model")
+                            .and_then(|v| v.as_str())
+                            .unwrap_or("unknown")
+                            .to_string()
+                    };
+                    let status_code = match &e {
+                        ProxyError::UpstreamError { status, .. } => *status,
+                        _ => 0,
+                    };
+
+                    // 【新增】记录失败到文件日志
+                    get_file_logger().log_error(
+                        app_type_str,
+                        status_code,
+                        &provider.name,
+                        latency.as_millis() as u64,
+                        &model,
+                        &e.to_string(),
+                    );
+
                     log::warn!(
                         "[{}] ║ ✗ 请求失败 | 供应商: {} | 错误: {:?} | 延迟: {}ms",
                         app_type_str,
@@ -658,7 +696,9 @@ impl RequestForwarder {
 
         // 过滤私有参数（以 `_` 开头的字段），防止内部信息泄露到上游
         // 默认使用空白名单，过滤所有 _ 前缀字段
-        let filtered_body = filter_private_params_with_whitelist(request_body, &[]);
+        let mut filtered_body = filter_private_params_with_whitelist(request_body, &[]);
+
+        // NOTE: 不对第三方网关做“字段裁剪”兼容（避免削弱 Codex 原生能力）。
 
         // 调试日志：打印工具定义以诊断 input_schema 问题
         if let Some(tools) = filtered_body.get("tools") {
@@ -761,6 +801,34 @@ impl RequestForwarder {
         } else {
             let status_code = status.as_u16();
             let body_text = response.text().await.ok();
+
+            if let Some(body_text_str) = body_text.as_ref() {
+                if body_text_str.contains("invalid_claude_config") {
+                    let body_keys = filtered_body
+                        .as_object()
+                        .map(|obj| {
+                            let mut keys: Vec<&str> = obj.keys().map(|k| k.as_str()).collect();
+                            keys.sort_unstable();
+                            keys.join(",")
+                        })
+                        .unwrap_or_else(|| "<non-object>".to_string());
+                    let model = filtered_body
+                        .get("model")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("unknown");
+
+                    let debug_line = format!(
+                        "[Forwarder] invalid_claude_config: adapter={}, url={}, endpoint={}, model={}, body_keys={}",
+                        adapter.name(),
+                        url,
+                        endpoint,
+                        model,
+                        body_keys
+                    );
+                    get_file_logger().write(&debug_line);
+                    log::error!("{}", debug_line);
+                }
+            }
 
             Err(ProxyError::UpstreamError {
                 status: status_code,

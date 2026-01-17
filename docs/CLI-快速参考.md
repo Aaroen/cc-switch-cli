@@ -17,6 +17,8 @@ csc provider list --app codex       # 列出 Codex 供应商
 csc provider list --app gemini      # 列出 Gemini 供应商
 csc provider switch --app codex --id <ID>  # 切换供应商
 csc provider weight --app codex --id <ID> --weight 3  # 设置权重
+csc provider map --app codex --id <ID> --from gpt-5.2 --to gpt-5.2-2cx  # 设置模型映射
+csc provider env --app claude --id <ID> --key ANTHROPIC_DEFAULT_SONNET_MODEL --value <MODEL>  # 设置 Claude 模型映射
 ```
 
 ### 权重轮询（负载均衡）
@@ -65,6 +67,45 @@ csc failover --help                 # 故障转移帮助
 | 0 | 禁用 |
 | 1 | 每轮使用（默认） |
 | N | 每N轮使用一次 |
+
+## 模型映射说明
+
+- 支持在供应商配置中设置 `model_mapping`（JSON 对象）
+- CLI: `csc provider map --app codex --id <ID> --from <旧模型> --to <新模型>`
+- 映射示例：
+  - `gpt-5.2` → `gpt-5.2-2cx`
+  - `gpt-5.2-codex` → `gpt-5.2-codex-2cx`
+
+## Codex 供应商配置（示例：hyb）
+
+> hyb 在 Codex 下使用 **OPENAI_API_KEY + base_url**，不要使用 Claude 的 `env` 配置字段。
+
+**推荐配置文件（JSON）**：
+```json
+{
+  "base_url": "https://ai.hybgzs.com",
+  "env": {
+    "OPENAI_API_KEY": "<YOUR_KEY>"
+  }
+}
+```
+
+**CLI 创建并切换**：
+```bash
+csc provider add --app codex --name hyb --file ./hyb.codex.json
+csc provider switch --app codex --id <ID>
+```
+
+## Claude 模型映射（Haiku→Sonnet）
+
+- Claude 模型映射使用 `env` 字段（四键模型配置）
+- CLI: `csc provider env --app claude --id <ID> --key ANTHROPIC_DEFAULT_HAIKU_MODEL --value <SONNET_MODEL>`
+- 常用键：
+  - `ANTHROPIC_DEFAULT_HAIKU_MODEL`
+  - `ANTHROPIC_DEFAULT_SONNET_MODEL`
+  - `ANTHROPIC_DEFAULT_OPUS_MODEL`
+  - `ANTHROPIC_MODEL`
+- 通过为 Haiku 配置 Sonnet 目标，实现“Haiku 全部映射为 Sonnet”
 
 ## 日志位置
 ```bash

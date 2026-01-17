@@ -4,6 +4,7 @@
 
 use super::{
     body_filter::filter_private_params_with_whitelist,
+    file_logger::get_file_logger,  // 【新增】文件日志器
     forwarder::{ForwardError, ForwardResult},  // 【重用】直接使用forwarder定义的类型
     model_mapper,
     provider_router::ProviderRouter,
@@ -300,6 +301,12 @@ impl LayeredForwarder {
     ) -> Result<ForwardResult, ForwardError> {
         let start = Instant::now();
 
+        // 提取模型名称用于日志记录
+        let model = body
+            .get("model")
+            .and_then(|v| v.as_str())
+            .unwrap_or("unknown");
+
         // 执行HTTP转发
         let result = self
             .forward_http(provider, endpoint, body, headers, adapter)
@@ -309,7 +316,7 @@ impl LayeredForwarder {
 
         match result {
             Ok(response) => {
-                // 记录成功
+                // 记录成功到熔断器
                 let _ = self
                     .router
                     .record_result(
@@ -321,6 +328,16 @@ impl LayeredForwarder {
                     )
                     .await;
 
+                // 【新增】记录成功到文件日志
+                let status_code = response.status().as_u16();
+                get_file_logger().log_success(
+                    app_type_str,
+                    status_code,
+                    &provider.name,
+                    latency,
+                    model,
+                );
+
                 log::debug!("[{}] Provider {} 成功，延迟 {}ms", app_type_str, provider.name, latency);
 
                 Ok(ForwardResult {
@@ -329,7 +346,7 @@ impl LayeredForwarder {
                 })
             }
             Err(error) => {
-                // 记录失败
+                // 记录失败到熔断器
                 let _ = self
                     .router
                     .record_result(
@@ -340,6 +357,20 @@ impl LayeredForwarder {
                         Some(error.to_string()),
                     )
                     .await;
+
+                // 【新增】记录失败到文件日志
+                let status_code = match &error {
+                    ProxyError::UpstreamError { status, .. } => *status,
+                    _ => 0,
+                };
+                get_file_logger().log_error(
+                    app_type_str,
+                    status_code,
+                    &provider.name,
+                    latency,
+                    model,
+                    &error.to_string(),
+                );
 
                 log::debug!(
                     "[{}] Provider {} 失败，延迟 {}ms: {}",

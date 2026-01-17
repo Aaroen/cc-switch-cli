@@ -3,7 +3,7 @@
 //! 在请求转发前，根据 Provider 配置替换请求中的模型名称
 
 use crate::provider::Provider;
-use serde_json::Value;
+use serde_json::{Map, Value};
 
 /// 模型映射配置
 pub struct ModelMapping {
@@ -12,12 +12,18 @@ pub struct ModelMapping {
     pub opus_model: Option<String>,
     pub default_model: Option<String>,
     pub reasoning_model: Option<String>,
+    pub codex_model_map: Option<Map<String, Value>>,
 }
 
 impl ModelMapping {
     /// 从 Provider 配置中提取模型映射
     pub fn from_provider(provider: &Provider) -> Self {
         let env = provider.settings_config.get("env");
+        let codex_model_map = provider
+            .settings_config
+            .get("model_mapping")
+            .and_then(|v| v.as_object())
+            .cloned();
 
         Self {
             haiku_model: env
@@ -45,6 +51,7 @@ impl ModelMapping {
                 .and_then(|v| v.as_str())
                 .filter(|s| !s.is_empty())
                 .map(String::from),
+            codex_model_map,
         }
     }
 
@@ -55,11 +62,19 @@ impl ModelMapping {
             || self.opus_model.is_some()
             || self.default_model.is_some()
             || self.reasoning_model.is_some()
+            || self.codex_model_map.is_some()
     }
 
     /// 根据原始模型名称获取映射后的模型
     pub fn map_model(&self, original_model: &str, has_thinking: bool) -> String {
         let model_lower = original_model.to_lowercase();
+
+        // 0. Codex 自定义模型映射（精准匹配）
+        if let Some(map) = &self.codex_model_map {
+            if let Some(mapped) = map.get(original_model).and_then(|v| v.as_str()) {
+                return mapped.to_string();
+            }
+        }
 
         // 1. thinking 模式优先使用推理模型
         if has_thinking {
@@ -152,6 +167,29 @@ mod tests {
                     "ANTHROPIC_DEFAULT_SONNET_MODEL": "sonnet-mapped",
                     "ANTHROPIC_DEFAULT_OPUS_MODEL": "opus-mapped",
                     "ANTHROPIC_REASONING_MODEL": "reasoning-model"
+                }
+            }),
+            website_url: None,
+            category: None,
+            created_at: None,
+            sort_index: None,
+            notes: None,
+            meta: None,
+            icon: None,
+            icon_color: None,
+            in_failover_queue: false,
+            weight: 1,
+        }
+    }
+
+    fn create_provider_with_codex_mapping() -> Provider {
+        Provider {
+            id: "test".to_string(),
+            name: "Test".to_string(),
+            settings_config: json!({
+                "model_mapping": {
+                    "gpt-5.2": "gpt-5.2-2cx",
+                    "gpt-5.2-codex": "gpt-5.2-codex-2cx"
                 }
             }),
             website_url: None,
@@ -282,6 +320,26 @@ mod tests {
         let (result, _, mapped) = apply_model_mapping(body, &provider);
         assert_eq!(result["model"], "sonnet-mapped");
         assert_eq!(mapped, Some("sonnet-mapped".to_string()));
+    }
+
+    #[test]
+    fn test_codex_model_mapping() {
+        let provider = create_provider_with_codex_mapping();
+        let body = json!({"model": "gpt-5.2"});
+        let (result, original, mapped) = apply_model_mapping(body, &provider);
+        assert_eq!(result["model"], "gpt-5.2-2cx");
+        assert_eq!(original, Some("gpt-5.2".to_string()));
+        assert_eq!(mapped, Some("gpt-5.2-2cx".to_string()));
+    }
+
+    #[test]
+    fn test_codex_model_mapping_no_match() {
+        let provider = create_provider_with_codex_mapping();
+        let body = json!({"model": "gpt-4o"});
+        let (result, original, mapped) = apply_model_mapping(body, &provider);
+        assert_eq!(result["model"], "gpt-4o");
+        assert_eq!(original, Some("gpt-4o".to_string()));
+        assert!(mapped.is_none());
     }
 
     #[test]

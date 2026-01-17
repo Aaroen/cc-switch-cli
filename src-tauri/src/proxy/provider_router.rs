@@ -1,11 +1,12 @@
 //! 供应商路由器模块
 //!
-//! 负责选择和管理代理目标供应商，实现智能故障转移
+//! 负责选择和管理代理目标供应商，实现智能故障转移和权重轮询
 
 use crate::database::Database;
 use crate::error::AppError;
 use crate::provider::Provider;
 use crate::proxy::circuit_breaker::{AllowResult, CircuitBreaker, CircuitBreakerConfig};
+use crate::proxy::load_balancer::FrequencyControlledRR;
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::RwLock;
@@ -16,6 +17,8 @@ pub struct ProviderRouter {
     db: Arc<Database>,
     /// 熔断器管理器 - key 格式: "app_type:provider_id"
     circuit_breakers: Arc<RwLock<HashMap<String, Arc<CircuitBreaker>>>>,
+    /// 负载均衡器 - key: app_type
+    load_balancers: Arc<RwLock<HashMap<String, FrequencyControlledRR>>>,
 }
 
 impl ProviderRouter {
@@ -24,13 +27,14 @@ impl ProviderRouter {
         Self {
             db,
             circuit_breakers: Arc::new(RwLock::new(HashMap::new())),
+            load_balancers: Arc::new(RwLock::new(HashMap::new())),
         }
     }
 
     /// 选择可用的供应商（支持故障转移和权重轮询）
     ///
     /// 返回按优先级排序的可用供应商列表：
-    /// - 权重轮询开启时：按权重选择供应商（权重越小频率越高）
+    /// - 权重轮询开启时：使用 FrequencyControlledRR 负载均衡器选择供应商
     /// - 故障转移开启时：完全按照故障转移队列顺序返回，忽略当前供应商设置
     /// - 都关闭时：仅返回当前供应商
     pub async fn select_providers(&self, app_type: &str) -> Result<Vec<Provider>, AppError> {
@@ -48,7 +52,7 @@ impl ProviderRouter {
         };
 
         if weight_round_robin_enabled {
-            // 权重轮询模式：获取所有启用的供应商，按权重排序
+            // 权重轮询模式：使用 FrequencyControlledRR 负载均衡器
             let all_providers = self.db.get_all_providers(app_type)?;
             let mut weighted_providers: Vec<Provider> = all_providers
                 .into_iter()
@@ -56,12 +60,56 @@ impl ProviderRouter {
                 .map(|(_, p)| p)
                 .collect();
 
+            total_providers = weighted_providers.len();
+
+            if total_providers == 0 {
+                log::warn!("[{app_type}] 权重轮询模式: 没有可用供应商（所有供应商权重为0）");
+                return Err(AppError::NoProvidersConfigured);
+            }
+
             // 按权重排序（权重小的优先，频率高）
             weighted_providers.sort_by_key(|p| p.weight);
 
-            total_providers = weighted_providers.len();
+            // 获取或创建负载均衡器
+            let selected_provider = {
+                let mut lbs = self.load_balancers.write().await;
+                let lb = lbs.entry(app_type.to_string()).or_insert_with(|| {
+                    log::info!("[{app_type}] 创建新的 FrequencyControlledRR 负载均衡器，供应商数量: {}", weighted_providers.len());
+                    FrequencyControlledRR::new(weighted_providers.clone())
+                });
 
-            for provider in weighted_providers {
+                // 检查供应商列表是否需要更新（供应商数量或权重变化）
+                let current_providers = lb.providers();
+                let needs_update = current_providers.len() != weighted_providers.len()
+                    || current_providers.iter().zip(weighted_providers.iter()).any(|(wp, p)| {
+                        wp.provider.id != p.id || wp.weight != p.weight
+                    });
+
+                if needs_update {
+                    log::info!("[{app_type}] 供应商配置已变化，重建负载均衡器");
+                    *lb = FrequencyControlledRR::new(weighted_providers.clone());
+                }
+
+                // 使用负载均衡器选择供应商
+                lb.select().cloned()
+            };
+
+            // 组装候选列表：选中者优先 + 其他供应商（用于同请求内故障转移）
+            let mut ordered_candidates: Vec<Provider> = Vec::new();
+            if let Some(provider) = selected_provider {
+                ordered_candidates.push(provider);
+            } else {
+                log::debug!("[{app_type}] 负载均衡器未选中供应商，使用权重排序列表");
+            }
+
+            for p in weighted_providers {
+                if ordered_candidates.first().map(|s| s.id.as_str()) == Some(p.id.as_str()) {
+                    continue;
+                }
+                ordered_candidates.push(p);
+            }
+
+            for provider in ordered_candidates {
                 let circuit_key = format!("{}:{}", app_type, provider.id);
                 let breaker = self.get_or_create_circuit_breaker(&circuit_key).await;
 
@@ -224,6 +272,23 @@ impl ProviderRouter {
         } else {
             None
         }
+    }
+
+    /// 重置指定应用的负载均衡器
+    ///
+    /// 当供应商配置变化时（添加/删除/修改权重），应调用此方法重置负载均衡器
+    pub async fn reset_load_balancer(&self, app_type: &str) {
+        let mut lbs = self.load_balancers.write().await;
+        if lbs.remove(app_type).is_some() {
+            log::info!("[{app_type}] 负载均衡器已重置");
+        }
+    }
+
+    /// 获取负载均衡器当前轮询计数
+    #[allow(dead_code)]
+    pub async fn get_load_balancer_round(&self, app_type: &str) -> Option<u32> {
+        let lbs = self.load_balancers.read().await;
+        lbs.get(app_type).map(|lb| lb.current_round())
     }
 
     /// 获取或创建熔断器
@@ -425,5 +490,134 @@ mod tests {
         let third = router.allow_provider_request("a", "claude").await;
         assert!(third.allowed);
         assert!(third.used_half_open_permit);
+    }
+
+    #[tokio::test]
+    async fn test_weight_round_robin_uses_load_balancer() {
+        let db = Arc::new(Database::memory().unwrap());
+
+        // 创建三个供应商，权重分别为 1, 2, 3
+        let mut provider_a =
+            Provider::with_id("a".to_string(), "Provider A".to_string(), json!({}), None);
+        provider_a.weight = 1; // 每轮都使用
+        let mut provider_b =
+            Provider::with_id("b".to_string(), "Provider B".to_string(), json!({}), None);
+        provider_b.weight = 2; // 每2轮使用一次
+        let mut provider_c =
+            Provider::with_id("c".to_string(), "Provider C".to_string(), json!({}), None);
+        provider_c.weight = 3; // 每3轮使用一次
+
+        db.save_provider("claude", &provider_a).unwrap();
+        db.save_provider("claude", &provider_b).unwrap();
+        db.save_provider("claude", &provider_c).unwrap();
+
+        // 启用权重轮询
+        let mut config = db.get_proxy_config_for_app("claude").await.unwrap();
+        config.weight_round_robin_enabled = true;
+        db.update_proxy_config_for_app(config).await.unwrap();
+
+        let router = ProviderRouter::new(db.clone());
+
+        // 连续调用 6 次，验证轮询行为
+        // 由于 weight=1 的 Provider A 每轮都会被选中，所以应该总是返回 A
+        // 但负载均衡器会按频率控制选择
+        let mut selected_ids = Vec::new();
+        for _ in 0..6 {
+            let providers = router.select_providers("claude").await.unwrap();
+            assert!(!providers.is_empty());
+            selected_ids.push(providers[0].id.clone());
+        }
+
+        // 验证负载均衡器计数器在增加
+        let round = router.get_load_balancer_round("claude").await;
+        assert!(round.is_some());
+        assert_eq!(round.unwrap(), 6);
+
+        // 验证 Provider A (weight=1) 被选中的次数最多
+        let a_count = selected_ids.iter().filter(|id| *id == "a").count();
+        assert!(a_count >= 1, "Provider A (weight=1) 应该被选中至少1次");
+    }
+
+    #[tokio::test]
+    async fn test_weight_round_robin_fallback_on_circuit_open() {
+        let db = Arc::new(Database::memory().unwrap());
+
+        // 配置熔断器：1 次失败即熔断
+        db.update_circuit_breaker_config(&CircuitBreakerConfig {
+            failure_threshold: 1,
+            timeout_seconds: 60, // 60秒超时，确保测试期间不会自动恢复
+            ..Default::default()
+        })
+        .await
+        .unwrap();
+
+        // 创建两个供应商
+        let mut provider_a =
+            Provider::with_id("a".to_string(), "Provider A".to_string(), json!({}), None);
+        provider_a.weight = 1;
+        let mut provider_b =
+            Provider::with_id("b".to_string(), "Provider B".to_string(), json!({}), None);
+        provider_b.weight = 2;
+
+        db.save_provider("claude", &provider_a).unwrap();
+        db.save_provider("claude", &provider_b).unwrap();
+
+        // 启用权重轮询
+        let mut config = db.get_proxy_config_for_app("claude").await.unwrap();
+        config.weight_round_robin_enabled = true;
+        db.update_proxy_config_for_app(config).await.unwrap();
+
+        let router = ProviderRouter::new(db.clone());
+
+        // 触发 Provider A 熔断
+        router
+            .record_result("a", "claude", false, false, Some("fail".to_string()))
+            .await
+            .unwrap();
+
+        // 选择供应商，应该回退到 Provider B
+        let providers = router.select_providers("claude").await.unwrap();
+        assert!(!providers.is_empty());
+        // 由于 A 被熔断，应该返回 B
+        assert_eq!(providers[0].id, "b");
+    }
+
+    #[tokio::test]
+    async fn test_reset_load_balancer() {
+        let db = Arc::new(Database::memory().unwrap());
+
+        let mut provider_a =
+            Provider::with_id("a".to_string(), "Provider A".to_string(), json!({}), None);
+        provider_a.weight = 1;
+
+        db.save_provider("claude", &provider_a).unwrap();
+
+        // 启用权重轮询
+        let mut config = db.get_proxy_config_for_app("claude").await.unwrap();
+        config.weight_round_robin_enabled = true;
+        db.update_proxy_config_for_app(config).await.unwrap();
+
+        let router = ProviderRouter::new(db.clone());
+
+        // 调用几次以增加计数器
+        for _ in 0..5 {
+            let _ = router.select_providers("claude").await;
+        }
+
+        // 验证计数器
+        let round = router.get_load_balancer_round("claude").await;
+        assert_eq!(round, Some(5));
+
+        // 重置负载均衡器
+        router.reset_load_balancer("claude").await;
+
+        // 验证计数器已重置（负载均衡器被移除）
+        let round_after_reset = router.get_load_balancer_round("claude").await;
+        assert_eq!(round_after_reset, None);
+
+        // 再次调用会创建新的负载均衡器
+        let _ = router.select_providers("claude").await;
+        let round_new = router.get_load_balancer_round("claude").await;
+        assert_eq!(round_new, Some(1));
     }
 }

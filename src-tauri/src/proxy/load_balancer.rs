@@ -49,8 +49,9 @@ impl FrequencyControlledRR {
     /// 算法逻辑：
     /// 1. global_round递增
     /// 2. 找到所有"到轮次"的Provider (global_round % weight == 0)
-    /// 3. 优先选择weight最小的（频率最高的）
-    /// 4. 如果没有到轮次的，回退到weight=1的Provider
+    /// 3. 优先选择weight最大的（低频优先，确保不会被weight=1长期压制）
+    /// 4. 当多个Provider的weight相同且为最大值时，按轮次在同权重中轮转
+    /// 5. 如果没有到轮次的，回退到weight=1的Provider
     ///
     /// 时间复杂度: O(n)
     pub fn select(&mut self) -> Option<&Provider> {
@@ -62,16 +63,29 @@ impl FrequencyControlledRR {
         self.global_round += 1;
 
         // 找到所有"到轮次"的Provider
-        let mut eligible: Vec<&WeightedProvider> = self
+        let eligible: Vec<&WeightedProvider> = self
             .providers
             .iter()
             .filter(|p| p.weight > 0 && self.global_round % p.weight == 0)
             .collect();
 
         if !eligible.is_empty() {
-            // 有到轮次的，优先选择weight最小的（频率最高的优先）
-            eligible.sort_by_key(|p| p.weight);
-            return Some(&eligible[0].provider);
+            // 有到轮次的，优先选择weight最大的（低频优先）
+            let max_weight = eligible
+                .iter()
+                .map(|p| p.weight)
+                .max()
+                .unwrap_or(1);
+
+            // 同权重轮转（避免同权重供应商长期被固定顺序压制）
+            let same_weight: Vec<&WeightedProvider> = eligible
+                .into_iter()
+                .filter(|p| p.weight == max_weight)
+                .collect();
+
+            let round_slot = (self.global_round / max_weight).max(1);
+            let index = ((round_slot - 1) as usize) % same_weight.len();
+            return Some(&same_weight[index].provider);
         }
 
         // 没有到轮次的，回退到weight=1的Provider（如果有）
@@ -167,22 +181,22 @@ mod tests {
         assert_eq!(lb.select().unwrap().id, "A");
         assert_eq!(lb.current_round(), 1);
 
-        // Round 2: A(2%1=0✓), B(2%2=0✓), C(2%3=2) -> 选A (weight最小)
-        assert_eq!(lb.select().unwrap().id, "A");
+        // Round 2: A(2%1=0✓), B(2%2=0✓), C(2%3=2) -> 选B (weight最大)
+        assert_eq!(lb.select().unwrap().id, "B");
         assert_eq!(lb.current_round(), 2);
 
-        // Round 3: A(3%1=0✓), B(3%2=1), C(3%3=0✓) -> 选A (weight最小)
-        assert_eq!(lb.select().unwrap().id, "A");
+        // Round 3: A(3%1=0✓), B(3%2=1), C(3%3=0✓) -> 选C (weight最大)
+        assert_eq!(lb.select().unwrap().id, "C");
         assert_eq!(lb.current_round(), 3);
 
-        // Round 4: A(4%1=0✓), B(4%2=0✓), C(4%3=1) -> 选A
-        assert_eq!(lb.select().unwrap().id, "A");
+        // Round 4: A(4%1=0✓), B(4%2=0✓), C(4%3=1) -> 选B
+        assert_eq!(lb.select().unwrap().id, "B");
 
         // Round 5: A(5%1=0✓), B(5%2=1), C(5%3=2) -> 选A
         assert_eq!(lb.select().unwrap().id, "A");
 
-        // Round 6: A(6%1=0✓), B(6%2=0✓), C(6%3=0✓) -> 选A (weight最小)
-        assert_eq!(lb.select().unwrap().id, "A");
+        // Round 6: A(6%1=0✓), B(6%2=0✓), C(6%3=0✓) -> 选C (weight最大)
+        assert_eq!(lb.select().unwrap().id, "C");
     }
 
     #[test]
@@ -270,9 +284,9 @@ mod tests {
     fn test_frequency_distribution() {
         // 验证实际频率分布
         let providers = vec![
-            create_weighted_provider("Fast", 1),    // 100%频率
-            create_weighted_provider("Medium", 2),  // 50%频率
-            create_weighted_provider("Slow", 5),    // 20%频率
+            create_weighted_provider("Fast", 1),    // 高频
+            create_weighted_provider("Medium", 2),  // 中频
+            create_weighted_provider("Slow", 5),    // 低频
         ];
 
         let mut lb = FrequencyControlledRR {
@@ -289,13 +303,34 @@ mod tests {
             }
         }
 
-        // Fast应该被选中10次（每轮都用）
-        assert_eq!(counts.get("Fast"), Some(&10));
+        // 期望分布：Fast=4, Medium=4, Slow=2（Round 5/10 由 Slow 选中）
+        assert_eq!(counts.get("Fast"), Some(&4));
+        assert_eq!(counts.get("Medium"), Some(&4));
+        assert_eq!(counts.get("Slow"), Some(&2));
+    }
 
-        // Medium理论上应该被选中5次，但因为优先级问题实际会少
-        // Slow理论上应该被选中2次，但因为优先级问题实际可能为0
+    #[test]
+    fn test_frequency_controlled_rr_tie_breaker() {
+        let providers = vec![
+            create_weighted_provider("A", 10),
+            create_weighted_provider("B", 10),
+        ];
 
-        // 验证Fast占绝对优势
-        assert!(counts.get("Fast").unwrap() >= counts.get("Medium").unwrap_or(&0));
+        let mut lb = FrequencyControlledRR {
+            providers,
+            global_round: 0,
+        };
+
+        let mut picks = Vec::new();
+        for _ in 0..40 {
+            let p_id = lb.select().map(|p| p.id.clone());
+            let round = lb.current_round();
+            if round % 10 == 0 {
+                assert!(p_id.is_some());
+                picks.push(p_id.unwrap());
+            }
+        }
+
+        assert_eq!(picks, vec!["A", "B", "A", "B"]);
     }
 }

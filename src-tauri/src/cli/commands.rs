@@ -105,7 +105,7 @@ pub async fn provider_add(
                 }
                 AppType::Codex => {
                     config["env"] = json!({
-                        "CODEX_API_KEY": api_key
+                        "OPENAI_API_KEY": api_key
                     });
                 }
                 AppType::Gemini => {
@@ -117,16 +117,28 @@ pub async fn provider_add(
         }
 
         if let Some(base_url) = url {
-            if let Some(env) = config.get_mut("env") {
-                match app_type {
-                    AppType::Claude => {
-                        env["ANTHROPIC_BASE_URL"] = json!(base_url);
+            match app_type {
+                AppType::Claude => {
+                    let env = config.get_mut("env").and_then(|v| v.as_object_mut());
+                    if let Some(env) = env {
+                        env.insert("ANTHROPIC_BASE_URL".to_string(), json!(base_url));
+                    } else {
+                        config["env"] = json!({
+                            "ANTHROPIC_BASE_URL": base_url
+                        });
                     }
-                    AppType::Codex => {
-                        env["CODEX_BASE_URL"] = json!(base_url);
-                    }
-                    AppType::Gemini => {
-                        env["GEMINI_API_BASE_URL"] = json!(base_url);
+                }
+                AppType::Codex => {
+                    config["base_url"] = json!(base_url);
+                }
+                AppType::Gemini => {
+                    let env = config.get_mut("env").and_then(|v| v.as_object_mut());
+                    if let Some(env) = env {
+                        env.insert("GEMINI_API_BASE_URL".to_string(), json!(base_url));
+                    } else {
+                        config["env"] = json!({
+                            "GEMINI_API_BASE_URL": base_url
+                        });
                     }
                 }
             }
@@ -235,6 +247,84 @@ pub async fn provider_set_weight(app: &str, id: &str, weight: u32) -> Result<(),
     } else {
         output::info(&format!("频率: 每{}轮使用一次", weight));
     }
+
+    Ok(())
+}
+
+pub async fn provider_set_model_mapping(
+    app: &str,
+    id: &str,
+    from: &str,
+    to: &str,
+) -> Result<(), String> {
+    let db = get_database()?;
+    let app_type = parse_app_type(app)?;
+
+    let mut provider = db
+        .get_provider_by_id(id, app_type.as_str())
+        .map_err(|e| e.to_string())?
+        .ok_or_else(|| format!("供应商不存在: {}", id))?;
+
+    let mapping = provider
+        .settings_config
+        .get_mut("model_mapping")
+        .and_then(|v| v.as_object_mut())
+        .map(|m| {
+            m.insert(from.to_string(), serde_json::Value::String(to.to_string()));
+            m
+        });
+
+    if mapping.is_none() {
+        provider.settings_config["model_mapping"] = serde_json::json!({
+            from: to
+        });
+    }
+
+    db.save_provider(app_type.as_str(), &provider)
+        .map_err(|e| e.to_string())?;
+
+    output::success(&format!(
+        "供应商 '{}' 模型映射已设置: {} → {}",
+        provider.name, from, to
+    ));
+
+    Ok(())
+}
+
+pub async fn provider_set_env(
+    app: &str,
+    id: &str,
+    key: &str,
+    value: &str,
+) -> Result<(), String> {
+    let db = get_database()?;
+    let app_type = parse_app_type(app)?;
+
+    let mut provider = db
+        .get_provider_by_id(id, app_type.as_str())
+        .map_err(|e| e.to_string())?
+        .ok_or_else(|| format!("供应商不存在: {}", id))?;
+
+    let env = provider
+        .settings_config
+        .get_mut("env")
+        .and_then(|v| v.as_object_mut());
+
+    if let Some(env) = env {
+        env.insert(key.to_string(), serde_json::Value::String(value.to_string()));
+    } else {
+        provider.settings_config["env"] = serde_json::json!({
+            key: value
+        });
+    }
+
+    db.save_provider(app_type.as_str(), &provider)
+        .map_err(|e| e.to_string())?;
+
+    output::success(&format!(
+        "供应商 '{}' env 已设置: {} = {}",
+        provider.name, key, value
+    ));
 
     Ok(())
 }
