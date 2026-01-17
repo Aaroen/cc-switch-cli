@@ -6,7 +6,6 @@ use super::{
     body_filter::filter_private_params_with_whitelist,
     error::*,
     failover_switch::FailoverSwitchManager,
-    file_logger::get_file_logger,  // 【新增】文件日志器
     provider_router::ProviderRouter,
     providers::{get_adapter, ProviderAdapter, ProviderType},
     thinking_rectifier::{rectify_anthropic_request, should_rectify_thinking_signature},
@@ -183,12 +182,17 @@ impl RequestForwarder {
         let bypass_circuit_breaker = providers.len() == 1;
 
         // 日志：开始轮询
-        log::info!(
-            "[{}] ╔═══ 请求转发开始 ═══",
-            app_type_str
-        );
+        log::info!("[{}] ╔═══ 请求转发开始 ═══", app_type_str);
         log::info!("[{}] ║ 可用供应商: {} 个", app_type_str, providers.len());
-        log::info!("[{}] ║ 故障转移: {}", app_type_str, if bypass_circuit_breaker { "关闭" } else { "开启" });
+        log::info!(
+            "[{}] ║ 故障转移: {}",
+            app_type_str,
+            if bypass_circuit_breaker {
+                "关闭"
+            } else {
+                "开启"
+            }
+        );
 
         // 依次尝试每个供应商
         for provider in providers.iter() {
@@ -702,7 +706,10 @@ impl RequestForwarder {
 
         // 调试日志：打印工具定义以诊断 input_schema 问题
         if let Some(tools) = filtered_body.get("tools") {
-            log::info!("[Forwarder] 发送到上游的工具定义: {}", serde_json::to_string_pretty(tools).unwrap_or_default());
+            log::info!(
+                "[Forwarder] 发送到上游的工具定义: {}",
+                serde_json::to_string_pretty(tools).unwrap_or_default()
+            );
         }
 
         // 每次请求时获取最新的全局 HTTP 客户端（支持热更新代理配置）
@@ -802,33 +809,7 @@ impl RequestForwarder {
             let status_code = status.as_u16();
             let body_text = response.text().await.ok();
 
-            if let Some(body_text_str) = body_text.as_ref() {
-                if body_text_str.contains("invalid_claude_config") {
-                    let body_keys = filtered_body
-                        .as_object()
-                        .map(|obj| {
-                            let mut keys: Vec<&str> = obj.keys().map(|k| k.as_str()).collect();
-                            keys.sort_unstable();
-                            keys.join(",")
-                        })
-                        .unwrap_or_else(|| "<non-object>".to_string());
-                    let model = filtered_body
-                        .get("model")
-                        .and_then(|v| v.as_str())
-                        .unwrap_or("unknown");
-
-                    let debug_line = format!(
-                        "[Forwarder] invalid_claude_config: adapter={}, url={}, endpoint={}, model={}, body_keys={}",
-                        adapter.name(),
-                        url,
-                        endpoint,
-                        model,
-                        body_keys
-                    );
-                    get_file_logger().write(&debug_line);
-                    log::error!("{}", debug_line);
-                }
-            }
+            // NOTE: 去除调试期的冗余日志（request trace / invalid_claude_config 额外打印）
 
             Err(ProxyError::UpstreamError {
                 status: status_code,

@@ -9,7 +9,6 @@
 
 use super::{
     error_mapper::{get_error_message, map_proxy_error_to_status},
-    file_logger::get_file_logger,
     handler_config::{
         CLAUDE_PARSER_CONFIG, CODEX_PARSER_CONFIG, GEMINI_PARSER_CONFIG, OPENAI_PARSER_CONFIG,
     },
@@ -280,20 +279,6 @@ pub async fn handle_chat_completions(
         .and_then(|v| v.as_bool())
         .unwrap_or(false);
 
-    let body_keys = body
-        .as_object()
-        .map(|obj| {
-            let mut keys: Vec<&str> = obj.keys().map(|k| k.as_str()).collect();
-            keys.sort_unstable();
-            keys.join(",")
-        })
-        .unwrap_or_else(|| "<non-object>".to_string());
-    let model = body.get("model").and_then(|v| v.as_str()).unwrap_or("unknown");
-    get_file_logger().write(&format!(
-        "[Codex] request trace: endpoint=/v1/chat/completions, provider={}, model={}, body_keys={}",
-        ctx.provider.name, model, body_keys
-    ));
-
     let forwarder = ctx.create_forwarder(&state);
     let result = match forwarder
         .forward_with_retry(
@@ -334,20 +319,6 @@ pub async fn handle_responses(
         .get("stream")
         .and_then(|v| v.as_bool())
         .unwrap_or(false);
-
-    let body_keys = body
-        .as_object()
-        .map(|obj| {
-            let mut keys: Vec<&str> = obj.keys().map(|k| k.as_str()).collect();
-            keys.sort_unstable();
-            keys.join(",")
-        })
-        .unwrap_or_else(|| "<non-object>".to_string());
-    let model = body.get("model").and_then(|v| v.as_str()).unwrap_or("unknown");
-    get_file_logger().write(&format!(
-        "[Codex] request trace: endpoint=/v1/responses, provider={}, model={}, body_keys={}",
-        ctx.provider.name, model, body_keys
-    ));
 
     let forwarder = ctx.create_forwarder(&state);
     let result = match forwarder
