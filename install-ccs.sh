@@ -45,6 +45,9 @@ if [ "$(id -u)" -ne 0 ]; then
     fi
 fi
 
+# 依赖安装日志（系统依赖阶段尚未初始化 ~/.cc-switch/logs，因此先落到 /tmp）
+DEPS_INSTALL_LOG="${DEPS_INSTALL_LOG:-/tmp/cc-switch-deps-install.log}"
+
 # 错误处理陷阱
 error_handler() {
     local line_no=$1
@@ -130,8 +133,19 @@ install_system_deps() {
 
     case $pkg_manager in
         apt)
-            DEBIAN_FRONTEND=noninteractive $SUDO apt-get update -qq > /dev/null 2>&1 || true
-            DEBIAN_FRONTEND=noninteractive $SUDO apt-get install -y --no-install-recommends $deps > /dev/null 2>&1
+            DEBIAN_FRONTEND=noninteractive $SUDO apt-get update -qq >> "$DEPS_INSTALL_LOG" 2>&1 || true
+
+            set +e
+            DEBIAN_FRONTEND=noninteractive $SUDO apt-get install -y --no-install-recommends $deps >> "$DEPS_INSTALL_LOG" 2>&1
+            local rc=$?
+            set -e
+
+            if [ $rc -ne 0 ]; then
+                echo -e "${RED}✗ 系统依赖安装失败，原因请查看：$DEPS_INSTALL_LOG${NC}" >&2
+                echo -e "${YELLOW}最近日志（末 80 行）：${NC}" >&2
+                tail -n 80 "$DEPS_INSTALL_LOG" >&2 || true
+                return $rc
+            fi
             ;;
         dnf)
             $SUDO dnf install -y $deps > /dev/null 2>&1
@@ -397,9 +411,21 @@ fi
 # Tauri依赖
 case $PKG_MANAGER in
     apt)
-        # 检查webkit2gtk
-        if ! dpkg -l | grep -q libwebkit2gtk-4.0-dev; then
-            MISSING_DEPS="$MISSING_DEPS libwebkit2gtk-4.0-dev libssl-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev"
+        # Ubuntu 22.04: libwebkit2gtk-4.0-dev; Ubuntu 24.04/Debian 12+: libwebkit2gtk-4.1-dev
+        WEBKIT_PKG="libwebkit2gtk-4.0-dev"
+        if apt-cache show libwebkit2gtk-4.1-dev > /dev/null 2>&1; then
+            WEBKIT_PKG="libwebkit2gtk-4.1-dev"
+        fi
+
+        # 不同发行版可能使用 libayatana-appindicator3-dev 或 libappindicator3-dev
+        APPIND_PKG="libayatana-appindicator3-dev"
+        if ! apt-cache show "$APPIND_PKG" > /dev/null 2>&1; then
+            APPIND_PKG="libappindicator3-dev"
+        fi
+
+        # 检查 webkit2gtk（按实际可用包名）
+        if ! dpkg -s "$WEBKIT_PKG" > /dev/null 2>&1; then
+            MISSING_DEPS="$MISSING_DEPS $WEBKIT_PKG libssl-dev libgtk-3-dev $APPIND_PKG librsvg2-dev"
         fi
         ;;
     dnf|yum)
