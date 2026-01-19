@@ -29,7 +29,8 @@
 #
 
 set -Eeuo pipefail
-IFS=$'\n\t'
+# 保持默认分词行为（包含空格）；脚本中有大量以空格分隔的依赖列表
+IFS=$' \n\t'
 
 # 非交互/非 TTY 环境下避免清屏、进度条刷屏等问题
 IS_TTY=0
@@ -664,6 +665,7 @@ fi
 
 # 检查 pnpm
 ensure_pnpm() {
+    local PNPM_SETUP_LOG="$LOG_DIR/pnpm_setup.log"
     if command -v pnpm >/dev/null 2>&1; then
         return 0
     fi
@@ -678,7 +680,7 @@ ensure_pnpm() {
             corepack enable
             echo "== corepack prepare pnpm@latest --activate =="
             corepack prepare pnpm@latest --activate
-        } >> "$LOG_DIR/pnpm_install.log" 2>&1 || true
+        } >> "$PNPM_SETUP_LOG" 2>&1 || true
     fi
 
     # 回退：使用 npm 全局安装
@@ -686,7 +688,7 @@ ensure_pnpm() {
         {
             echo "== npm install -g pnpm =="
             npm install -g pnpm
-        } >> "$LOG_DIR/pnpm_install.log" 2>&1 || true
+        } >> "$PNPM_SETUP_LOG" 2>&1 || true
     fi
 
     # 回退：系统安装 npm（某些 Ubuntu 环境可能只有 node 没有 npm）
@@ -699,7 +701,7 @@ ensure_pnpm() {
                     DEBIAN_FRONTEND=noninteractive $SUDO apt-get install -y --no-install-recommends npm
                     echo "== npm install -g pnpm =="
                     npm install -g pnpm
-                } >> "$LOG_DIR/pnpm_install.log" 2>&1 || true
+                } >> "$PNPM_SETUP_LOG" 2>&1 || true
                 ;;
         esac
     fi
@@ -709,10 +711,15 @@ ensure_pnpm() {
         return 0
     fi
 
+    if command -v corepack >/dev/null 2>&1; then
+        echo -e "${YELLOW}⚠ pnpm 命令未出现在 PATH，将尝试使用 corepack pnpm 执行后续步骤${NC}"
+        return 0
+    fi
+
     echo -e "${YELLOW}⚠ pnpm 未能自动安装/启用，将尝试使用 npm 安装依赖（如可用）${NC}"
     if ! command -v npm >/dev/null 2>&1; then
         echo -e "${RED}✗ 未找到 npm，无法继续安装前端依赖${NC}"
-        echo "查看日志: cat $LOG_DIR/pnpm_install.log"
+        echo "查看日志: cat $PNPM_SETUP_LOG"
         echo ""
         echo -e "${YELLOW}建议（任选其一）：${NC}"
         echo "  1. 安装 npm: sudo apt-get install -y npm"
@@ -724,6 +731,14 @@ ensure_pnpm() {
 
 ensure_pnpm
 
+# 选择 pnpm 执行器：优先 pnpm，其次 corepack pnpm
+PNPM_RUN=()
+if command -v pnpm >/dev/null 2>&1; then
+    PNPM_RUN=(pnpm)
+elif command -v corepack >/dev/null 2>&1; then
+    PNPM_RUN=(corepack pnpm)
+fi
+
 # ============================================================================
 # 步骤 4: 安装前端依赖
 # ============================================================================
@@ -731,11 +746,13 @@ CURRENT_STEP=4
 step_running $CURRENT_STEP $TOTAL_STEPS "安装前端依赖"
 
 cd "$SCRIPT_DIR"
-INSTALL_CMD="pnpm install"
+FRONTEND_INSTALL_LOG="$LOG_DIR/frontend_install.log"
 
-# 如果pnpm不可用，回退到npm
-if ! command -v pnpm &> /dev/null; then
-    INSTALL_CMD="npm install"
+INSTALL_CMD=()
+if [ ${#PNPM_RUN[@]} -gt 0 ]; then
+    INSTALL_CMD=("${PNPM_RUN[@]}" install)
+else
+    INSTALL_CMD=(npm install)
 fi
 
 if [ ! -d "node_modules" ] || [ "package.json" -nt "node_modules" ]; then
@@ -752,16 +769,18 @@ if [ ! -d "node_modules" ] || [ "package.json" -nt "node_modules" ]; then
             rm -rf node_modules/.cache 2>/dev/null || true
         fi
 
-        if [[ "$INSTALL_CMD" == npm* ]] && ! command -v npm >/dev/null 2>&1; then
+        if [ "${INSTALL_CMD[0]}" = "npm" ] && ! command -v npm >/dev/null 2>&1; then
             step_error $CURRENT_STEP $TOTAL_STEPS "前端依赖安装失败"
             echo ""
-            echo -e "${RED}未找到 npm 命令，但当前回退安装命令为: ${INSTALL_CMD}${NC}"
+            echo -e "${RED}未找到 npm 命令，无法执行依赖安装${NC}"
             echo -e "${YELLOW}请先安装 npm 或启用 corepack/pnpm 后重试${NC}"
-            echo "查看日志: cat $LOG_DIR/pnpm_install.log"
+            echo "  - 安装 npm: sudo apt-get install -y npm"
+            echo "  - 或启用 pnpm: corepack prepare pnpm@latest --activate"
+            echo "查看日志: cat $LOG_DIR/pnpm_setup.log"
             exit 1
         fi
 
-        if $INSTALL_CMD > "$LOG_DIR/pnpm_install.log" 2>&1; then
+        if "${INSTALL_CMD[@]}" > "$FRONTEND_INSTALL_LOG" 2>&1; then
             SUCCESS=true
             step_done $CURRENT_STEP $TOTAL_STEPS "安装前端依赖"
         else
@@ -773,12 +792,12 @@ if [ ! -d "node_modules" ] || [ "package.json" -nt "node_modules" ]; then
         step_error $CURRENT_STEP $TOTAL_STEPS "前端依赖安装失败"
         echo ""
         echo -e "${RED}前端依赖安装失败，已尝试 ${MAX_RETRIES} 次重试${NC}"
-        echo "查看日志: cat $LOG_DIR/pnpm_install.log"
+        echo "查看日志: cat $FRONTEND_INSTALL_LOG"
         echo ""
         echo -e "${YELLOW}建议尝试:${NC}"
         echo "  1. 检查网络连接"
         echo "  2. 清理缓存: rm -rf node_modules package-lock.json pnpm-lock.yaml"
-        echo "  3. 手动安装: cd $SCRIPT_DIR && (pnpm install || npm install)"
+        echo "  3. 手动安装: cd $SCRIPT_DIR && (pnpm install || corepack pnpm install || npm install)"
         echo "  4. 如缺少 npm: sudo apt-get install -y npm"
         echo "  5. 如需使用 pnpm: corepack enable && corepack prepare pnpm@latest --activate"
         exit 1
@@ -851,7 +870,15 @@ if [ "$NEED_REBUILD" = true ]; then
     # 只生成 deb 和 rpm 包
     BUILD_START=$(date +%s)
 
-    if pnpm tauri build --bundles deb,rpm > "$LOG_DIR/tauri_build.log" 2>&1; then
+    if [ ${#PNPM_RUN[@]} -eq 0 ]; then
+        step_error $CURRENT_STEP $TOTAL_STEPS "编译失败"
+        echo -e "${RED}未找到 pnpm/corepack，无法执行 tauri build${NC}"
+        echo -e "${YELLOW}请先安装 pnpm 或启用 corepack:${NC}"
+        echo "  corepack prepare pnpm@latest --activate"
+        exit 1
+    fi
+
+    if "${PNPM_RUN[@]}" tauri build --bundles deb,rpm > "$LOG_DIR/tauri_build.log" 2>&1; then
         BUILD_SUCCESS=true
     else
         BUILD_SUCCESS=false
@@ -894,7 +921,7 @@ if [ "$NEED_REBUILD" = true ]; then
         echo -e "${YELLOW}建议尝试:${NC}"
         echo "  1. 检查系统依赖是否完整安装"
         echo "  2. 清理构建缓存: rm -rf src-tauri/target"
-        echo "  3. 手动编译: cd $SCRIPT_DIR && pnpm tauri build"
+        echo "  3. 手动编译: cd $SCRIPT_DIR && (pnpm tauri build || corepack pnpm tauri build)"
         exit 1
     fi
 else
