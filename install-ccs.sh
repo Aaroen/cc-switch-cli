@@ -673,6 +673,11 @@ ensure_pnpm() {
     echo ""
     echo -e "${YELLOW}pnpm 未安装，正在安装/启用...${NC}"
 
+    # 为了兼容 tauri.conf.json 中的 beforeBuildCommand（直接调用 pnpm），
+    # 在 pnpm 不在 PATH 时创建一个本地 shim，让子进程也能找到 pnpm。
+    local PNPM_SHIM_DIR="$SCRIPT_DIR/.ccs-shims"
+    mkdir -p "$PNPM_SHIM_DIR" 2>/dev/null || true
+
     # 优先使用 corepack（Node 16+ 自带），避免系统缺少 npm 时失败
     if command -v corepack >/dev/null 2>&1; then
         {
@@ -681,6 +686,16 @@ ensure_pnpm() {
             echo "== corepack prepare pnpm@latest --activate =="
             corepack prepare pnpm@latest --activate
         } >> "$PNPM_SETUP_LOG" 2>&1 || true
+
+        # 如果 pnpm 仍不在 PATH，则创建 shim：pnpm -> corepack pnpm
+        if ! command -v pnpm >/dev/null 2>&1; then
+            cat > "$PNPM_SHIM_DIR/pnpm" <<'EOF'
+#!/bin/sh
+exec corepack pnpm "$@"
+EOF
+            chmod +x "$PNPM_SHIM_DIR/pnpm" 2>/dev/null || true
+            export PATH="$PNPM_SHIM_DIR:$PATH"
+        fi
     fi
 
     # 回退：使用 npm 全局安装
@@ -713,6 +728,10 @@ ensure_pnpm() {
 
     if command -v corepack >/dev/null 2>&1; then
         echo -e "${YELLOW}⚠ pnpm 命令未出现在 PATH，将尝试使用 corepack pnpm 执行后续步骤${NC}"
+        if [ -x "$PNPM_SHIM_DIR/pnpm" ]; then
+            echo -e "${YELLOW}提示：已创建本地 shim: $PNPM_SHIM_DIR/pnpm（供 tauri beforeBuildCommand 使用）${NC}"
+            export PATH="$PNPM_SHIM_DIR:$PATH"
+        fi
         return 0
     fi
 
