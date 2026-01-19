@@ -3,14 +3,10 @@
 //! 实现所有子命令的具体执行逻辑
 
 use super::output;
-use crate::{
-    app_config::AppType,
-    database::Database,
-    provider::Provider,
-};
+use crate::{app_config::AppType, database::Database, provider::Provider};
+use serde_json::json;
 use std::str::FromStr;
 use std::sync::Arc;
-use serde_json::json;
 
 // ============================================================================
 // Provider 命令实现
@@ -40,12 +36,31 @@ pub async fn provider_list(app: &str, verbose: bool) -> Result<(), String> {
             let is_current = current_id.as_ref().map(|c| c == &id).unwrap_or(false);
             let marker = if is_current { " [当前]" } else { "" };
 
-            println!("\n{} {}{}",output::status_indicator(true), provider.name, marker);
+            println!(
+                "\n{} {}{}",
+                output::status_indicator(true),
+                provider.name,
+                marker
+            );
             output::key_value(vec![
                 ("ID", id.clone()),
-                ("权重", format!("{} (频率: 1/{})", provider.weight, provider.weight)),
-                ("类别", provider.category.unwrap_or_else(|| "未分类".to_string())),
-                ("故障转移", if provider.in_failover_queue { "是" } else { "否" }.to_string()),
+                (
+                    "权重",
+                    format!("{} (频率: 1/{})", provider.weight, provider.weight),
+                ),
+                (
+                    "类别",
+                    provider.category.unwrap_or_else(|| "未分类".to_string()),
+                ),
+                (
+                    "故障转移",
+                    if provider.in_failover_queue {
+                        "是"
+                    } else {
+                        "否"
+                    }
+                    .to_string(),
+                ),
                 ("创建时间", format_timestamp(provider.created_at)),
             ]);
 
@@ -88,10 +103,9 @@ pub async fn provider_add(
     // 从文件或参数构建配置
     let settings_config = if let Some(file_path) = file {
         // 从文件读取配置
-        let content = std::fs::read_to_string(&file_path)
-            .map_err(|e| format!("读取配置文件失败: {}", e))?;
-        serde_json::from_str(&content)
-            .map_err(|e| format!("解析配置文件失败: {}", e))?
+        let content =
+            std::fs::read_to_string(&file_path).map_err(|e| format!("读取配置文件失败: {}", e))?;
+        serde_json::from_str(&content).map_err(|e| format!("解析配置文件失败: {}", e))?
     } else {
         // 从参数构建配置
         let mut config = json!({});
@@ -291,12 +305,7 @@ pub async fn provider_set_model_mapping(
     Ok(())
 }
 
-pub async fn provider_set_env(
-    app: &str,
-    id: &str,
-    key: &str,
-    value: &str,
-) -> Result<(), String> {
+pub async fn provider_set_env(app: &str, id: &str, key: &str, value: &str) -> Result<(), String> {
     let db = get_database()?;
     let app_type = parse_app_type(app)?;
 
@@ -311,7 +320,10 @@ pub async fn provider_set_env(
         .and_then(|v| v.as_object_mut());
 
     if let Some(env) = env {
-        env.insert(key.to_string(), serde_json::Value::String(value.to_string()));
+        env.insert(
+            key.to_string(),
+            serde_json::Value::String(value.to_string()),
+        );
     } else {
         provider.settings_config["env"] = serde_json::json!({
             key: value
@@ -343,9 +355,23 @@ pub async fn provider_show(app: &str, id: &str) -> Result<(), String> {
     output::key_value(vec![
         ("ID", provider.id.clone()),
         ("名称", provider.name.clone()),
-        ("权重", format!("{} (频率: 1/{})", provider.weight, provider.weight)),
-        ("类别", provider.category.unwrap_or_else(|| "未分类".to_string())),
-        ("故障转移", if provider.in_failover_queue { "是" } else { "否" }.to_string()),
+        (
+            "权重",
+            format!("{} (频率: 1/{})", provider.weight, provider.weight),
+        ),
+        (
+            "类别",
+            provider.category.unwrap_or_else(|| "未分类".to_string()),
+        ),
+        (
+            "故障转移",
+            if provider.in_failover_queue {
+                "是"
+            } else {
+                "否"
+            }
+            .to_string(),
+        ),
         ("创建时间", format_timestamp(provider.created_at)),
     ]);
 
@@ -390,10 +416,25 @@ pub async fn config_show(app: Option<String>) -> Result<(), String> {
             if let Ok(global_config) = db.get_global_proxy_config().await {
                 println!("\n代理配置:");
                 output::key_value(vec![
-                    ("启用", if app_config.enabled { "是" } else { "否" }.to_string()),
-                    ("监听地址", format!("{}:{}", global_config.listen_address, global_config.listen_port)),
-                    ("非流式超时", format!("{}秒", app_config.non_streaming_timeout)),
-                    ("流式超时", format!("{}秒", app_config.streaming_idle_timeout)),
+                    (
+                        "启用",
+                        if app_config.enabled { "是" } else { "否" }.to_string(),
+                    ),
+                    (
+                        "监听地址",
+                        format!(
+                            "{}:{}",
+                            global_config.listen_address, global_config.listen_port
+                        ),
+                    ),
+                    (
+                        "非流式超时",
+                        format!("{}秒", app_config.non_streaming_timeout),
+                    ),
+                    (
+                        "流式超时",
+                        format!("{}秒", app_config.streaming_idle_timeout),
+                    ),
                 ]);
             }
         }
@@ -420,7 +461,8 @@ pub async fn config_show(app: Option<String>) -> Result<(), String> {
         println!("\n应用启用状态:");
         for app in ["claude", "codex", "gemini"] {
             if let Ok(config) = db.get_proxy_config_for_app(app).await {
-                println!("  {} {}: {}",
+                println!(
+                    "  {} {}: {}",
                     output::status_indicator(config.enabled),
                     app,
                     if config.enabled { "启用" } else { "禁用" }
@@ -437,11 +479,7 @@ pub async fn config_set(key: &str, value: &str, app: Option<String>) -> Result<(
 
     match key {
         "global_proxy" => {
-            let proxy_url = if value.is_empty() {
-                None
-            } else {
-                Some(value)
-            };
+            let proxy_url = if value.is_empty() { None } else { Some(value) };
 
             db.set_global_proxy_url(proxy_url)
                 .map_err(|e| e.to_string())?;
@@ -455,10 +493,12 @@ pub async fn config_set(key: &str, value: &str, app: Option<String>) -> Result<(
 
                 match key {
                     "port" => {
-                        let port = value.parse::<u16>()
+                        let port = value
+                            .parse::<u16>()
                             .map_err(|_| "无效的端口号".to_string())?;
 
-                        let mut global_config = db.get_global_proxy_config()
+                        let mut global_config = db
+                            .get_global_proxy_config()
                             .await
                             .map_err(|e| e.to_string())?;
 
@@ -471,10 +511,12 @@ pub async fn config_set(key: &str, value: &str, app: Option<String>) -> Result<(
                         output::success(&format!("端口已更新为 {}", port));
                     }
                     "enabled" => {
-                        let enabled = value.parse::<bool>()
+                        let enabled = value
+                            .parse::<bool>()
                             .map_err(|_| "无效的布尔值（使用 true/false）".to_string())?;
 
-                        let mut config = db.get_proxy_config_for_app(app_type.as_str())
+                        let mut config = db
+                            .get_proxy_config_for_app(app_type.as_str())
                             .await
                             .map_err(|e| e.to_string())?;
 
@@ -520,37 +562,68 @@ pub async fn config_proxy(app: Option<String>) -> Result<(), String> {
 
     if let Some(app_str) = app {
         let app_type = parse_app_type(&app_str)?;
-        let app_config = db.get_proxy_config_for_app(app_type.as_str())
+        let app_config = db
+            .get_proxy_config_for_app(app_type.as_str())
             .await
             .map_err(|e| e.to_string())?;
 
         // 获取全局配置以读取 host 和 port
-        let global_config = db.get_global_proxy_config()
+        let global_config = db
+            .get_global_proxy_config()
             .await
             .map_err(|e| e.to_string())?;
 
         output::section(&format!("{} 代理配置", app_str.to_uppercase()));
         output::key_value(vec![
-            ("启用", if app_config.enabled { "是" } else { "否" }.to_string()),
-            ("监听地址", format!("{}:{}", global_config.listen_address, global_config.listen_port)),
-            ("非流式超时", format!("{}秒", app_config.non_streaming_timeout)),
-            ("流式首字节超时", format!("{}秒", app_config.streaming_first_byte_timeout)),
-            ("流式空闲超时", format!("{}秒", app_config.streaming_idle_timeout)),
+            (
+                "启用",
+                if app_config.enabled { "是" } else { "否" }.to_string(),
+            ),
+            (
+                "监听地址",
+                format!(
+                    "{}:{}",
+                    global_config.listen_address, global_config.listen_port
+                ),
+            ),
+            (
+                "非流式超时",
+                format!("{}秒", app_config.non_streaming_timeout),
+            ),
+            (
+                "流式首字节超时",
+                format!("{}秒", app_config.streaming_first_byte_timeout),
+            ),
+            (
+                "流式空闲超时",
+                format!("{}秒", app_config.streaming_idle_timeout),
+            ),
         ]);
     } else {
         // 显示所有应用的代理配置
         output::section("代理配置");
 
         // 获取全局配置
-        let global_config = db.get_global_proxy_config()
+        let global_config = db
+            .get_global_proxy_config()
             .await
             .map_err(|e| e.to_string())?;
 
         for app in ["claude", "codex", "gemini"] {
             if let Ok(config) = db.get_proxy_config_for_app(app).await {
-                println!("\n{} {}:", output::status_indicator(config.enabled), app.to_uppercase());
+                println!(
+                    "\n{} {}:",
+                    output::status_indicator(config.enabled),
+                    app.to_uppercase()
+                );
                 output::key_value(vec![
-                    ("  地址", format!("{}:{}", global_config.listen_address, global_config.listen_port)),
+                    (
+                        "  地址",
+                        format!(
+                            "{}:{}",
+                            global_config.listen_address, global_config.listen_port
+                        ),
+                    ),
                     ("  超时", format!("{}s", config.non_streaming_timeout)),
                 ]);
             }
@@ -564,7 +637,8 @@ pub async fn config_loadbalance(app: &str, enabled: Option<bool>) -> Result<(), 
     let db = get_database()?;
     let app_type = parse_app_type(app)?;
 
-    let mut config = db.get_proxy_config_for_app(app_type.as_str())
+    let mut config = db
+        .get_proxy_config_for_app(app_type.as_str())
         .await
         .map_err(|e| e.to_string())?;
 
@@ -598,7 +672,15 @@ pub async fn config_loadbalance(app: &str, enabled: Option<bool>) -> Result<(), 
 
         output::key_value(vec![
             ("状态", status.to_string()),
-            ("自动故障转移", if config.auto_failover_enabled { "启用" } else { "禁用" }.to_string()),
+            (
+                "自动故障转移",
+                if config.auto_failover_enabled {
+                    "启用"
+                } else {
+                    "禁用"
+                }
+                .to_string(),
+            ),
         ]);
 
         // 显示供应商权重列表
@@ -617,12 +699,7 @@ pub async fn config_loadbalance(app: &str, enabled: Option<bool>) -> Result<(), 
                     } else {
                         format!("1/{}", p.weight)
                     };
-                    vec![
-                        id.clone(),
-                        p.name.clone(),
-                        p.weight.to_string(),
-                        freq,
-                    ]
+                    vec![id.clone(), p.name.clone(), p.weight.to_string(), freq]
                 })
                 .collect();
 
@@ -683,7 +760,11 @@ pub async fn failover_queue(app: &str) -> Result<(), String> {
     if let Ok(app_config) = db.get_proxy_config_for_app(app_type.as_str()).await {
         println!(
             "\n自动故障转移: {}",
-            if app_config.auto_failover_enabled { "启用" } else { "禁用" }
+            if app_config.auto_failover_enabled {
+                "启用"
+            } else {
+                "禁用"
+            }
         );
     }
 
@@ -743,7 +824,8 @@ pub async fn failover_toggle(app: &str, enabled: bool) -> Result<(), String> {
     let db = get_database()?;
     let app_type = parse_app_type(app)?;
 
-    let mut config = db.get_proxy_config_for_app(app_type.as_str())
+    let mut config = db
+        .get_proxy_config_for_app(app_type.as_str())
         .await
         .map_err(|e| e.to_string())?;
 
@@ -784,11 +866,7 @@ pub async fn stats_summary(_days: u32, _app: Option<String>) -> Result<(), Strin
     Ok(())
 }
 
-pub async fn stats_provider(
-    _app: &str,
-    _id: Option<String>,
-    _days: u32,
-) -> Result<(), String> {
+pub async fn stats_provider(_app: &str, _id: Option<String>, _days: u32) -> Result<(), String> {
     output::info("供应商统计功能开发中...");
     // TODO: 实现供应商统计
     Ok(())

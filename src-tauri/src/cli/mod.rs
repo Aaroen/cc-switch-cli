@@ -3,8 +3,8 @@
 //! 提供完整的命令行接口，支持所有GUI功能的终端控制
 
 pub mod commands;
-pub mod server;
 pub mod output;
+pub mod server;
 
 use clap::{Parser, Subcommand};
 

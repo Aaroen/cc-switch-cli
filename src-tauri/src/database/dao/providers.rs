@@ -406,7 +406,12 @@ impl Database {
             )));
         }
 
-        log::info!("[{}] 供应商 {} 权重已更新为 {}", app_type, provider_id, weight);
+        log::info!(
+            "[{}] 供应商 {} 权重已更新为 {}",
+            app_type,
+            provider_id,
+            weight
+        );
         Ok(())
     }
 

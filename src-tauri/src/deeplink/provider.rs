@@ -163,7 +163,7 @@ pub(crate) fn build_provider_from_request(
         icon: request.icon.clone(),
         icon_color: None,
         in_failover_queue: false,
-        weight: 1,  // 默认权重
+        weight: 1, // 默认权重
     };
 
     Ok(provider)

@@ -49,7 +49,10 @@ pub fn key_value(pairs: Vec<(&str, String)>) {
 
 /// 输出JSON（美化）
 pub fn json(value: &Value) {
-    println!("{}", serde_json::to_string_pretty(value).unwrap_or_default());
+    println!(
+        "{}",
+        serde_json::to_string_pretty(value).unwrap_or_default()
+    );
 }
 
 /// 输出状态指示器
@@ -139,9 +142,7 @@ pub fn diff(old: &str, new: &str) {
 /// 输出服务状态
 pub fn service_status(name: &str, running: bool, pid: Option<u32>) {
     let status_text = if running { "运行中" } else { "已停止" };
-    let pid_text = pid
-        .map(|p| format!(" (PID: {})", p))
-        .unwrap_or_default();
+    let pid_text = pid.map(|p| format!(" (PID: {})", p)).unwrap_or_default();
 
     println!(
         "{} {} {}{}",

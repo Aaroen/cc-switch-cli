@@ -4,8 +4,8 @@
 
 use super::{
     body_filter::filter_private_params_with_whitelist,
-    file_logger::get_file_logger,  // 【新增】文件日志器
-    forwarder::{ForwardError, ForwardResult},  // 【重用】直接使用forwarder定义的类型
+    file_logger::get_file_logger,             // 【新增】文件日志器
+    forwarder::{ForwardError, ForwardResult}, // 【重用】直接使用forwarder定义的类型
     model_mapper,
     provider_router::ProviderRouter,
     providers::{get_adapter, ProviderAdapter},
@@ -69,11 +69,7 @@ pub struct LayeredForwarder {
 
 impl LayeredForwarder {
     /// 创建新的分层转发器
-    pub fn new(
-        router: Arc<ProviderRouter>,
-        db: Arc<Database>,
-        non_streaming_timeout: u64,
-    ) -> Self {
+    pub fn new(router: Arc<ProviderRouter>, db: Arc<Database>, non_streaming_timeout: u64) -> Self {
         Self {
             router,
             _db: db,
@@ -113,11 +109,7 @@ impl LayeredForwarder {
             by_priority.entry(priority).or_default().push(p);
         }
 
-        log::debug!(
-            "[{}] 分层轮询: {} 个层级",
-            app_type_str,
-            by_priority.len()
-        );
+        log::debug!("[{}] 分层轮询: {} 个层级", app_type_str, by_priority.len());
 
         let mut last_error = None;
         let mut last_provider = None;
@@ -164,11 +156,7 @@ impl LayeredForwarder {
                         .await;
 
                     if !permit.allowed {
-                        log::debug!(
-                            "[{}] Provider {} 被熔断器拒绝",
-                            app_type_str,
-                            provider.name
-                        );
+                        log::debug!("[{}] Provider {} 被熔断器拒绝", app_type_str, provider.name);
                         continue;
                     }
 
@@ -260,10 +248,7 @@ impl LayeredForwarder {
 
         for provider in providers {
             let base_url = self.extract_base_url_key(provider, adapter);
-            groups
-                .entry(base_url)
-                .or_default()
-                .push(provider.clone());
+            groups.entry(base_url).or_default().push(provider.clone());
         }
 
         groups
@@ -281,11 +266,7 @@ impl LayeredForwarder {
 
     /// 计算最大轮询轮数
     fn calculate_max_rounds(&self, groups: &HashMap<String, Vec<Provider>>) -> usize {
-        groups
-            .values()
-            .map(|list| list.len())
-            .max()
-            .unwrap_or(1)
+        groups.values().map(|list| list.len()).max().unwrap_or(1)
     }
 
     /// 尝试转发单个请求
@@ -338,7 +319,12 @@ impl LayeredForwarder {
                     model,
                 );
 
-                log::debug!("[{}] Provider {} 成功，延迟 {}ms", app_type_str, provider.name, latency);
+                log::debug!(
+                    "[{}] Provider {} 成功，延迟 {}ms",
+                    app_type_str,
+                    provider.name,
+                    latency
+                );
 
                 Ok(ForwardResult {
                     response,

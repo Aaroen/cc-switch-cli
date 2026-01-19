@@ -1,10 +1,70 @@
 #!/bin/bash
 #
-# CC-Switch v3.9.1+ 一键部署脚本
+# CC-Switch v3.9.1+ 一键部署脚本（增强版）
 # 支持官方更新拉取、分层转发器、负载均衡等特性
 #
+# 功能特性:
+#   - 自动检测和安装系统依赖（支持多发行版）
+#   - 智能端口冲突处理
+#   - 网络下载重试机制
+#   - 自动安装 Rust 和 Node.js
+#   - 编译缓存优化
+#   - 健壮的服务启动和验证
+#
+# 使用方法:
+#   ./install-ccs.sh              # CLI模式部署（默认）
+#   ./install-ccs.sh --gui        # GUI模式部署
+#   ./install-ccs.sh --update     # 拉取官方更新后部署
+#   CLI_MODE=false ./install-ccs.sh --gui  # 环境变量方式
+#
+# 环境变量:
+#   CLI_MODE=true|false          # 设置部署模式（默认: true）
+#   CC_SWITCH_PORT=端口号         # 指定代理服务端口（默认: 15721）
+#
+# 支持的Linux发行版:
+#   - Ubuntu/Debian (apt)
+#   - CentOS/RHEL/Fedora (dnf/yum)
+#   - Arch Linux (pacman)
+#   - openSUSE (zypper)
+#
 
-set -e
+set -Eeuo pipefail
+IFS=$'\n\t'
+
+# 非交互/非 TTY 环境下避免清屏、进度条刷屏等问题
+IS_TTY=0
+if [ -t 1 ]; then
+    IS_TTY=1
+fi
+
+# sudo 兼容：root 环境下不需要 sudo；无 sudo 时给出明确错误
+SUDO=""
+if [ "$(id -u)" -ne 0 ]; then
+    if command -v sudo >/dev/null 2>&1; then
+        SUDO="sudo"
+    fi
+fi
+
+# 错误处理陷阱
+error_handler() {
+    local line_no=$1
+    local exit_code=$2
+    echo ""
+    echo -e "${RED:-}========================================${NC:-}"
+    echo -e "${RED:-}  部署过程中发生错误${NC:-}"
+    echo -e "${RED:-}========================================${NC:-}"
+    echo -e "错误位置: 第 ${line_no} 行"
+    echo -e "退出代码: ${exit_code}"
+    echo ""
+    echo -e "${YELLOW:-}建议:${NC:-}"
+    echo "  1. 查看日志文件: ls -lh ~/.cc-switch/logs/"
+    echo "  2. 检查系统依赖: apt list --installed | grep -E 'rust|node|webkit'"
+    echo "  3. 手动重试或查阅文档"
+    echo ""
+    exit $exit_code
+}
+
+trap 'error_handler ${LINENO} $?' ERR
 
 # 颜色定义
 GREEN='\033[0;32m'
@@ -14,12 +74,164 @@ BLUE='\033[0;34m'
 CYAN='\033[0;36m'
 NC='\033[0m' # No Color
 
+# ============================================================================
+# 系统检测函数
+# ============================================================================
+
+# 检测Linux发行版
+detect_os() {
+    if [ -f /etc/os-release ]; then
+        . /etc/os-release
+        OS=$ID
+        OS_VERSION=$VERSION_ID
+    elif [ -f /etc/redhat-release ]; then
+        OS="rhel"
+    elif [ -f /etc/debian_version ]; then
+        OS="debian"
+    else
+        OS="unknown"
+    fi
+    echo "$OS"
+}
+
+# 检测包管理器
+detect_package_manager() {
+    if command -v apt-get &> /dev/null; then
+        echo "apt"
+    elif command -v dnf &> /dev/null; then
+        echo "dnf"
+    elif command -v yum &> /dev/null; then
+        echo "yum"
+    elif command -v pacman &> /dev/null; then
+        echo "pacman"
+    elif command -v zypper &> /dev/null; then
+        echo "zypper"
+    elif command -v apk &> /dev/null; then
+        echo "apk"
+    else
+        echo "unknown"
+    fi
+}
+
+# 安装系统依赖
+install_system_deps() {
+    local pkg_manager=$1
+    local deps=$2
+
+    if [ -z "${deps// }" ]; then
+        return 0
+    fi
+
+    if [ "$(id -u)" -ne 0 ] && [ -z "$SUDO" ]; then
+        echo -e "${RED}需要 root 权限来安装系统依赖，但当前既不是 root 也未安装 sudo${NC}" >&2
+        echo -e "${YELLOW}请手动安装依赖后重试：${deps}${NC}" >&2
+        return 1
+    fi
+
+    case $pkg_manager in
+        apt)
+            DEBIAN_FRONTEND=noninteractive $SUDO apt-get update -qq > /dev/null 2>&1 || true
+            DEBIAN_FRONTEND=noninteractive $SUDO apt-get install -y --no-install-recommends $deps > /dev/null 2>&1
+            ;;
+        dnf)
+            $SUDO dnf install -y $deps > /dev/null 2>&1
+            ;;
+        yum)
+            $SUDO yum install -y $deps > /dev/null 2>&1
+            ;;
+        pacman)
+            $SUDO pacman -S --noconfirm $deps > /dev/null 2>&1
+            ;;
+        zypper)
+            $SUDO zypper install -y $deps > /dev/null 2>&1
+            ;;
+        apk)
+            $SUDO apk add --no-cache $deps > /dev/null 2>&1
+            ;;
+    esac
+}
+
+# 网络下载重试函数
+download_with_retry() {
+    local url=$1
+    local output=$2
+    local max_retries=${3:-3}
+    local retry=0
+
+    while [ $retry -lt $max_retries ]; do
+        if command -v curl >/dev/null 2>&1; then
+            if curl -fsSL --connect-timeout 10 --max-time 300 "$url" -o "$output"; then
+                return 0
+            fi
+        elif command -v wget >/dev/null 2>&1; then
+            if wget -q --timeout=10 --tries=1 -O "$output" "$url"; then
+                return 0
+            fi
+        else
+            return 1
+        fi
+        retry=$((retry + 1))
+        if [ $retry -lt $max_retries ]; then
+            echo -e "${YELLOW}下载失败，${retry}/${max_retries} 次重试中...${NC}" >&2
+            sleep 2
+        fi
+    done
+    return 1
+}
+
+# 智能查找可用端口
+find_available_port() {
+    local start_port=$1
+    local max_attempts=100
+    local port=$start_port
+
+    while [ $((port - start_port)) -lt $max_attempts ]; do
+        if ! command -v lsof &> /dev/null; then
+            # 如果没有lsof，尝试使用netstat或ss
+            if command -v ss &> /dev/null; then
+                if ! ss -tln | grep -q ":$port "; then
+                    echo "$port"
+                    return 0
+                fi
+            elif command -v netstat &> /dev/null; then
+                if ! netstat -tln | grep -q ":$port "; then
+                    echo "$port"
+                    return 0
+                fi
+            else
+                # 无工具可用，直接返回
+                echo "$port"
+                return 0
+            fi
+        else
+            if ! lsof -Pi :$port -sTCP:LISTEN -t >/dev/null 2>&1; then
+                echo "$port"
+                return 0
+            fi
+        fi
+        port=$((port + 1))
+    done
+
+    # 未找到可用端口，返回原始端口
+    echo "$start_port"
+    return 1
+}
+
 # 进度条函数
 show_progress() {
     local current=$1
     local total=$2
     local step_name=$3
     local status=$4  # "running" 或 "done" 或 "error"
+
+    if [ "$IS_TTY" -ne 1 ]; then
+        case "$status" in
+            "running") echo "[$current/$total] ... $step_name" ;;
+            "done") echo "[$current/$total] OK  $step_name" ;;
+            "error") echo "[$current/$total] ERR $step_name" ;;
+        esac
+        return 0
+    fi
 
     local percent=$((current * 100 / total))
     local filled=$((current * 40 / total))
@@ -70,14 +282,160 @@ step_error() {
     echo ""
 }
 
+# pgrep 在极简系统上可能不存在，提供一个后备实现
+list_pids_matching() {
+    local pattern="$1"
+    if command -v pgrep >/dev/null 2>&1; then
+        pgrep -f "$pattern" 2>/dev/null || true
+        return 0
+    fi
+    ps ax -o pid= -o command= 2>/dev/null | awk -v pat="$pattern" '$0 ~ pat {print $1}' || true
+}
+
 # 清屏并显示标题
-clear
-echo -e "${CYAN}CC-Switch 一键部署脚本${NC}"
+if [ "$IS_TTY" -eq 1 ] && [ "${TERM:-}" != "dumb" ]; then
+    clear
+fi
+echo -e "${CYAN}========================================${NC}"
+echo -e "${CYAN}  CC-Switch 一键部署脚本（增强版）${NC}"
+echo -e "${CYAN}========================================${NC}"
 echo ""
+
+# 参数解析和帮助信息
+if [ "${1:-}" = "--help" ] || [ "${1:-}" = "-h" ]; then
+    echo "用法: $0 [选项]"
+    echo ""
+    echo "选项:"
+    echo "  --gui          使用GUI模式部署"
+    echo "  --update, -u   拉取官方更新后再部署"
+    echo "  --help, -h     显示此帮助信息"
+    echo ""
+    echo "环境变量:"
+    echo "  CLI_MODE=true|false    设置部署模式（默认: true）"
+    echo "  CC_SWITCH_PORT=端口号   指定代理端口（默认: 15721）"
+    echo ""
+    echo "示例:"
+    echo "  $0                     # CLI模式部署"
+    echo "  $0 --gui               # GUI模式部署"
+    echo "  $0 --update            # 更新并部署"
+    echo "  CC_SWITCH_PORT=8080 $0 # 使用8080端口"
+    echo ""
+    exit 0
+fi
+
+# ============================================================================
+# 预检查: 系统环境和依赖
+# ============================================================================
+echo -e "${BLUE}检测系统环境...${NC}"
+
+DETECTED_OS=$(detect_os)
+PKG_MANAGER=$(detect_package_manager)
+
+echo -e "  操作系统: ${GREEN}${DETECTED_OS}${NC}"
+echo -e "  包管理器: ${GREEN}${PKG_MANAGER}${NC}"
+echo ""
+
+# Alpine 下构建 Tauri 依赖较复杂（musl/gtk/webkit），提前给出明确提示
+if [ "$PKG_MANAGER" = "apk" ]; then
+    echo -e "${RED}当前检测到 apk (Alpine). CC-Switch (Tauri) 在 Alpine 上构建/运行通常需要额外适配。${NC}"
+    echo -e "${YELLOW}建议使用 Debian/Ubuntu/Fedora/CentOS/Arch/openSUSE 等发行版环境运行本脚本。${NC}"
+    exit 1
+fi
+
+# 检查必要的系统依赖
+REQUIRED_DEPS=""
+MISSING_DEPS=""
+
+# 检查下载工具（curl/wget 任意一个即可）
+if ! command -v curl &> /dev/null && ! command -v wget &> /dev/null; then
+    MISSING_DEPS="$MISSING_DEPS curl"
+fi
+
+# 检查git
+if ! command -v git &> /dev/null; then
+    MISSING_DEPS="$MISSING_DEPS git"
+fi
+
+# 检查sqlite3
+if ! command -v sqlite3 &> /dev/null; then
+    MISSING_DEPS="$MISSING_DEPS sqlite3"
+fi
+
+# 检查基础构建工具
+if ! command -v gcc &> /dev/null && ! command -v cc &> /dev/null; then
+    case $PKG_MANAGER in
+        apt) MISSING_DEPS="$MISSING_DEPS build-essential" ;;
+        dnf|yum) MISSING_DEPS="$MISSING_DEPS gcc gcc-c++ make" ;;
+        pacman) MISSING_DEPS="$MISSING_DEPS base-devel" ;;
+        zypper) MISSING_DEPS="$MISSING_DEPS gcc gcc-c++ make" ;;
+    esac
+fi
+
+# 检查pkg-config
+if ! command -v pkg-config &> /dev/null; then
+    MISSING_DEPS="$MISSING_DEPS pkg-config"
+fi
+
+# pgrep/ps 等进程工具（停止旧服务用）
+if ! command -v pgrep &> /dev/null; then
+    case $PKG_MANAGER in
+        apt) MISSING_DEPS="$MISSING_DEPS procps" ;;
+        dnf|yum) MISSING_DEPS="$MISSING_DEPS procps-ng" ;;
+        pacman) MISSING_DEPS="$MISSING_DEPS procps-ng" ;;
+        zypper) MISSING_DEPS="$MISSING_DEPS procps" ;;
+    esac
+fi
+
+# strings 用于二进制特征检测（可选）
+if ! command -v strings &> /dev/null; then
+    case $PKG_MANAGER in
+        apt|dnf|yum|zypper) MISSING_DEPS="$MISSING_DEPS binutils" ;;
+        pacman) MISSING_DEPS="$MISSING_DEPS binutils" ;;
+    esac
+fi
+
+# Tauri依赖
+case $PKG_MANAGER in
+    apt)
+        # 检查webkit2gtk
+        if ! dpkg -l | grep -q libwebkit2gtk-4.0-dev; then
+            MISSING_DEPS="$MISSING_DEPS libwebkit2gtk-4.0-dev libssl-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev"
+        fi
+        ;;
+    dnf|yum)
+        if ! rpm -qa | grep -q webkit2gtk3-devel; then
+            MISSING_DEPS="$MISSING_DEPS webkit2gtk3-devel openssl-devel gtk3-devel libappindicator-gtk3-devel librsvg2-devel"
+        fi
+        ;;
+    pacman)
+        if ! pacman -Qi webkit2gtk &> /dev/null; then
+            MISSING_DEPS="$MISSING_DEPS webkit2gtk gtk3 libappindicator-gtk3 librsvg"
+        fi
+        ;;
+esac
+
+# 安装缺失的依赖
+if [ -n "$MISSING_DEPS" ]; then
+    echo -e "${YELLOW}检测到缺失的系统依赖，正在安装...${NC}"
+    echo -e "  依赖: ${MISSING_DEPS}"
+
+    if [ "$PKG_MANAGER" = "unknown" ]; then
+        echo -e "${RED}无法识别包管理器，请手动安装以下依赖: ${MISSING_DEPS}${NC}"
+        exit 1
+    fi
+
+    if install_system_deps "$PKG_MANAGER" "$MISSING_DEPS"; then
+        echo -e "${GREEN}✓ 系统依赖已安装${NC}"
+    else
+        echo -e "${RED}✗ 系统依赖安装失败，请检查权限或手动安装${NC}"
+        exit 1
+    fi
+    echo ""
+fi
 
 # 检查部署模式（默认CLI）
 CLI_MODE="${CLI_MODE:-true}"
-if [ "$1" = "--gui" ]; then
+if [ "${1:-}" = "--gui" ]; then
     CLI_MODE="false"
     echo -e "${YELLOW}GUI 模式已启用${NC}"
     echo ""
@@ -110,7 +468,7 @@ if [ -d "$SCRIPT_DIR/.git" ]; then
     GIT_COMMIT=$(cd "$SCRIPT_DIR" && git rev-parse --short HEAD 2>/dev/null || echo "unknown")
 
     # 询问是否拉取官方更新
-    if [ "$1" = "--update" ] || [ "$1" = "-u" ]; then
+    if [ "${1:-}" = "--update" ] || [ "${1:-}" = "-u" ]; then
         echo ""
         echo -e "${YELLOW}正在拉取官方更新...${NC}"
         cd "$SCRIPT_DIR"
@@ -156,25 +514,38 @@ if ! command -v cargo &> /dev/null; then
     echo ""
     echo -e "${YELLOW}Rust 未安装，正在自动安装...${NC}"
 
-    if curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain stable > /dev/null 2>&1; then
-        if [ -f "$HOME/.cargo/env" ]; then
-            source "$HOME/.cargo/env"
-        fi
+    # 下载Rust安装脚本
+    RUSTUP_INIT="$(mktemp -t rustup-init.XXXXXX.sh)"
+    if download_with_retry "https://sh.rustup.rs" "$RUSTUP_INIT" 3; then
+        if sh "$RUSTUP_INIT" -y --default-toolchain stable 2>&1 | tee "$LOG_DIR/rust_install.log" | grep -E "info:|Updating|Installing" | tail -5; then
+            rm -f "$RUSTUP_INIT"
 
-        if command -v cargo &> /dev/null; then
-            RUST_VERSION=$(rustc --version)
-            step_done $CURRENT_STEP $TOTAL_STEPS "安装 Rust 工具链 ($RUST_VERSION)"
+            if [ -f "$HOME/.cargo/env" ]; then
+                source "$HOME/.cargo/env"
+            fi
+
+            if command -v cargo &> /dev/null; then
+                RUST_VERSION=$(rustc --version)
+                step_done $CURRENT_STEP $TOTAL_STEPS "安装 Rust 工具链 ($RUST_VERSION)"
+            else
+                step_error $CURRENT_STEP $TOTAL_STEPS "Rust 安装失败"
+                echo "查看日志: cat $LOG_DIR/rust_install.log"
+                exit 1
+            fi
         else
+            rm -f "$RUSTUP_INIT"
             step_error $CURRENT_STEP $TOTAL_STEPS "Rust 安装失败"
+            echo "查看日志: cat $LOG_DIR/rust_install.log"
             exit 1
         fi
     else
-        step_error $CURRENT_STEP $TOTAL_STEPS "Rust 安装失败"
+        step_error $CURRENT_STEP $TOTAL_STEPS "无法下载 Rust 安装脚本"
+        echo "请检查网络连接或手动安装: https://rustup.rs/"
         exit 1
     fi
 else
     RUST_VERSION=$(rustc --version)
-    step_done $CURRENT_STEP $TOTAL_STEPS
+    step_done $CURRENT_STEP $TOTAL_STEPS "Rust 工具链 ($RUST_VERSION)"
 fi
 
 # ============================================================================
@@ -186,20 +557,94 @@ step_running $CURRENT_STEP $TOTAL_STEPS "检查 Node.js 环境"
 NODE_CMD=""
 if command -v node &> /dev/null; then
     NODE_VERSION=$(node --version)
-    NODE_CMD="node"
-    step_done $CURRENT_STEP $TOTAL_STEPS "Node.js 环境 ($NODE_VERSION)"
-else
-    step_error $CURRENT_STEP $TOTAL_STEPS "Node.js 未安装"
+    NODE_MAJOR_VERSION=$(echo "$NODE_VERSION" | sed 's/v\([0-9]*\).*/\1/')
+
+    if [ "$NODE_MAJOR_VERSION" -lt 16 ]; then
+        echo ""
+        echo -e "${YELLOW}Node.js 版本过低 ($NODE_VERSION)，需要 16+${NC}"
+        echo -e "${YELLOW}正在尝试自动安装最新版本...${NC}"
+    else
+        NODE_CMD="node"
+        step_done $CURRENT_STEP $TOTAL_STEPS "Node.js 环境 ($NODE_VERSION)"
+    fi
+fi
+
+# 如果Node.js未安装或版本过低，尝试自动安装
+if [ -z "$NODE_CMD" ]; then
     echo ""
-    echo -e "${RED}错误: 需要 Node.js 16+ 来构建前端${NC}"
-    echo "请安装: https://nodejs.org/"
-    exit 1
+    echo -e "${YELLOW}正在自动安装 Node.js...${NC}"
+
+    # 尝试使用 nvm 安装
+    if [ -f "$HOME/.nvm/nvm.sh" ]; then
+        source "$HOME/.nvm/nvm.sh"
+        if nvm install --lts > "$LOG_DIR/node_install.log" 2>&1; then
+            nvm use --lts
+            NODE_VERSION=$(node --version)
+            step_done $CURRENT_STEP $TOTAL_STEPS "安装 Node.js ($NODE_VERSION)"
+            NODE_CMD="node"
+        fi
+    fi
+
+    # 如果nvm不可用，尝试使用NodeSource仓库
+    if [ -z "$NODE_CMD" ]; then
+        case $PKG_MANAGER in
+            apt)
+                # 使用NodeSource仓库安装Node.js 18 LTS
+                NODESOURCE_SETUP="$(mktemp -t nodesource-setup.XXXXXX.sh)"
+                if download_with_retry "https://deb.nodesource.com/setup_18.x" "$NODESOURCE_SETUP" 3; then
+                    if $SUDO bash "$NODESOURCE_SETUP" > "$LOG_DIR/node_install.log" 2>&1; then
+                        if DEBIAN_FRONTEND=noninteractive $SUDO apt-get install -y --no-install-recommends nodejs > "$LOG_DIR/node_install.log" 2>&1; then
+                            NODE_VERSION=$(node --version)
+                            step_done $CURRENT_STEP $TOTAL_STEPS "安装 Node.js ($NODE_VERSION)"
+                            NODE_CMD="node"
+                        fi
+                    fi
+                    rm -f "$NODESOURCE_SETUP"
+                fi
+                ;;
+            dnf|yum)
+                # 使用NodeSource仓库安装Node.js 18 LTS
+                if $SUDO $PKG_MANAGER module -y reset nodejs > /dev/null 2>&1; then
+                    $SUDO $PKG_MANAGER module -y enable nodejs:18 > /dev/null 2>&1
+                fi
+                if $SUDO $PKG_MANAGER install -y nodejs > "$LOG_DIR/node_install.log" 2>&1; then
+                    NODE_VERSION=$(node --version)
+                    step_done $CURRENT_STEP $TOTAL_STEPS "安装 Node.js ($NODE_VERSION)"
+                    NODE_CMD="node"
+                fi
+                ;;
+            pacman)
+                if $SUDO pacman -S --noconfirm nodejs npm > "$LOG_DIR/node_install.log" 2>&1; then
+                    NODE_VERSION=$(node --version)
+                    step_done $CURRENT_STEP $TOTAL_STEPS "安装 Node.js ($NODE_VERSION)"
+                    NODE_CMD="node"
+                fi
+                ;;
+        esac
+    fi
+
+    # 如果仍然无法安装
+    if [ -z "$NODE_CMD" ]; then
+        step_error $CURRENT_STEP $TOTAL_STEPS "Node.js 安装失败"
+        echo ""
+        echo -e "${RED}无法自动安装 Node.js${NC}"
+        echo -e "${YELLOW}请手动安装 Node.js 16+ :${NC}"
+        echo "  - 使用 nvm: https://github.com/nvm-sh/nvm"
+        echo "  - 官方下载: https://nodejs.org/"
+        echo "  - 查看日志: cat $LOG_DIR/node_install.log"
+        exit 1
+    fi
 fi
 
 # 检查 pnpm
 if ! command -v pnpm &> /dev/null; then
+    echo ""
     echo -e "${YELLOW}pnpm 未安装，正在安装...${NC}"
-    npm install -g pnpm > /dev/null 2>&1
+    if npm install -g pnpm > "$LOG_DIR/pnpm_install.log" 2>&1; then
+        echo -e "${GREEN}✓ pnpm 已安装${NC}"
+    else
+        echo -e "${RED}✗ pnpm 安装失败，尝试使用 npm 代替${NC}"
+    fi
 fi
 
 # ============================================================================
@@ -209,12 +654,45 @@ CURRENT_STEP=4
 step_running $CURRENT_STEP $TOTAL_STEPS "安装前端依赖"
 
 cd "$SCRIPT_DIR"
+INSTALL_CMD="pnpm install"
+
+# 如果pnpm不可用，回退到npm
+if ! command -v pnpm &> /dev/null; then
+    INSTALL_CMD="npm install"
+fi
+
 if [ ! -d "node_modules" ] || [ "package.json" -nt "node_modules" ]; then
-    if pnpm install > "$LOG_DIR/pnpm_install.log" 2>&1; then
-        step_done $CURRENT_STEP $TOTAL_STEPS "安装前端依赖"
-    else
+    # 尝试安装，最多重试2次
+    RETRY=0
+    MAX_RETRIES=2
+    SUCCESS=false
+
+    while [ $RETRY -le $MAX_RETRIES ] && [ "$SUCCESS" = false ]; do
+        if [ $RETRY -gt 0 ]; then
+            echo ""
+            echo -e "${YELLOW}依赖安装失败，重试 ${RETRY}/${MAX_RETRIES}...${NC}"
+            # 清理node_modules可能损坏的文件
+            rm -rf node_modules/.cache 2>/dev/null || true
+        fi
+
+        if $INSTALL_CMD > "$LOG_DIR/pnpm_install.log" 2>&1; then
+            SUCCESS=true
+            step_done $CURRENT_STEP $TOTAL_STEPS "安装前端依赖"
+        else
+            RETRY=$((RETRY + 1))
+        fi
+    done
+
+    if [ "$SUCCESS" = false ]; then
         step_error $CURRENT_STEP $TOTAL_STEPS "前端依赖安装失败"
+        echo ""
+        echo -e "${RED}前端依赖安装失败，已尝试 ${MAX_RETRIES} 次重试${NC}"
         echo "查看日志: cat $LOG_DIR/pnpm_install.log"
+        echo ""
+        echo -e "${YELLOW}建议尝试:${NC}"
+        echo "  1. 检查网络连接"
+        echo "  2. 清理缓存: rm -rf node_modules package-lock.json pnpm-lock.yaml"
+        echo "  3. 手动安装: cd $SCRIPT_DIR && pnpm install"
         exit 1
     fi
 else
@@ -264,11 +742,13 @@ else
     fi
 
     # 3) 二进制仍包含调试期特征字符串，触发重编译（避免部署后仍输出 request trace）
-    if strings "$BIN_PATH" 2>/dev/null | grep -q "\[Codex\] request trace"; then
-        NEED_REBUILD=true
-    fi
-    if strings "$BIN_PATH" 2>/dev/null | grep -q "\[Forwarder\] invalid_claude_config"; then
-        NEED_REBUILD=true
+    if command -v strings >/dev/null 2>&1; then
+        if strings "$BIN_PATH" 2>/dev/null | grep -q "\[Codex\] request trace"; then
+            NEED_REBUILD=true
+        fi
+        if strings "$BIN_PATH" 2>/dev/null | grep -q "\[Forwarder\] invalid_claude_config"; then
+            NEED_REBUILD=true
+        fi
     fi
 fi
 
@@ -276,20 +756,57 @@ if [ "$NEED_REBUILD" = true ]; then
     # 强制删除旧二进制，避免后续步骤误用旧文件
     rm -f "$BIN_PATH" 2>/dev/null || true
 
+    echo ""
+    echo -e "${YELLOW}开始编译 Tauri 应用，这可能需要几分钟...${NC}"
+
     # 运行Tauri构建，跳过 AppImage 打包（避免网络下载问题）
     # 只生成 deb 和 rpm 包
-    pnpm tauri build --bundles deb,rpm > "$LOG_DIR/tauri_build.log" 2>&1 || true
+    BUILD_START=$(date +%s)
+
+    if pnpm tauri build --bundles deb,rpm > "$LOG_DIR/tauri_build.log" 2>&1; then
+        BUILD_SUCCESS=true
+    else
+        BUILD_SUCCESS=false
+        # 编译失败，尝试读取错误信息
+        if [ -f "$LOG_DIR/tauri_build.log" ]; then
+            LAST_ERROR=$(tail -20 "$LOG_DIR/tauri_build.log" | grep -i "error" | head -5)
+        fi
+    fi
+
+    BUILD_END=$(date +%s)
+    BUILD_TIME=$((BUILD_END - BUILD_START))
 
     # 检查二进制文件是否成功生成
-    if [ -f "$BIN_PATH" ]; then
+    if [ -f "$BIN_PATH" ] && [ "$BUILD_SUCCESS" = true ]; then
         # 写入构建戳
         if [ -n "$CURRENT_COMMIT" ]; then
             echo -n "$CURRENT_COMMIT" > "$STAMP_FILE" 2>/dev/null || true
         fi
-        step_done $CURRENT_STEP $TOTAL_STEPS "编译 Tauri 应用 (新编译)"
+
+        # 验证二进制文件是否可执行
+        if [ -x "$BIN_PATH" ]; then
+            step_done $CURRENT_STEP $TOTAL_STEPS "编译完成 (耗时 ${BUILD_TIME}s)"
+        else
+            chmod +x "$BIN_PATH"
+            step_done $CURRENT_STEP $TOTAL_STEPS "编译完成 (耗时 ${BUILD_TIME}s)"
+        fi
     else
         step_error $CURRENT_STEP $TOTAL_STEPS "编译失败"
-        echo "查看日志: cat $LOG_DIR/tauri_build.log"
+        echo ""
+        echo -e "${RED}编译失败${NC}"
+        echo "查看完整日志: cat $LOG_DIR/tauri_build.log"
+
+        if [ -n "$LAST_ERROR" ]; then
+            echo ""
+            echo -e "${YELLOW}最近的错误信息:${NC}"
+            echo "$LAST_ERROR"
+        fi
+
+        echo ""
+        echo -e "${YELLOW}建议尝试:${NC}"
+        echo "  1. 检查系统依赖是否完整安装"
+        echo "  2. 清理构建缓存: rm -rf src-tauri/target"
+        echo "  3. 手动编译: cd $SCRIPT_DIR && pnpm tauri build"
         exit 1
     fi
 else
@@ -347,7 +864,7 @@ fi
 
 # 通用进程清理 - 只杀死 cc-switch 二进制进程，不杀死包含 cc-switch 路径的脚本
 # 使用更精确的匹配：只匹配以 cc-switch 结尾的可执行文件或 "cc-switch server" 命令
-for pid in $(pgrep -f "cc-switch" 2>/dev/null); do
+for pid in $(list_pids_matching "cc-switch"); do
     # 跳过当前脚本进程
     if [ "$pid" = "$CURRENT_SCRIPT_PID" ]; then
         continue
@@ -363,7 +880,7 @@ done
 sleep 2
 
 # 确认进程已停止，如果还在运行则强制终止
-for pid in $(pgrep -f "cc-switch" 2>/dev/null); do
+for pid in $(list_pids_matching "cc-switch"); do
     if [ "$pid" = "$CURRENT_SCRIPT_PID" ]; then
         continue
     fi
@@ -406,9 +923,9 @@ fi
 
 # 添加到 PATH
 SHELL_CONFIG=""
-if [ -n "$BASH_VERSION" ] && [ -f "$HOME/.bashrc" ]; then
+if [ -n "${BASH_VERSION:-}" ] && [ -f "$HOME/.bashrc" ]; then
     SHELL_CONFIG="$HOME/.bashrc"
-elif [ -n "$ZSH_VERSION" ] && [ -f "$HOME/.zshrc" ]; then
+elif [ -n "${ZSH_VERSION:-}" ] && [ -f "$HOME/.zshrc" ]; then
     SHELL_CONFIG="$HOME/.zshrc"
 elif [ -f "$HOME/.bash_profile" ]; then
     SHELL_CONFIG="$HOME/.bash_profile"
@@ -422,7 +939,7 @@ if [ -n "$SHELL_CONFIG" ]; then
     fi
 fi
 
-step_done $CURRENT_STEP $TOTAL_STEPS
+step_done $CURRENT_STEP $TOTAL_STEPS "安装到系统路径"
 
 # ============================================================================
 # 步骤 9: 配置环境变量
@@ -432,25 +949,31 @@ step_running $CURRENT_STEP $TOTAL_STEPS "配置环境变量"
 
 DEFAULT_PORT=15721
 PROXY_HOST="127.0.0.1"
-PROXY_PORT="${CC_SWITCH_PORT:-$DEFAULT_PORT}"
+REQUESTED_PORT="${CC_SWITCH_PORT:-$DEFAULT_PORT}"
 
-# 检查端口占用
-if command -v lsof &> /dev/null; then
-    if lsof -Pi :$PROXY_PORT -sTCP:LISTEN -t >/dev/null; then
-        PROXY_PORT=$((PROXY_PORT + 1))
-    fi
+# 使用智能端口查找函数
+PROXY_PORT=$(find_available_port "$REQUESTED_PORT")
+
+if [ "$PROXY_PORT" != "$REQUESTED_PORT" ]; then
+    echo ""
+    echo -e "${YELLOW}端口 $REQUESTED_PORT 已被占用，已自动切换到端口 $PROXY_PORT${NC}"
 fi
 
 PROXY_BASE="http://${PROXY_HOST}:${PROXY_PORT}"
 
 # 配置 Claude CLI
 if [ -n "$SHELL_CONFIG" ]; then
-    if ! grep -q "ANTHROPIC_BASE_URL.*$PROXY_BASE" "$SHELL_CONFIG" 2>/dev/null; then
-        echo "" >> "$SHELL_CONFIG"
-        echo "# CC-Switch Claude CLI 配置" >> "$SHELL_CONFIG"
-        echo "export ANTHROPIC_BASE_URL=\"${PROXY_BASE}\"" >> "$SHELL_CONFIG"
-        echo 'export ANTHROPIC_API_KEY="sk-placeholder-managed-by-cc-switch"' >> "$SHELL_CONFIG"
+    # 先清理旧的配置
+    if grep -q "ANTHROPIC_BASE_URL" "$SHELL_CONFIG" 2>/dev/null; then
+        sed -i '/# CC-Switch Claude CLI 配置/d' "$SHELL_CONFIG" 2>/dev/null || true
+        sed -i '/ANTHROPIC_BASE_URL/d' "$SHELL_CONFIG" 2>/dev/null || true
+        sed -i '/ANTHROPIC_API_KEY.*sk-placeholder-managed-by-cc-switch/d' "$SHELL_CONFIG" 2>/dev/null || true
     fi
+
+    echo "" >> "$SHELL_CONFIG"
+    echo "# CC-Switch Claude CLI 配置" >> "$SHELL_CONFIG"
+    echo "export ANTHROPIC_BASE_URL=\"${PROXY_BASE}\"" >> "$SHELL_CONFIG"
+    echo 'export ANTHROPIC_API_KEY="sk-placeholder-managed-by-cc-switch"' >> "$SHELL_CONFIG"
 fi
 
 # 配置 Codex CLI
@@ -492,22 +1015,67 @@ cd "$SCRIPT_DIR"
 if [ "$CLI_MODE" = "true" ]; then
     # CLI 模式：自动启动无头服务器
     nohup "$INSTALL_DIR/cc-switch" server start --host 127.0.0.1 --port $PROXY_PORT > "$LOG_DIR/server.log" 2>&1 &
+    LAUNCH_PID=$!
 
-    sleep 3
+    # 等待服务启动（最多10秒）
+    WAIT_TIME=0
+    MAX_WAIT=10
+    SERVER_STARTED=false
 
-    # 验证服务器是否启动
-    if [ -f "$CC_SWITCH_DIR/server.pid" ]; then
-        SERVER_PID=$(cat "$CC_SWITCH_DIR/server.pid")
-        if ps -p $SERVER_PID > /dev/null 2>&1; then
-            step_done $CURRENT_STEP $TOTAL_STEPS "启动代理服务 (CLI 模式, PID: $SERVER_PID)"
-        else
-            step_error $CURRENT_STEP $TOTAL_STEPS "代理服务启动失败"
-            echo "查看日志: tail -f $LOG_DIR/server.log"
-            exit 1
+    while [ $WAIT_TIME -lt $MAX_WAIT ]; do
+        sleep 1
+        WAIT_TIME=$((WAIT_TIME + 1))
+
+        # 检查PID文件和进程
+        if [ -f "$CC_SWITCH_DIR/server.pid" ]; then
+            SERVER_PID=$(cat "$CC_SWITCH_DIR/server.pid")
+            if ps -p $SERVER_PID > /dev/null 2>&1; then
+                # 检查端口是否真的在监听
+                if command -v ss &> /dev/null; then
+                    if ss -tln | grep -q ":$PROXY_PORT "; then
+                        SERVER_STARTED=true
+                        break
+                    fi
+                elif command -v netstat &> /dev/null; then
+                    if netstat -tln | grep -q ":$PROXY_PORT "; then
+                        SERVER_STARTED=true
+                        break
+                    fi
+                elif command -v lsof &> /dev/null; then
+                    if lsof -Pi :$PROXY_PORT -sTCP:LISTEN -t >/dev/null 2>&1; then
+                        SERVER_STARTED=true
+                        break
+                    fi
+                else
+                    # 无工具可用，仅检查进程存在
+                    SERVER_STARTED=true
+                    break
+                fi
+            fi
         fi
+    done
+
+    if [ "$SERVER_STARTED" = true ]; then
+        SERVER_PID=$(cat "$CC_SWITCH_DIR/server.pid")
+        step_done $CURRENT_STEP $TOTAL_STEPS "启动代理服务 (CLI模式, PID:$SERVER_PID, 端口:$PROXY_PORT)"
     else
-        step_error $CURRENT_STEP $TOTAL_STEPS "代理服务启动失败 (未生成PID文件)"
+        step_error $CURRENT_STEP $TOTAL_STEPS "代理服务启动失败"
+        echo ""
+        echo -e "${RED}代理服务启动失败或超时${NC}"
         echo "查看日志: tail -f $LOG_DIR/server.log"
+        echo ""
+
+        # 显示最后几行日志
+        if [ -f "$LOG_DIR/server.log" ]; then
+            echo -e "${YELLOW}最近的日志:${NC}"
+            tail -10 "$LOG_DIR/server.log"
+        fi
+
+        echo ""
+        echo -e "${YELLOW}建议尝试:${NC}"
+        echo "  1. 检查端口 $PROXY_PORT 是否被占用: lsof -i :$PROXY_PORT"
+        echo "  2. 手动启动: $INSTALL_DIR/cc-switch server start --port $PROXY_PORT"
+        echo "  3. 查看详细日志: tail -f $LOG_DIR/server.log"
         exit 1
     fi
 else
@@ -522,6 +1090,8 @@ else
         step_done $CURRENT_STEP $TOTAL_STEPS "启动代理服务 (GUI 模式, PID: $PROXY_PID)"
     else
         step_error $CURRENT_STEP $TOTAL_STEPS "代理服务启动失败"
+        echo ""
+        echo -e "${RED}GUI模式启动失败${NC}"
         echo "查看日志: tail -f $LOG_DIR/proxy.log"
         exit 1
     fi

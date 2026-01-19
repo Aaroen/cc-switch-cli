@@ -57,9 +57,12 @@ async fn run_cli_mode() {
             cli::ProviderCommands::ModelMap { app, id, from, to } => {
                 cli::commands::provider_set_model_mapping(&app, &id, &from, &to).await
             }
-            cli::ProviderCommands::EnvSet { app, id, key, value } => {
-                cli::commands::provider_set_env(&app, &id, &key, &value).await
-            }
+            cli::ProviderCommands::EnvSet {
+                app,
+                id,
+                key,
+                value,
+            } => cli::commands::provider_set_env(&app, &id, &key, &value).await,
             cli::ProviderCommands::Show { app, id } => {
                 cli::commands::provider_show(&app, &id).await
             }
@@ -81,9 +84,7 @@ async fn run_cli_mode() {
         },
         cli::Commands::Failover(cmd) => match cmd {
             cli::FailoverCommands::Queue { app } => cli::commands::failover_queue(&app).await,
-            cli::FailoverCommands::Add { app, id } => {
-                cli::commands::failover_add(&app, &id).await
-            }
+            cli::FailoverCommands::Add { app, id } => cli::commands::failover_add(&app, &id).await,
             cli::FailoverCommands::Remove { app, id } => {
                 cli::commands::failover_remove(&app, &id).await
             }

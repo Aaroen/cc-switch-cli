@@ -127,7 +127,7 @@ impl Database {
                     streaming_idle_timeout: 120,
                     non_streaming_timeout: 600,
                     circuit_failure_threshold: 4,
-           circuit_success_threshold: 2,
+                    circuit_success_threshold: 2,
                     circuit_timeout_seconds: 60,
                     circuit_error_rate_threshold: 0.6,
                     circuit_min_requests: 10,
@@ -164,7 +164,11 @@ impl Database {
                 config.app_type,
                 if config.enabled { 1 } else { 0 },
                 if config.auto_failover_enabled { 1 } else { 0 },
-                if config.weight_round_robin_enabled { 1 } else { 0 },
+                if config.weight_round_robin_enabled {
+                    1
+                } else {
+                    0
+                },
                 config.max_retries as i32,
                 config.streaming_first_byte_timeout as i32,
                 config.streaming_idle_timeout as i32,

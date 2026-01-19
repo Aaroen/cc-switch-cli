@@ -1,16 +1,12 @@
 //! 无头代理服务器实现
 
 use crate::store::AppState;
-use std::sync::Arc;
 use std::path::PathBuf;
+use std::sync::Arc;
 use tokio::signal;
 
 /// 启动无头代理服务器
-pub async fn start_headless_server(
-    host: String,
-    port: u16,
-    daemon: bool,
-) -> Result<(), String> {
+pub async fn start_headless_server(host: String, port: u16, daemon: bool) -> Result<(), String> {
     crate::cli::output::info(&format!("正在启动代理服务器 {}:{}...", host, port));
 
     // 初始化数据库（使用默认路径）
@@ -36,7 +32,10 @@ pub async fn start_headless_server(
     // 启动代理服务（不接受参数，使用数据库配置）
     match app_state.proxy_service.start().await {
         Ok(info) => {
-            crate::cli::output::success(&format!("代理服务器已启动: {}:{}", info.address, info.port));
+            crate::cli::output::success(&format!(
+                "代理服务器已启动: {}:{}",
+                info.address, info.port
+            ));
 
             // 保存PID文件
             save_pid_file().map_err(|e| format!("保存PID失败: {}", e))?;
@@ -50,7 +49,11 @@ pub async fn start_headless_server(
                 // 等待Ctrl+C信号
                 signal::ctrl_c().await.map_err(|e| e.to_string())?;
                 crate::cli::output::info("\n正在停止服务器...");
-                app_state.proxy_service.stop().await.map_err(|e| e.to_string())?;
+                app_state
+                    .proxy_service
+                    .stop()
+                    .await
+                    .map_err(|e| e.to_string())?;
                 remove_pid_file()?;
                 crate::cli::output::success("服务器已停止");
             }
@@ -130,7 +133,10 @@ pub async fn server_status() -> Result<(), String> {
         if let Ok(db) = crate::database::Database::init() {
             if let Ok(config) = db.get_global_proxy_config().await {
                 crate::cli::output::key_value(vec![
-                    ("监听地址", format!("{}:{}", config.listen_address, config.listen_port)),
+                    (
+                        "监听地址",
+                        format!("{}:{}", config.listen_address, config.listen_port),
+                    ),
                     ("启用应用", format!("{:?}", get_enabled_apps(&db).await)),
                 ]);
             }
@@ -183,8 +189,7 @@ fn save_pid_file() -> Result<(), String> {
     let pid = std::process::id();
     let pid_file = get_pid_file_path();
 
-    std::fs::write(&pid_file, pid.to_string())
-        .map_err(|e| format!("写入PID文件失败: {}", e))?;
+    std::fs::write(&pid_file, pid.to_string()).map_err(|e| format!("写入PID文件失败: {}", e))?;
 
     Ok(())
 }
@@ -196,8 +201,8 @@ fn read_pid_file() -> Result<u32, String> {
         return Err("服务器未运行（PID文件不存在）".to_string());
     }
 
-    let content = std::fs::read_to_string(&pid_file)
-        .map_err(|e| format!("读取PID文件失败: {}", e))?;
+    let content =
+        std::fs::read_to_string(&pid_file).map_err(|e| format!("读取PID文件失败: {}", e))?;
 
     content
         .trim()
@@ -209,8 +214,7 @@ fn remove_pid_file() -> Result<(), String> {
     let pid_file = get_pid_file_path();
 
     if pid_file.exists() {
-        std::fs::remove_file(&pid_file)
-            .map_err(|e| format!("删除PID文件失败: {}", e))?;
+        std::fs::remove_file(&pid_file).map_err(|e| format!("删除PID文件失败: {}", e))?;
     }
 
     Ok(())

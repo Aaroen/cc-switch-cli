@@ -71,7 +71,7 @@ impl Provider {
             icon: None,
             icon_color: None,
             in_failover_queue: false,
-            weight: 1,  // 默认权重
+            weight: 1, // 默认权重
         }
     }
 }
@@ -375,7 +375,7 @@ impl UniversalProvider {
             icon: self.icon.clone(),
             icon_color: self.icon_color.clone(),
             in_failover_queue: false,
-            weight: 1,  // 默认权重
+            weight: 1, // 默认权重
         })
     }
 
@@ -434,7 +434,7 @@ requires_openai_auth = true"#
             icon: self.icon.clone(),
             icon_color: self.icon_color.clone(),
             in_failover_queue: false,
-            weight: 1,  // 默认权重
+            weight: 1, // 默认权重
         })
     }
 
@@ -470,7 +470,7 @@ requires_openai_auth = true"#
             icon: self.icon.clone(),
             icon_color: self.icon_color.clone(),
             in_failover_queue: false,
-            weight: 1,  // 默认权重
+            weight: 1, // 默认权重
         })
     }
 }

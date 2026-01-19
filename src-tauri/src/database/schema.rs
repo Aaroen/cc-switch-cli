@@ -875,12 +875,7 @@ impl Database {
         log::info!("开始迁移 providers 表到 v4 结构（添加权重字段）...");
 
         // 添加weight列，默认值为1（每轮都使用）
-        Self::add_column_if_missing(
-            conn,
-            "providers",
-            "weight",
-            "INTEGER NOT NULL DEFAULT 1",
-        )?;
+        Self::add_column_if_missing(conn, "providers", "weight", "INTEGER NOT NULL DEFAULT 1")?;
 
         log::info!("providers 表已成功添加 weight 列（默认值: 1）");
 
@@ -892,6 +887,13 @@ impl Database {
     /// 新增字段：
     /// - proxy_config.weight_round_robin_enabled (INTEGER NOT NULL DEFAULT 0) - 权重轮询开关
     fn migrate_v4_to_v5(conn: &Connection) -> Result<(), AppError> {
+        // 兼容：极旧/不完整的测试数据库可能没有 proxy_config 表。
+        // 在真实启动流程中会先 create_tables_on_conn() 创建该表。
+        if !Self::table_exists(conn, "proxy_config")? {
+            log::info!("proxy_config 表不存在，跳过 v4->v5 迁移（将由建表流程补齐）");
+            return Ok(());
+        }
+
         // 检查是否已经有 weight_round_robin_enabled 列
         if Self::has_column(conn, "proxy_config", "weight_round_robin_enabled")? {
             log::info!("proxy_config 表已有 weight_round_robin_enabled 列，跳过迁移");

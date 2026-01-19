@@ -14,7 +14,7 @@ use crate::provider::Provider;
 #[derive(Debug, Clone)]
 pub struct WeightedProvider {
     pub provider: Provider,
-    pub weight: u32,  // 0-10, 0表示禁用
+    pub weight: u32, // 0-10, 0表示禁用
 }
 
 /// 频率控制轮询负载均衡器
@@ -22,7 +22,7 @@ pub struct WeightedProvider {
 /// 通过全局轮询计数器控制各Provider的使用频率
 pub struct FrequencyControlledRR {
     providers: Vec<WeightedProvider>,
-    global_round: u32,  // 全局轮询计数器
+    global_round: u32, // 全局轮询计数器
 }
 
 impl FrequencyControlledRR {
@@ -34,7 +34,10 @@ impl FrequencyControlledRR {
                 // 从Provider对象读取weight字段（已从数据库加载）
                 let weight = p.weight;
 
-                WeightedProvider { provider: p, weight }
+                WeightedProvider {
+                    provider: p,
+                    weight,
+                }
             })
             .collect();
 
@@ -71,11 +74,7 @@ impl FrequencyControlledRR {
 
         if !eligible.is_empty() {
             // 有到轮次的，优先选择weight最大的（低频优先）
-            let max_weight = eligible
-                .iter()
-                .map(|p| p.weight)
-                .max()
-                .unwrap_or(1);
+            let max_weight = eligible.iter().map(|p| p.weight).max().unwrap_or(1);
 
             // 同权重轮转（避免同权重供应商长期被固定顺序压制）
             let same_weight: Vec<&WeightedProvider> = eligible
@@ -230,7 +229,7 @@ mod tests {
         // 测试weight=0（禁用）
         let providers = vec![
             create_weighted_provider("A", 1),
-            create_weighted_provider("B", 0),  // 禁用
+            create_weighted_provider("B", 0), // 禁用
         ];
 
         let mut lb = FrequencyControlledRR {
@@ -284,9 +283,9 @@ mod tests {
     fn test_frequency_distribution() {
         // 验证实际频率分布
         let providers = vec![
-            create_weighted_provider("Fast", 1),    // 高频
-            create_weighted_provider("Medium", 2),  // 中频
-            create_weighted_provider("Slow", 5),    // 低频
+            create_weighted_provider("Fast", 1),   // 高频
+            create_weighted_provider("Medium", 2), // 中频
+            create_weighted_provider("Slow", 5),   // 低频
         ];
 
         let mut lb = FrequencyControlledRR {

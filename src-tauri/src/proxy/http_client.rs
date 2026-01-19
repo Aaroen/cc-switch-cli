@@ -21,28 +21,52 @@ static CURRENT_PROXY_URL: OnceCell<RwLock<Option<String>>> = OnceCell::new();
 /// # Arguments
 /// * `proxy_url` - 代理 URL，如 `http://127.0.0.1:7890` 或 `socks5://127.0.0.1:1080`
 ///   传入 None 或空字符串表示直连
+///
+/// # 行为说明
+/// - 若数据库/调用方未提供 proxy_url：
+///   会尝试读取系统环境变量（HTTPS_PROXY/https_proxy/ALL_PROXY/http_proxy 等）作为“默认出站代理”。
+///   这样可兼容在受限网络环境下必须经由本地代理才能访问上游的场景。
+/// - 若调用方显式传入 None/空字符串：
+///   视为“直连”，将忽略系统环境变量代理。
 pub fn init(proxy_url: Option<&str>) -> Result<(), String> {
-    let effective_url = proxy_url.filter(|s| !s.trim().is_empty());
-    let client = build_client(effective_url)?;
+    // 1) 显式配置优先
+    let mut effective_url: Option<String> = proxy_url
+        .filter(|s| !s.trim().is_empty())
+        .map(|s| s.trim().to_string());
+
+    // 2) 若未显式配置：继承系统环境变量代理（仅在 init 阶段）
+    if effective_url.is_none() {
+        if let Some(env_url) = detect_system_proxy_url() {
+            log::info!(
+                "[GlobalProxy] No saved proxy config, inheriting from environment: {}",
+                mask_url(&env_url)
+            );
+            effective_url = Some(env_url);
+        }
+    }
+
+    let client = build_client(effective_url.as_deref())?;
 
     // 尝试初始化全局客户端，如果已存在则记录警告并使用 apply_proxy 更新
     if GLOBAL_CLIENT.set(RwLock::new(client.clone())).is_err() {
         log::warn!(
             "[GlobalProxy] [GP-003] Already initialized, updating instead: {}",
             effective_url
+                .as_deref()
                 .map(mask_url)
                 .unwrap_or_else(|| "direct connection".to_string())
         );
-        // 已初始化，改用 apply_proxy 更新
-        return apply_proxy(proxy_url);
+        // 已初始化，改用 apply_proxy 更新（注意：apply_proxy 不继承 env，None 表示强制直连）
+        return apply_proxy(effective_url.as_deref());
     }
 
     // 初始化代理 URL 记录
-    let _ = CURRENT_PROXY_URL.set(RwLock::new(effective_url.map(|s| s.to_string())));
+    let _ = CURRENT_PROXY_URL.set(RwLock::new(effective_url.clone()));
 
     log::info!(
         "[GlobalProxy] Initialized: {}",
         effective_url
+            .as_deref()
             .map(mask_url)
             .unwrap_or_else(|| "direct connection".to_string())
     );
@@ -189,6 +213,41 @@ pub fn get_current_proxy_url() -> Option<String> {
 #[allow(dead_code)]
 pub fn is_proxy_enabled() -> bool {
     get_current_proxy_url().is_some()
+}
+
+/// 从系统环境变量推断出站代理 URL。
+///
+/// 优先级：
+/// 1) HTTPS_PROXY / https_proxy
+/// 2) ALL_PROXY / all_proxy
+/// 3) HTTP_PROXY / http_proxy
+///
+/// 说明：
+/// - 仅用于 `init()` 在“未显式配置代理”时兜底。
+/// - 这里不会做 DB 持久化；只影响当前运行态。
+fn detect_system_proxy_url() -> Option<String> {
+    // 注意：环境变量常见写法包括 http(s):// 与 socks5://
+    // 也可能是 socks5h://（由 build_client 允许）
+    const KEYS: [&str; 6] = [
+        "HTTPS_PROXY",
+        "https_proxy",
+        "ALL_PROXY",
+        "all_proxy",
+        "HTTP_PROXY",
+        "http_proxy",
+    ];
+
+    for key in KEYS {
+        if let Ok(value) = std::env::var(key) {
+            let v = value.trim();
+            if v.is_empty() {
+                continue;
+            }
+            return Some(v.to_string());
+        }
+    }
+
+    None
 }
 
 /// 构建 HTTP 客户端

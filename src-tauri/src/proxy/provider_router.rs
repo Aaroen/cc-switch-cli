@@ -43,13 +43,19 @@ impl ProviderRouter {
         let mut circuit_open_count = 0usize;
 
         // 读取代理配置
-        let (auto_failover_enabled, weight_round_robin_enabled) = match self.db.get_proxy_config_for_app(app_type).await {
-            Ok(config) => (config.auto_failover_enabled, config.weight_round_robin_enabled),
-            Err(e) => {
-                log::error!("[{app_type}] 读取 proxy_config 失败: {e}，默认禁用故障转移和权重轮询");
-                (false, false)
-            }
-        };
+        let (auto_failover_enabled, weight_round_robin_enabled) =
+            match self.db.get_proxy_config_for_app(app_type).await {
+                Ok(config) => (
+                    config.auto_failover_enabled,
+                    config.weight_round_robin_enabled,
+                ),
+                Err(e) => {
+                    log::error!(
+                        "[{app_type}] 读取 proxy_config 失败: {e}，默认禁用故障转移和权重轮询"
+                    );
+                    (false, false)
+                }
+            };
 
         if weight_round_robin_enabled {
             // 权重轮询模式：使用 FrequencyControlledRR 负载均衡器
@@ -74,16 +80,20 @@ impl ProviderRouter {
             let selected_provider = {
                 let mut lbs = self.load_balancers.write().await;
                 let lb = lbs.entry(app_type.to_string()).or_insert_with(|| {
-                    log::info!("[{app_type}] 创建新的 FrequencyControlledRR 负载均衡器，供应商数量: {}", weighted_providers.len());
+                    log::info!(
+                        "[{app_type}] 创建新的 FrequencyControlledRR 负载均衡器，供应商数量: {}",
+                        weighted_providers.len()
+                    );
                     FrequencyControlledRR::new(weighted_providers.clone())
                 });
 
                 // 检查供应商列表是否需要更新（供应商数量或权重变化）
                 let current_providers = lb.providers();
                 let needs_update = current_providers.len() != weighted_providers.len()
-                    || current_providers.iter().zip(weighted_providers.iter()).any(|(wp, p)| {
-                        wp.provider.id != p.id || wp.weight != p.weight
-                    });
+                    || current_providers
+                        .iter()
+                        .zip(weighted_providers.iter())
+                        .any(|(wp, p)| wp.provider.id != p.id || wp.weight != p.weight);
 
                 if needs_update {
                     log::info!("[{app_type}] 供应商配置已变化，重建负载均衡器");
