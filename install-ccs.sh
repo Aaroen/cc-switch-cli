@@ -663,15 +663,66 @@ if [ -z "$NODE_CMD" ]; then
 fi
 
 # 检查 pnpm
-if ! command -v pnpm &> /dev/null; then
-    echo ""
-    echo -e "${YELLOW}pnpm 未安装，正在安装...${NC}"
-    if npm install -g pnpm > "$LOG_DIR/pnpm_install.log" 2>&1; then
-        echo -e "${GREEN}✓ pnpm 已安装${NC}"
-    else
-        echo -e "${RED}✗ pnpm 安装失败，尝试使用 npm 代替${NC}"
+ensure_pnpm() {
+    if command -v pnpm >/dev/null 2>&1; then
+        return 0
     fi
-fi
+
+    echo ""
+    echo -e "${YELLOW}pnpm 未安装，正在安装/启用...${NC}"
+
+    # 优先使用 corepack（Node 16+ 自带），避免系统缺少 npm 时失败
+    if command -v corepack >/dev/null 2>&1; then
+        {
+            echo "== corepack enable =="
+            corepack enable
+            echo "== corepack prepare pnpm@latest --activate =="
+            corepack prepare pnpm@latest --activate
+        } >> "$LOG_DIR/pnpm_install.log" 2>&1 || true
+    fi
+
+    # 回退：使用 npm 全局安装
+    if ! command -v pnpm >/dev/null 2>&1 && command -v npm >/dev/null 2>&1; then
+        {
+            echo "== npm install -g pnpm =="
+            npm install -g pnpm
+        } >> "$LOG_DIR/pnpm_install.log" 2>&1 || true
+    fi
+
+    # 回退：系统安装 npm（某些 Ubuntu 环境可能只有 node 没有 npm）
+    if ! command -v pnpm >/dev/null 2>&1 && ! command -v npm >/dev/null 2>&1; then
+        case "$PKG_MANAGER" in
+            apt)
+                {
+                    echo "== apt-get install npm =="
+                    DEBIAN_FRONTEND=noninteractive $SUDO apt-get update -qq || true
+                    DEBIAN_FRONTEND=noninteractive $SUDO apt-get install -y --no-install-recommends npm
+                    echo "== npm install -g pnpm =="
+                    npm install -g pnpm
+                } >> "$LOG_DIR/pnpm_install.log" 2>&1 || true
+                ;;
+        esac
+    fi
+
+    if command -v pnpm >/dev/null 2>&1; then
+        echo -e "${GREEN}✓ pnpm 已就绪${NC}"
+        return 0
+    fi
+
+    echo -e "${YELLOW}⚠ pnpm 未能自动安装/启用，将尝试使用 npm 安装依赖（如可用）${NC}"
+    if ! command -v npm >/dev/null 2>&1; then
+        echo -e "${RED}✗ 未找到 npm，无法继续安装前端依赖${NC}"
+        echo "查看日志: cat $LOG_DIR/pnpm_install.log"
+        echo ""
+        echo -e "${YELLOW}建议（任选其一）：${NC}"
+        echo "  1. 安装 npm: sudo apt-get install -y npm"
+        echo "  2. 启用 corepack: corepack enable && corepack prepare pnpm@latest --activate"
+        echo "  3. 重新运行本脚本"
+        exit 1
+    fi
+}
+
+ensure_pnpm
 
 # ============================================================================
 # 步骤 4: 安装前端依赖
@@ -701,6 +752,15 @@ if [ ! -d "node_modules" ] || [ "package.json" -nt "node_modules" ]; then
             rm -rf node_modules/.cache 2>/dev/null || true
         fi
 
+        if [[ "$INSTALL_CMD" == npm* ]] && ! command -v npm >/dev/null 2>&1; then
+            step_error $CURRENT_STEP $TOTAL_STEPS "前端依赖安装失败"
+            echo ""
+            echo -e "${RED}未找到 npm 命令，但当前回退安装命令为: ${INSTALL_CMD}${NC}"
+            echo -e "${YELLOW}请先安装 npm 或启用 corepack/pnpm 后重试${NC}"
+            echo "查看日志: cat $LOG_DIR/pnpm_install.log"
+            exit 1
+        fi
+
         if $INSTALL_CMD > "$LOG_DIR/pnpm_install.log" 2>&1; then
             SUCCESS=true
             step_done $CURRENT_STEP $TOTAL_STEPS "安装前端依赖"
@@ -718,7 +778,9 @@ if [ ! -d "node_modules" ] || [ "package.json" -nt "node_modules" ]; then
         echo -e "${YELLOW}建议尝试:${NC}"
         echo "  1. 检查网络连接"
         echo "  2. 清理缓存: rm -rf node_modules package-lock.json pnpm-lock.yaml"
-        echo "  3. 手动安装: cd $SCRIPT_DIR && pnpm install"
+        echo "  3. 手动安装: cd $SCRIPT_DIR && (pnpm install || npm install)"
+        echo "  4. 如缺少 npm: sudo apt-get install -y npm"
+        echo "  5. 如需使用 pnpm: corepack enable && corepack prepare pnpm@latest --activate"
         exit 1
     fi
 else
