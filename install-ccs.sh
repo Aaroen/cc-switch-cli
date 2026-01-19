@@ -214,9 +214,18 @@ find_available_port() {
                     return 0
                 fi
             else
-                # 无工具可用，直接返回
-                echo "$port"
-                return 0
+                # 无工具可用：退化为尝试连接（能连接说明在监听）
+                if command -v timeout &> /dev/null; then
+                    if ! timeout 1 bash -c "cat < /dev/null > /dev/tcp/127.0.0.1/$port" 2>/dev/null; then
+                        echo "$port"
+                        return 0
+                    fi
+                else
+                    if ! bash -c "cat < /dev/null > /dev/tcp/127.0.0.1/$port" 2>/dev/null; then
+                        echo "$port"
+                        return 0
+                    fi
+                fi
             fi
         else
             if ! lsof -Pi :$port -sTCP:LISTEN -t >/dev/null 2>&1; then
@@ -996,6 +1005,9 @@ step_running $CURRENT_STEP $TOTAL_STEPS "停止旧服务"
 
 # 临时禁用 set -e，因为停止服务的命令可能返回非零退出码
 set +e
+# 同时临时禁用 ERR trap（stop 过程中会有竞态：进程消失导致 /proc 读取失败）
+PREV_ERR_TRAP="$(trap -p ERR || true)"
+trap '' ERR
 
 # 获取当前脚本的 PID，避免误杀自己
 CURRENT_SCRIPT_PID=$$
@@ -1025,9 +1037,9 @@ for pid in $(list_pids_matching "cc-switch"); do
         continue
     fi
     # 检查进程命令行，只杀死真正的 cc-switch 服务进程
-    CMDLINE=$(cat /proc/$pid/cmdline 2>/dev/null | tr '\0' ' ')
-    if echo "$CMDLINE" | grep -qE "(^|/)cc-switch( |$)|cc-switch server"; then
-        kill "$pid" 2>/dev/null
+    CMDLINE="$(cat "/proc/$pid/cmdline" 2>/dev/null | tr '\0' ' ' || true)"
+    if echo "$CMDLINE" | grep -qE "(^|/)cc-switch( |$)|cc-switch server" 2>/dev/null; then
+        kill "$pid" 2>/dev/null || true
     fi
 done
 
@@ -1039,11 +1051,11 @@ for pid in $(list_pids_matching "cc-switch"); do
     if [ "$pid" = "$CURRENT_SCRIPT_PID" ]; then
         continue
     fi
-    CMDLINE=$(cat /proc/$pid/cmdline 2>/dev/null | tr '\0' ' ')
-    if echo "$CMDLINE" | grep -qE "(^|/)cc-switch( |$)|cc-switch server"; then
+    CMDLINE="$(cat "/proc/$pid/cmdline" 2>/dev/null | tr '\0' ' ' || true)"
+    if echo "$CMDLINE" | grep -qE "(^|/)cc-switch( |$)|cc-switch server" 2>/dev/null; then
         echo ""
         echo -e "${YELLOW}强制终止残留进程 (PID: $pid)...${NC}"
-        kill -9 "$pid" 2>/dev/null
+        kill -9 "$pid" 2>/dev/null || true
     fi
 done
 
@@ -1051,6 +1063,10 @@ sleep 1
 
 # 重新启用 set -e
 set -e
+# 恢复 ERR trap
+if [ -n "$PREV_ERR_TRAP" ]; then
+    eval "$PREV_ERR_TRAP" || true
+fi
 
 step_done $CURRENT_STEP $TOTAL_STEPS "停止旧服务"
 
