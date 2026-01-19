@@ -648,15 +648,23 @@ pub fn run() {
             // 初始化全局出站代理 HTTP 客户端
             {
                 let db = &app.state::<AppState>().db;
-                let proxy_url = db.get_global_proxy_url().ok().flatten();
+                let proxy_state = db
+                    .get_global_proxy_state()
+                    .unwrap_or(crate::database::GlobalProxyState::Unset);
 
-                if let Err(e) = crate::proxy::http_client::init(proxy_url.as_deref()) {
+                let (init_arg, has_explicit_proxy) = match proxy_state {
+                    crate::database::GlobalProxyState::Unset => (None, false),
+                    crate::database::GlobalProxyState::Direct => (Some(String::new()), false),
+                    crate::database::GlobalProxyState::Proxy(url) => (Some(url), true),
+                };
+
+                if let Err(e) = crate::proxy::http_client::init(init_arg.as_deref()) {
                     log::error!(
                         "[GlobalProxy] [GP-005] Failed to initialize with saved config: {e}"
                     );
 
                     // 清除无效的代理配置
-                    if proxy_url.is_some() {
+                    if has_explicit_proxy {
                         log::warn!(
                             "[GlobalProxy] [GP-006] Clearing invalid proxy config from database"
                         );
@@ -668,7 +676,7 @@ pub fn run() {
                     }
 
                     // 使用直连模式重新初始化
-                    if let Err(fallback_err) = crate::proxy::http_client::init(None) {
+                    if let Err(fallback_err) = crate::proxy::http_client::init(Some("")) {
                         log::error!(
                             "[GlobalProxy] [GP-008] Failed to initialize direct connection: {fallback_err}"
                         );

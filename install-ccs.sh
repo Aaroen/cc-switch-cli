@@ -928,14 +928,26 @@ if [ -n "${ARG_PREBUILT_BIN:-}" ]; then
     step_done $CURRENT_STEP $TOTAL_STEPS "使用预构建二进制"
 else
 
+# 统一指定 Cargo Target 目录，避免：
+# - 仓库路径变更导致 tauri permissions 绝对路径缓存失效（典型报错：failed to read plugin permissions）
+# - 与其它同名项目/工作区 target 相互污染
+#
+# 允许用户通过环境变量覆盖：
+# - CC_SWITCH_CARGO_TARGET_DIR（优先）
+# - CARGO_TARGET_DIR（次优先）
+#
+# 默认使用仓库内的 .cargo-target（保留历史 src-tauri/target 不动，避免“删除文件”争议）
+CCS_CARGO_TARGET_DIR="${CC_SWITCH_CARGO_TARGET_DIR:-${CARGO_TARGET_DIR:-$SCRIPT_DIR/.cargo-target/src-tauri}}"
+export CARGO_TARGET_DIR="$CCS_CARGO_TARGET_DIR"
+
 # 检查是否需要重新编译
 #
 # 说明：
 # - 不能用目录 mtime 判断（不可靠），改为以最终二进制文件作为基准。
 # - 增加“构建戳”机制：记录当前 git commit，避免出现“代码更新了但仍复用旧二进制”的情况。
 # - 增加“特征字符串”检测：如果二进制里还包含调试期标记（如 request trace），强制重编译。
-BIN_PATH="src-tauri/target/release/cc-switch"
-STAMP_FILE="src-tauri/target/release/.build_git_commit"
+BIN_PATH="$CARGO_TARGET_DIR/release/cc-switch"
+STAMP_FILE="$CARGO_TARGET_DIR/release/.build_git_commit"
 NEED_REBUILD=false
 
 CURRENT_COMMIT=""
@@ -1044,7 +1056,7 @@ if [ "$NEED_REBUILD" = true ]; then
         echo ""
         echo -e "${YELLOW}建议尝试:${NC}"
         echo "  1. 检查系统依赖是否完整安装"
-        echo "  2. 清理构建缓存: rm -rf src-tauri/target"
+        echo "  2. 清理构建缓存: rm -rf src-tauri/target \"$CARGO_TARGET_DIR\""
         echo "  3. 手动编译（CLI）: cd $SCRIPT_DIR && cargo build --release --manifest-path src-tauri/Cargo.toml"
         echo "  4. 手动编译（GUI）: cd $SCRIPT_DIR && (pnpm tauri build || corepack pnpm tauri build)"
         exit 1
@@ -1159,6 +1171,8 @@ mkdir -p "$INSTALL_DIR"
 SOURCE_BIN=""
 if [ -n "${ARG_PREBUILT_BIN:-}" ]; then
     SOURCE_BIN="$ARG_PREBUILT_BIN"
+elif [ -n "${CARGO_TARGET_DIR:-}" ] && [ -f "$CARGO_TARGET_DIR/release/cc-switch" ]; then
+    SOURCE_BIN="$CARGO_TARGET_DIR/release/cc-switch"
 elif [ -f "src-tauri/target/release/cc-switch" ]; then
     SOURCE_BIN="src-tauri/target/release/cc-switch"
 fi

@@ -453,8 +453,17 @@ pub async fn config_show(app: Option<String>) -> Result<(), String> {
         // 显示全局配置
         output::section("全局配置");
 
-        if let Ok(Some(proxy_url)) = db.get_global_proxy_url() {
-            output::key_value(vec![("上游代理", proxy_url)]);
+        if let Ok(state) = db.get_global_proxy_state() {
+            let desc = match state {
+                crate::database::GlobalProxyState::Unset => {
+                    "auto（未设置，启动时可继承环境变量代理）".to_string()
+                }
+                crate::database::GlobalProxyState::Direct => {
+                    "direct（显式直连，忽略环境变量代理）".to_string()
+                }
+                crate::database::GlobalProxyState::Proxy(url) => url,
+            };
+            output::key_value(vec![("上游代理", desc)]);
         }
 
         // 显示所有应用的启用状态

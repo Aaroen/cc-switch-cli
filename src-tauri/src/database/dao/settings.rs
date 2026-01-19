@@ -6,6 +6,17 @@ use crate::database::{lock_conn, Database};
 use crate::error::AppError;
 use rusqlite::params;
 
+/// 全局出站代理配置状态（用于区分 Unset/Direct/Proxy）
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum GlobalProxyState {
+    /// 未设置：可在运行态按需继承环境变量代理
+    Unset,
+    /// 显式直连：强制不使用任何代理（忽略环境变量代理）
+    Direct,
+    /// 显式代理
+    Proxy(String),
+}
+
 impl Database {
     /// 获取设置值
     pub fn get_setting(&self, key: &str) -> Result<Option<String>, AppError> {
@@ -67,13 +78,44 @@ impl Database {
 
     /// 全局代理 URL 的存储键名
     const GLOBAL_PROXY_URL_KEY: &'static str = "global_proxy_url";
+    /// “显式直连（不继承环境代理）”的哨兵值
+    ///
+    /// 背景：如果直接删除 settings 行，就无法区分：
+    /// - 从未配置过（应当按需继承环境变量代理）
+    /// - 用户显式关闭了代理（应当强制直连，避免与 Clash/系统代理冲突）
+    const GLOBAL_PROXY_DIRECT_SENTINEL: &'static str = "__DIRECT__";
 
     /// 获取全局出站代理 URL
     ///
     /// 返回 None 表示未配置或已清除代理（直连）
     /// 返回 Some(url) 表示已配置代理
     pub fn get_global_proxy_url(&self) -> Result<Option<String>, AppError> {
-        self.get_setting(Self::GLOBAL_PROXY_URL_KEY)
+        match self.get_setting(Self::GLOBAL_PROXY_URL_KEY)? {
+            None => Ok(None),
+            Some(v) => {
+                let t = v.trim();
+                if t.is_empty() || t == Self::GLOBAL_PROXY_DIRECT_SENTINEL {
+                    Ok(None)
+                } else {
+                    Ok(Some(t.to_string()))
+                }
+            }
+        }
+    }
+
+    /// 获取全局出站代理状态（区分 Unset/Direct/Proxy）
+    pub fn get_global_proxy_state(&self) -> Result<GlobalProxyState, AppError> {
+        match self.get_setting(Self::GLOBAL_PROXY_URL_KEY)? {
+            None => Ok(GlobalProxyState::Unset),
+            Some(v) => {
+                let t = v.trim();
+                if t.is_empty() || t == Self::GLOBAL_PROXY_DIRECT_SENTINEL {
+                    Ok(GlobalProxyState::Direct)
+                } else {
+                    Ok(GlobalProxyState::Proxy(t.to_string()))
+                }
+            }
+        }
     }
 
     /// 设置全局出站代理 URL
@@ -82,11 +124,8 @@ impl Database {
     /// - 传入空字符串或 None：清除代理设置（直连）
     pub fn set_global_proxy_url(&self, url: Option<&str>) -> Result<(), AppError> {
         match url {
-            Some(u) if !u.trim().is_empty() => {
-                self.set_setting(Self::GLOBAL_PROXY_URL_KEY, u.trim())
-            }
-            _ => {
-                // 清除代理设置
+            // 特殊值：恢复为“未设置”（允许启动时继承环境变量代理）
+            Some(u) if u.trim().eq_ignore_ascii_case("auto") => {
                 let conn = lock_conn!(self.conn);
                 conn.execute(
                     "DELETE FROM settings WHERE key = ?1",
@@ -94,6 +133,16 @@ impl Database {
                 )
                 .map_err(|e| AppError::Database(e.to_string()))?;
                 Ok(())
+            }
+            Some(u) if !u.trim().is_empty() => {
+                self.set_setting(Self::GLOBAL_PROXY_URL_KEY, u.trim())
+            }
+            _ => {
+                // 显式标记为“直连”（而不是删除），用于区分“从未设置过”
+                self.set_setting(
+                    Self::GLOBAL_PROXY_URL_KEY,
+                    Self::GLOBAL_PROXY_DIRECT_SENTINEL,
+                )
             }
         }
     }
@@ -185,5 +234,43 @@ impl Database {
         let json = serde_json::to_string(config)
             .map_err(|e| AppError::Database(format!("序列化整流器配置失败: {e}")))?;
         self.set_setting("rectifier_config", &json)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::database::Database;
+
+    #[test]
+    fn global_proxy_state_distinguishes_unset_and_direct() {
+        let db = Database::memory().expect("init memory db");
+
+        // 初始：未设置
+        assert_eq!(
+            db.get_global_proxy_state().unwrap(),
+            GlobalProxyState::Unset
+        );
+        assert_eq!(db.get_global_proxy_url().unwrap(), None);
+
+        // 设置代理
+        db.set_global_proxy_url(Some("http://127.0.0.1:7890"))
+            .unwrap();
+        assert_eq!(
+            db.get_global_proxy_state().unwrap(),
+            GlobalProxyState::Proxy("http://127.0.0.1:7890".to_string())
+        );
+        assert_eq!(
+            db.get_global_proxy_url().unwrap(),
+            Some("http://127.0.0.1:7890".to_string())
+        );
+
+        // 清除：显式直连
+        db.set_global_proxy_url(None).unwrap();
+        assert_eq!(
+            db.get_global_proxy_state().unwrap(),
+            GlobalProxyState::Direct
+        );
+        assert_eq!(db.get_global_proxy_url().unwrap(), None);
     }
 }

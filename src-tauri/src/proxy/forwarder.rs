@@ -84,6 +84,11 @@ pub struct ForwardError {
 pub struct RequestForwarder {
     /// 共享的 ProviderRouter（持有熔断器状态）
     router: Arc<ProviderRouter>,
+    /// 最大重试次数（与数据库 proxy_config.max_retries 对齐）
+    ///
+    /// 语义：单次请求中，最多允许“跨供应商切换”的重试次数。
+    /// 例如 max_retries=3 表示最多尝试 4 个供应商（包含首次）。
+    max_retries: u32,
     status: Arc<RwLock<ProxyStatus>>,
     current_providers: Arc<RwLock<std::collections::HashMap<String, (String, String)>>>,
     /// 故障转移切换管理器
@@ -104,6 +109,7 @@ impl RequestForwarder {
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         router: Arc<ProviderRouter>,
+        max_retries: u32,
         non_streaming_timeout: u64,
         status: Arc<RwLock<ProxyStatus>>,
         current_providers: Arc<RwLock<std::collections::HashMap<String, (String, String)>>>,
@@ -122,6 +128,7 @@ impl RequestForwarder {
 
         Self {
             router,
+            max_retries,
             status,
             current_providers,
             failover_manager,
@@ -182,6 +189,14 @@ impl RequestForwarder {
         // 单 Provider 场景下跳过熔断器检查（故障转移关闭时）
         let bypass_circuit_breaker = providers.len() == 1;
 
+        // 尝试次数上限：最多尝试 (max_retries + 1) 个供应商（包含首次）
+        // 单 Provider 场景下不做限制（本来就只有 1 次）
+        let max_provider_attempts = if bypass_circuit_breaker {
+            1usize
+        } else {
+            (self.max_retries as usize).saturating_add(1).max(1)
+        };
+
         // 日志：开始轮询
         log::info!("[{}] ╔═══ 请求转发开始 ═══", app_type_str);
         log::info!("[{}] ║ 可用供应商: {} 个", app_type_str, providers.len());
@@ -197,6 +212,16 @@ impl RequestForwarder {
 
         // 依次尝试每个供应商
         for provider in providers.iter() {
+            if attempted_providers >= max_provider_attempts {
+                log::warn!(
+                    "[{app_type_str}] [FWD-RETRY] 已达到 max_retries 上限：{} (max_retries={}, providers={})",
+                    max_provider_attempts,
+                    self.max_retries,
+                    providers.len()
+                );
+                break;
+            }
+
             // 发起请求前先获取熔断器放行许可（HalfOpen 会占用探测名额）
             // 单 Provider 场景下跳过此检查，避免熔断器阻塞所有请求
             let (allowed, used_half_open_permit) = if bypass_circuit_breaker {
@@ -235,9 +260,9 @@ impl RequestForwarder {
                 status.last_request_at = Some(chrono::Utc::now().to_rfc3339());
             }
 
-            // 转发请求（每个 Provider 只尝试一次，重试由客户端控制）
+            // 转发请求（支持：出站代理/直连兜底 + 轻量重试）
             match self
-                .forward(provider, endpoint, &body, &headers, adapter.as_ref())
+                .forward_with_resilience(provider, endpoint, &body, &headers, adapter.as_ref())
                 .await
             {
                 Ok(response) => {
@@ -409,7 +434,13 @@ impl RequestForwarder {
 
                             // 使用同一供应商重试（不计入熔断器）
                             match self
-                                .forward(provider, endpoint, &body, &headers, adapter.as_ref())
+                                .forward_with_resilience(
+                                    provider,
+                                    endpoint,
+                                    &body,
+                                    &headers,
+                                    adapter.as_ref(),
+                                )
                                 .await
                             {
                                 Ok(response) => {
@@ -663,9 +694,101 @@ impl RequestForwarder {
         })
     }
 
-    /// 转发单个请求（使用适配器）
-    async fn forward(
+    /// 转发单个请求（带出站兜底）
+    ///
+    /// 背景：在启用 Clash/系统代理时，显式出站代理 + 系统代理可能叠加，或代理链路偶发断流，
+    /// 会产生 `error sending request` 这类 reqwest 发送阶段错误。
+    ///
+    /// 策略：
+    /// - 默认使用当前全局出站配置（可能是代理/直连）
+    /// - 若为网络类错误（Timeout/ForwardFailed），且当前启用了代理：再用“强制直连”重试 1 次
+    /// - 若当前为直连，且检测到环境代理（HTTP(S)_PROXY/ALL_PROXY）：用环境代理重试 1 次
+    async fn forward_with_resilience(
         &self,
+        provider: &Provider,
+        endpoint: &str,
+        body: &Value,
+        headers: &axum::http::HeaderMap,
+        adapter: &dyn ProviderAdapter,
+    ) -> Result<Response, ProxyError> {
+        use super::http_client;
+
+        let current_proxy = http_client::get_current_proxy_url();
+        let primary_client = http_client::get();
+
+        let primary_result = self
+            .forward_with_client(primary_client, provider, endpoint, body, headers, adapter)
+            .await;
+
+        let primary_err = match primary_result {
+            Ok(resp) => return Ok(resp),
+            Err(e) => e,
+        };
+
+        // 只对网络类错误做兜底，避免对确定性的 4xx/配置错误重复请求
+        let is_network_error = matches!(
+            primary_err,
+            ProxyError::Timeout(_) | ProxyError::ForwardFailed(_)
+        );
+        if !is_network_error {
+            return Err(primary_err);
+        }
+
+        // 1) 当前启用了代理：用直连兜底
+        if let Some(proxy_url) = current_proxy {
+            log::warn!(
+                "[Forwarder] Upstream request failed via proxy {}, retrying direct once: {}",
+                http_client::mask_url(&proxy_url),
+                primary_err
+            );
+            let direct_client = http_client::build_ephemeral_client(None).unwrap_or_else(|_| {
+                log::warn!("[Forwarder] Failed to build ephemeral direct client, using cached direct client");
+                http_client::get_direct()
+            });
+            let direct_result = self
+                .forward_with_client(direct_client, provider, endpoint, body, headers, adapter)
+                .await;
+            if direct_result.is_ok() {
+                log::info!(
+                    "[Forwarder] Direct fallback succeeded (previous proxy was {})",
+                    http_client::mask_url(&proxy_url)
+                );
+            }
+            return direct_result;
+        }
+
+        // 2) 当前为直连：仅在 Auto 策略下允许读取环境变量代理做兜底
+        if http_client::get_policy() == http_client::ProxyPolicy::Auto {
+            let Some(env_proxy) = http_client::detect_env_proxy_url() else {
+                return Err(primary_err);
+            };
+            log::warn!(
+                "[Forwarder] Upstream request failed in direct mode, retrying via env proxy {} once: {}",
+                http_client::mask_url(&env_proxy),
+                primary_err
+            );
+            if let Ok(env_client) = http_client::build_ephemeral_client(Some(&env_proxy)) {
+                let env_result = self
+                    .forward_with_client(env_client, provider, endpoint, body, headers, adapter)
+                    .await;
+                if env_result.is_ok() {
+                    log::info!(
+                        "[Forwarder] Env proxy fallback succeeded ({})",
+                        http_client::mask_url(&env_proxy)
+                    );
+                }
+                return env_result;
+            }
+            return Err(primary_err);
+        }
+
+        Err(primary_err)
+    }
+
+    /// 转发单个请求（使用适配器）
+    async fn forward_with_client(
+        &self,
+        client: reqwest::Client,
         provider: &Provider,
         endpoint: &str,
         body: &Value,
@@ -713,8 +836,6 @@ impl RequestForwarder {
             );
         }
 
-        // 每次请求时获取最新的全局 HTTP 客户端（支持热更新代理配置）
-        let client = super::http_client::get();
         let mut request = client.post(&url);
 
         // 只有当 timeout > 0 时才设置请求超时

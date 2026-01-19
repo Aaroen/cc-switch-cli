@@ -23,8 +23,18 @@ pub async fn start_headless_server(host: String, port: u16, daemon: bool) -> Res
 
     // 初始化全局HTTP客户端
     {
-        let proxy_url = app_state.db.get_global_proxy_url().ok().flatten();
-        if let Err(e) = crate::proxy::http_client::init(proxy_url.as_deref()) {
+        let proxy_state = app_state
+            .db
+            .get_global_proxy_state()
+            .unwrap_or(crate::database::GlobalProxyState::Unset);
+
+        let init_arg: Option<String> = match proxy_state {
+            crate::database::GlobalProxyState::Unset => None,
+            crate::database::GlobalProxyState::Direct => Some(String::new()),
+            crate::database::GlobalProxyState::Proxy(url) => Some(url),
+        };
+
+        if let Err(e) = crate::proxy::http_client::init(init_arg.as_deref()) {
             crate::cli::output::warning(&format!("HTTP客户端初始化失败: {}", e));
         }
     }

@@ -5,14 +5,51 @@
 
 use once_cell::sync::OnceCell;
 use reqwest::Client;
+use std::net::IpAddr;
 use std::sync::RwLock;
 use std::time::Duration;
+use url::Url;
 
 /// 全局 HTTP 客户端实例
 static GLOBAL_CLIENT: OnceCell<RwLock<Client>> = OnceCell::new();
 
 /// 当前代理 URL（用于日志和状态查询）
 static CURRENT_PROXY_URL: OnceCell<RwLock<Option<String>>> = OnceCell::new();
+
+/// 代理策略（用于区分 Auto/Direct/Proxy）
+static CURRENT_POLICY: OnceCell<RwLock<ProxyPolicy>> = OnceCell::new();
+
+/// 直连 HTTP 客户端（永远不走任何代理，避免与系统/Clash 代理产生冲突）
+static DIRECT_CLIENT: OnceCell<Client> = OnceCell::new();
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ProxyPolicy {
+    /// 未显式设置：启动时可按需继承环境变量代理
+    Auto,
+    /// 显式直连：忽略环境变量代理
+    Direct,
+    /// 显式代理：忽略环境变量代理，使用配置的代理 URL
+    Proxy,
+}
+
+fn set_policy(policy: ProxyPolicy) {
+    if CURRENT_POLICY.set(RwLock::new(policy)).is_err() {
+        if let Some(lock) = CURRENT_POLICY.get() {
+            if let Ok(mut guard) = lock.write() {
+                *guard = policy;
+            }
+        }
+    }
+}
+
+/// 获取当前代理策略
+pub fn get_policy() -> ProxyPolicy {
+    CURRENT_POLICY
+        .get()
+        .and_then(|lock| lock.read().ok())
+        .map(|p| *p)
+        .unwrap_or(ProxyPolicy::Auto)
+}
 
 /// 初始化全局 HTTP 客户端
 ///
@@ -30,12 +67,28 @@ static CURRENT_PROXY_URL: OnceCell<RwLock<Option<String>>> = OnceCell::new();
 ///   视为“直连”，将忽略系统环境变量代理。
 pub fn init(proxy_url: Option<&str>) -> Result<(), String> {
     // 1) 显式配置优先
-    let mut effective_url: Option<String> = proxy_url
-        .filter(|s| !s.trim().is_empty())
-        .map(|s| s.trim().to_string());
+    //    - Some("") / Some("   ")：显式直连（忽略环境变量代理）
+    //    - Some(url)：显式代理
+    //    - None：未提供（可继承环境变量代理）
+    let explicit_direct = matches!(proxy_url, Some(s) if s.trim().is_empty());
+    let policy = if proxy_url.is_none() {
+        ProxyPolicy::Auto
+    } else if explicit_direct {
+        ProxyPolicy::Direct
+    } else {
+        ProxyPolicy::Proxy
+    };
+    let mut effective_url: Option<String> = proxy_url.and_then(|s| {
+        let t = s.trim();
+        if t.is_empty() {
+            None
+        } else {
+            Some(t.to_string())
+        }
+    });
 
     // 2) 若未显式配置：继承系统环境变量代理（仅在 init 阶段）
-    if effective_url.is_none() {
+    if !explicit_direct && effective_url.is_none() {
         if let Some(env_url) = detect_system_proxy_url() {
             log::info!(
                 "[GlobalProxy] No saved proxy config, inheriting from environment: {}",
@@ -46,6 +99,7 @@ pub fn init(proxy_url: Option<&str>) -> Result<(), String> {
     }
 
     let client = build_client(effective_url.as_deref())?;
+    set_policy(policy);
 
     // 尝试初始化全局客户端，如果已存在则记录警告并使用 apply_proxy 更新
     if GLOBAL_CLIENT.set(RwLock::new(client.clone())).is_err() {
@@ -56,8 +110,12 @@ pub fn init(proxy_url: Option<&str>) -> Result<(), String> {
                 .map(mask_url)
                 .unwrap_or_else(|| "direct connection".to_string())
         );
-        // 已初始化，改用 apply_proxy 更新（注意：apply_proxy 不继承 env，None 表示强制直连）
-        return apply_proxy(effective_url.as_deref());
+        // 已初始化：改用 apply_proxy 更新客户端与代理 URL，但保持 policy 语义（Auto/Direct/Proxy）
+        // - Auto: 允许继承环境变量代理（effective_url 可能来自 env）
+        // - Direct/Proxy: 不继承环境变量
+        let result = apply_proxy(effective_url.as_deref());
+        set_policy(policy);
+        return result;
     }
 
     // 初始化代理 URL 记录
@@ -91,6 +149,16 @@ pub fn validate_proxy(proxy_url: Option<&str>) -> Result<(), String> {
     Ok(())
 }
 
+/// 构建临时 HTTP 客户端（不影响全局客户端）
+///
+/// 用途：
+/// - 单次请求的兜底重试（例如代理冲突时切换直连/环境代理）
+/// - CLI/测试场景快速构建不同出站策略的 Client
+pub fn build_ephemeral_client(proxy_url: Option<&str>) -> Result<Client, String> {
+    let effective_url = proxy_url.filter(|s| !s.trim().is_empty());
+    build_client(effective_url)
+}
+
 /// 应用代理配置（假设已验证）
 ///
 /// 直接应用代理配置到全局客户端，不做额外验证。
@@ -101,6 +169,11 @@ pub fn validate_proxy(proxy_url: Option<&str>) -> Result<(), String> {
 pub fn apply_proxy(proxy_url: Option<&str>) -> Result<(), String> {
     let effective_url = proxy_url.filter(|s| !s.trim().is_empty());
     let new_client = build_client(effective_url)?;
+    set_policy(if effective_url.is_some() {
+        ProxyPolicy::Proxy
+    } else {
+        ProxyPolicy::Direct
+    });
 
     // 更新客户端
     if let Some(lock) = GLOBAL_CLIENT.get() {
@@ -145,6 +218,11 @@ pub fn apply_proxy(proxy_url: Option<&str>) -> Result<(), String> {
 pub fn update_proxy(proxy_url: Option<&str>) -> Result<(), String> {
     let effective_url = proxy_url.filter(|s| !s.trim().is_empty());
     let new_client = build_client(effective_url)?;
+    set_policy(if effective_url.is_some() {
+        ProxyPolicy::Proxy
+    } else {
+        ProxyPolicy::Direct
+    });
 
     // 更新客户端
     if let Some(lock) = GLOBAL_CLIENT.get() {
@@ -199,6 +277,22 @@ pub fn get() -> Client {
         })
 }
 
+/// 获取直连 HTTP 客户端（强制不使用任何代理）
+pub fn get_direct() -> Client {
+    DIRECT_CLIENT
+        .get_or_init(|| {
+            Client::builder()
+                .timeout(Duration::from_secs(600))
+                .connect_timeout(Duration::from_secs(30))
+                .pool_max_idle_per_host(10)
+                .tcp_keepalive(Duration::from_secs(60))
+                .no_proxy()
+                .build()
+                .unwrap_or_default()
+        })
+        .clone()
+}
+
 /// 获取当前代理 URL
 ///
 /// 返回当前配置的代理 URL，None 表示直连。
@@ -250,19 +344,29 @@ fn detect_system_proxy_url() -> Option<String> {
     None
 }
 
+/// 暴露给调用方的环境代理探测（只读）
+///
+/// 用于在请求转发失败时做兜底（例如 Clash TUN 与显式代理冲突时可切换直连/环境代理重试）。
+pub fn detect_env_proxy_url() -> Option<String> {
+    detect_system_proxy_url()
+}
+
 /// 构建 HTTP 客户端
 fn build_client(proxy_url: Option<&str>) -> Result<Client, String> {
     let mut builder = Client::builder()
         .timeout(Duration::from_secs(600))
         .connect_timeout(Duration::from_secs(30))
         .pool_max_idle_per_host(10)
-        .tcp_keepalive(Duration::from_secs(60));
+        .tcp_keepalive(Duration::from_secs(60))
+        // 统一关闭 reqwest 的“自动读取环境代理”，避免与 Clash/系统代理叠加导致不可预期行为。
+        // 如果需要继承环境代理，会在 init() 阶段显式读取并注入。
+        .no_proxy();
 
     // 有代理地址则使用代理，否则直连
     if let Some(url) = proxy_url {
         // 先验证 URL 格式和 scheme
-        let parsed = url::Url::parse(url)
-            .map_err(|e| format!("Invalid proxy URL '{}': {}", mask_url(url), e))?;
+        let parsed =
+            Url::parse(url).map_err(|e| format!("Invalid proxy URL '{}': {}", mask_url(url), e))?;
 
         let scheme = parsed.scheme();
         if !["http", "https", "socks5", "socks5h"].contains(&scheme) {
@@ -273,12 +377,23 @@ fn build_client(proxy_url: Option<&str>) -> Result<Client, String> {
             ));
         }
 
-        let proxy = reqwest::Proxy::all(url)
-            .map_err(|e| format!("Invalid proxy URL '{}': {}", mask_url(url), e))?;
+        // 兼容 NO_PROXY / no_proxy，避免把本地回环流量也错误地走出站代理（会导致自我代理/环路）
+        // - 始终绕过 localhost / 127.0.0.1 / ::1
+        // - 解析 NO_PROXY/no_proxy 的常见语义（host / .suffix / host:port）
+        let no_proxy = std::sync::Arc::new(NoProxyMatcher::from_env());
+        let proxy_url = parsed.clone();
+
+        let proxy = reqwest::Proxy::custom(move |destination| {
+            if should_bypass_proxy(destination, &no_proxy) {
+                None
+            } else {
+                Some(proxy_url.clone())
+            }
+        });
+
         builder = builder.proxy(proxy);
         log::debug!("[GlobalProxy] Proxy configured: {}", mask_url(url));
     } else {
-        builder = builder.no_proxy();
         log::debug!("[GlobalProxy] Direct connection (no proxy)");
     }
 
@@ -287,9 +402,131 @@ fn build_client(proxy_url: Option<&str>) -> Result<Client, String> {
         .map_err(|e| format!("Failed to build HTTP client: {e}"))
 }
 
+#[derive(Debug, Clone, Default)]
+struct NoProxyMatcher {
+    rules: Vec<NoProxyRule>,
+}
+
+#[derive(Debug, Clone)]
+enum NoProxyRule {
+    Any,
+    Host(String),
+    Suffix(String),
+    HostPort { host: String, port: u16 },
+    Ip(IpAddr),
+}
+
+impl NoProxyMatcher {
+    fn from_env() -> Self {
+        let raw = std::env::var("NO_PROXY")
+            .or_else(|_| std::env::var("no_proxy"))
+            .unwrap_or_default();
+
+        let mut rules = Vec::new();
+        for part in raw.split(',') {
+            let p = part.trim();
+            if p.is_empty() {
+                continue;
+            }
+            if p == "*" {
+                rules.push(NoProxyRule::Any);
+                continue;
+            }
+
+            // host:port
+            if let Some((h, port)) = p.rsplit_once(':') {
+                if let Ok(port) = port.parse::<u16>() {
+                    let host = h.trim();
+                    if !host.is_empty() {
+                        rules.push(NoProxyRule::HostPort {
+                            host: host.to_string(),
+                            port,
+                        });
+                        continue;
+                    }
+                }
+            }
+
+            // IP
+            if let Ok(ip) = p.parse::<IpAddr>() {
+                rules.push(NoProxyRule::Ip(ip));
+                continue;
+            }
+
+            // .suffix
+            if let Some(suffix) = p.strip_prefix('.') {
+                if !suffix.is_empty() {
+                    rules.push(NoProxyRule::Suffix(suffix.to_ascii_lowercase()));
+                }
+                continue;
+            }
+
+            rules.push(NoProxyRule::Host(p.to_ascii_lowercase()));
+        }
+
+        Self { rules }
+    }
+
+    fn matches(&self, host: &str, port: Option<u16>) -> bool {
+        let h = host.to_ascii_lowercase();
+
+        for rule in &self.rules {
+            match rule {
+                NoProxyRule::Any => return true,
+                NoProxyRule::Host(expected) => {
+                    if h == *expected || h.ends_with(&format!(".{expected}")) {
+                        return true;
+                    }
+                }
+                NoProxyRule::Suffix(suffix) => {
+                    if h == *suffix || h.ends_with(&format!(".{suffix}")) {
+                        return true;
+                    }
+                }
+                NoProxyRule::HostPort { host, port: p } => {
+                    if port == Some(*p) {
+                        let expected = host.to_ascii_lowercase();
+                        if h == expected || h.ends_with(&format!(".{expected}")) {
+                            return true;
+                        }
+                    }
+                }
+                NoProxyRule::Ip(ip) => {
+                    if let Ok(h_ip) = h.parse::<IpAddr>() {
+                        if &h_ip == ip {
+                            return true;
+                        }
+                    }
+                }
+            }
+        }
+
+        false
+    }
+}
+
+fn should_bypass_proxy(destination: &Url, no_proxy: &NoProxyMatcher) -> bool {
+    let Some(host) = destination.host_str() else {
+        return false;
+    };
+
+    // 永远绕过本地回环，避免“软件代理 -> 再走系统代理 -> 回到软件代理”的环路
+    if host.eq_ignore_ascii_case("localhost") {
+        return true;
+    }
+    if let Ok(ip) = host.parse::<IpAddr>() {
+        if ip.is_loopback() {
+            return true;
+        }
+    }
+
+    let port = destination.port_or_known_default();
+    no_proxy.matches(host, port)
+}
+
 /// 隐藏 URL 中的敏感信息（用于日志）
 pub fn mask_url(url: &str) -> String {
-    if let Ok(parsed) = url::Url::parse(url) {
+    if let Ok(parsed) = Url::parse(url) {
         // 隐藏用户名和密码，保留 scheme、host 和端口
         let host = parsed.host_str().unwrap_or("?");
         match parsed.port() {
