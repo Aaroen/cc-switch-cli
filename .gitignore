@@ -1,6 +1,8 @@
 node_modules/
 dist/
 release/
+.cargo-target/
+.ccs-shims/
 .DS_Store
 *.log
 .env

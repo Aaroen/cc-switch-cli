@@ -326,25 +326,82 @@ echo -e "${CYAN}========================================${NC}"
 echo ""
 
 # 参数解析和帮助信息
-if [ "${1:-}" = "--help" ] || [ "${1:-}" = "-h" ]; then
+ARG_GUI=0
+ARG_UPDATE=0
+ARG_PREBUILT_BIN=""
+
+usage() {
     echo "用法: $0 [选项]"
     echo ""
     echo "选项:"
-    echo "  --gui          使用GUI模式部署"
-    echo "  --update, -u   拉取官方更新后再部署"
-    echo "  --help, -h     显示此帮助信息"
+    echo "  --gui              使用GUI模式部署"
+    echo "  --update, -u       拉取官方更新后再部署"
+    echo "  --prebuilt <path>  使用预构建二进制（跳过编译）"
+    echo "  --help, -h         显示此帮助信息"
     echo ""
     echo "环境变量:"
     echo "  CLI_MODE=true|false    设置部署模式（默认: true）"
     echo "  CC_SWITCH_PORT=端口号   指定代理端口（默认: 15721）"
     echo ""
     echo "示例:"
-    echo "  $0                     # CLI模式部署"
-    echo "  $0 --gui               # GUI模式部署"
-    echo "  $0 --update            # 更新并部署"
-    echo "  CC_SWITCH_PORT=8080 $0 # 使用8080端口"
+    echo "  $0                         # CLI模式部署"
+    echo "  $0 --gui                   # GUI模式部署"
+    echo "  $0 --update                # 更新并部署"
+    echo "  $0 --prebuilt ./cc-switch  # 使用预构建二进制部署"
+    echo "  CC_SWITCH_PORT=8080 $0     # 使用8080端口"
     echo ""
-    exit 0
+}
+
+while [ $# -gt 0 ]; do
+    case "${1:-}" in
+        --help|-h)
+            usage
+            exit 0
+            ;;
+        --gui)
+            ARG_GUI=1
+            ;;
+        --update|-u)
+            ARG_UPDATE=1
+            ;;
+        --prebuilt)
+            shift
+            ARG_PREBUILT_BIN="${1:-}"
+            if [ -z "$ARG_PREBUILT_BIN" ]; then
+                echo -e "${RED}✗ --prebuilt 需要提供二进制路径${NC}"
+                exit 1
+            fi
+            ;;
+        *)
+            echo -e "${YELLOW}⚠ 忽略未知参数: ${1}${NC}"
+            ;;
+    esac
+    shift
+done
+
+# 兼容：用户可能传入相对路径
+if [ -n "$ARG_PREBUILT_BIN" ] && [ -f "$ARG_PREBUILT_BIN" ]; then
+    ARG_PREBUILT_BIN="$(cd "$(dirname "$ARG_PREBUILT_BIN")" && pwd)/$(basename "$ARG_PREBUILT_BIN")"
+fi
+
+if [ -n "$ARG_PREBUILT_BIN" ] && [ ! -f "$ARG_PREBUILT_BIN" ]; then
+    echo -e "${RED}✗ 预构建二进制不存在: $ARG_PREBUILT_BIN${NC}"
+    exit 1
+fi
+
+if [ -n "$ARG_PREBUILT_BIN" ] && [ ! -x "$ARG_PREBUILT_BIN" ]; then
+    chmod +x "$ARG_PREBUILT_BIN" 2>/dev/null || true
+fi
+
+if [ -n "$ARG_PREBUILT_BIN" ] && [ ! -x "$ARG_PREBUILT_BIN" ]; then
+    echo -e "${RED}✗ 预构建二进制不可执行: $ARG_PREBUILT_BIN${NC}"
+    exit 1
+fi
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+IS_GIT_REPO=0
+if [ -d "$SCRIPT_DIR/.git" ]; then
+    IS_GIT_REPO=1
 fi
 
 # ============================================================================
@@ -375,8 +432,8 @@ if ! command -v curl &> /dev/null && ! command -v wget &> /dev/null; then
     MISSING_DEPS="$MISSING_DEPS curl"
 fi
 
-# 检查git
-if ! command -v git &> /dev/null; then
+# 检查 git（git 安装版/更新才需要）
+if { [ "${ARG_UPDATE:-0}" -eq 1 ] || [ "${IS_GIT_REPO:-0}" -eq 1 ]; } && ! command -v git &> /dev/null; then
     MISSING_DEPS="$MISSING_DEPS git"
 fi
 
@@ -385,19 +442,22 @@ if ! command -v sqlite3 &> /dev/null; then
     MISSING_DEPS="$MISSING_DEPS sqlite3"
 fi
 
-# 检查基础构建工具
-if ! command -v gcc &> /dev/null && ! command -v cc &> /dev/null; then
-    case $PKG_MANAGER in
-        apt) MISSING_DEPS="$MISSING_DEPS build-essential" ;;
-        dnf|yum) MISSING_DEPS="$MISSING_DEPS gcc gcc-c++ make" ;;
-        pacman) MISSING_DEPS="$MISSING_DEPS base-devel" ;;
-        zypper) MISSING_DEPS="$MISSING_DEPS gcc gcc-c++ make" ;;
-    esac
-fi
+# 预构建二进制模式无需编译，可跳过构建依赖
+if [ -z "${ARG_PREBUILT_BIN:-}" ]; then
+    # 检查基础构建工具
+    if ! command -v gcc &> /dev/null && ! command -v cc &> /dev/null; then
+        case $PKG_MANAGER in
+            apt) MISSING_DEPS="$MISSING_DEPS build-essential" ;;
+            dnf|yum) MISSING_DEPS="$MISSING_DEPS gcc gcc-c++ make" ;;
+            pacman) MISSING_DEPS="$MISSING_DEPS base-devel" ;;
+            zypper) MISSING_DEPS="$MISSING_DEPS gcc gcc-c++ make" ;;
+        esac
+    fi
 
-# 检查pkg-config
-if ! command -v pkg-config &> /dev/null; then
-    MISSING_DEPS="$MISSING_DEPS pkg-config"
+    # 检查pkg-config
+    if ! command -v pkg-config &> /dev/null; then
+        MISSING_DEPS="$MISSING_DEPS pkg-config"
+    fi
 fi
 
 # pgrep/ps 等进程工具（停止旧服务用）
@@ -418,37 +478,39 @@ if ! command -v strings &> /dev/null; then
     esac
 fi
 
-# Tauri依赖
-case $PKG_MANAGER in
-    apt)
-        # Ubuntu 22.04: libwebkit2gtk-4.0-dev; Ubuntu 24.04/Debian 12+: libwebkit2gtk-4.1-dev
-        WEBKIT_PKG="libwebkit2gtk-4.0-dev"
-        if apt-cache show libwebkit2gtk-4.1-dev > /dev/null 2>&1; then
-            WEBKIT_PKG="libwebkit2gtk-4.1-dev"
-        fi
+# Tauri 编译依赖（预构建二进制模式不需要）
+if [ -z "${ARG_PREBUILT_BIN:-}" ]; then
+    case $PKG_MANAGER in
+        apt)
+            # Ubuntu 22.04: libwebkit2gtk-4.0-dev; Ubuntu 24.04/Debian 12+: libwebkit2gtk-4.1-dev
+            WEBKIT_PKG="libwebkit2gtk-4.0-dev"
+            if apt-cache show libwebkit2gtk-4.1-dev > /dev/null 2>&1; then
+                WEBKIT_PKG="libwebkit2gtk-4.1-dev"
+            fi
 
-        # 不同发行版可能使用 libayatana-appindicator3-dev 或 libappindicator3-dev
-        APPIND_PKG="libayatana-appindicator3-dev"
-        if ! apt-cache show "$APPIND_PKG" > /dev/null 2>&1; then
-            APPIND_PKG="libappindicator3-dev"
-        fi
+            # 不同发行版可能使用 libayatana-appindicator3-dev 或 libappindicator3-dev
+            APPIND_PKG="libayatana-appindicator3-dev"
+            if ! apt-cache show "$APPIND_PKG" > /dev/null 2>&1; then
+                APPIND_PKG="libappindicator3-dev"
+            fi
 
-        # 检查 webkit2gtk（按实际可用包名）
-        if ! dpkg -s "$WEBKIT_PKG" > /dev/null 2>&1; then
-            MISSING_DEPS="$MISSING_DEPS $WEBKIT_PKG libssl-dev libgtk-3-dev $APPIND_PKG librsvg2-dev"
-        fi
-        ;;
-    dnf|yum)
-        if ! rpm -qa | grep -q webkit2gtk3-devel; then
-            MISSING_DEPS="$MISSING_DEPS webkit2gtk3-devel openssl-devel gtk3-devel libappindicator-gtk3-devel librsvg2-devel"
-        fi
-        ;;
-    pacman)
-        if ! pacman -Qi webkit2gtk &> /dev/null; then
-            MISSING_DEPS="$MISSING_DEPS webkit2gtk gtk3 libappindicator-gtk3 librsvg"
-        fi
-        ;;
-esac
+            # 检查 webkit2gtk（按实际可用包名）
+            if ! dpkg -s "$WEBKIT_PKG" > /dev/null 2>&1; then
+                MISSING_DEPS="$MISSING_DEPS $WEBKIT_PKG libssl-dev libgtk-3-dev $APPIND_PKG librsvg2-dev"
+            fi
+            ;;
+        dnf|yum)
+            if ! rpm -qa | grep -q webkit2gtk3-devel; then
+                MISSING_DEPS="$MISSING_DEPS webkit2gtk3-devel openssl-devel gtk3-devel libappindicator-gtk3-devel librsvg2-devel"
+            fi
+            ;;
+        pacman)
+            if ! pacman -Qi webkit2gtk &> /dev/null; then
+                MISSING_DEPS="$MISSING_DEPS webkit2gtk gtk3 libappindicator-gtk3 librsvg"
+            fi
+            ;;
+    esac
+fi
 
 # 安装缺失的依赖
 if [ -n "$MISSING_DEPS" ]; then
@@ -471,13 +533,18 @@ fi
 
 # 检查部署模式（默认CLI）
 CLI_MODE="${CLI_MODE:-true}"
-if [ "${1:-}" = "--gui" ]; then
+if [ "${ARG_GUI:-0}" -eq 1 ]; then
     CLI_MODE="false"
     echo -e "${YELLOW}GUI 模式已启用${NC}"
     echo ""
 elif [ "$CLI_MODE" = "true" ]; then
     echo -e "${GREEN}CLI 模式${NC}"
     echo ""
+fi
+
+if [ -n "${ARG_PREBUILT_BIN:-}" ] && [ "$CLI_MODE" != "true" ]; then
+    echo -e "${YELLOW}⚠ 检测到 --prebuilt，已自动切换为 CLI 模式（预构建包仅支持无头部署）${NC}"
+    CLI_MODE="true"
 fi
 
 # 总步骤数
@@ -504,7 +571,7 @@ if [ -d "$SCRIPT_DIR/.git" ]; then
     GIT_COMMIT=$(cd "$SCRIPT_DIR" && git rev-parse --short HEAD 2>/dev/null || echo "unknown")
 
     # 询问是否拉取官方更新
-    if [ "${1:-}" = "--update" ] || [ "${1:-}" = "-u" ]; then
+    if [ "${ARG_UPDATE:-0}" -eq 1 ]; then
         echo ""
         echo -e "${YELLOW}正在拉取官方更新...${NC}"
         cd "$SCRIPT_DIR"
@@ -515,8 +582,8 @@ if [ -d "$SCRIPT_DIR/.git" ]; then
             git stash push -m "Auto-stash before update $(date +%Y%m%d_%H%M%S)"
         fi
 
-        # 拉取并rebase
-        if git pull --rebase origin main 2>&1 | tee "$LOG_DIR/git_update.log"; then
+        # 拉取并 rebase（跟随当前分支）
+        if git pull --rebase 2>&1 | tee "$LOG_DIR/git_update.log"; then
             echo -e "${GREEN}✓ 官方更新已拉取${NC}"
 
             # 恢复本地修改
@@ -546,6 +613,9 @@ fi
 CURRENT_STEP=2
 step_running $CURRENT_STEP $TOTAL_STEPS "检查 Rust 工具链"
 
+if [ -n "${ARG_PREBUILT_BIN:-}" ]; then
+    step_done $CURRENT_STEP $TOTAL_STEPS "跳过 Rust（使用预构建二进制）"
+else
 if ! command -v cargo &> /dev/null; then
     echo ""
     echo -e "${YELLOW}Rust 未安装，正在自动安装...${NC}"
@@ -582,6 +652,7 @@ if ! command -v cargo &> /dev/null; then
 else
     RUST_VERSION=$(rustc --version)
     step_done $CURRENT_STEP $TOTAL_STEPS "Rust 工具链 ($RUST_VERSION)"
+fi
 fi
 
 # ============================================================================
@@ -852,6 +923,11 @@ step_running $CURRENT_STEP $TOTAL_STEPS "编译 Tauri 应用"
 
 cd "$SCRIPT_DIR"
 
+if [ -n "${ARG_PREBUILT_BIN:-}" ]; then
+    BIN_PATH="$ARG_PREBUILT_BIN"
+    step_done $CURRENT_STEP $TOTAL_STEPS "使用预构建二进制"
+else
+
 # 检查是否需要重新编译
 #
 # 说明：
@@ -976,6 +1052,7 @@ if [ "$NEED_REBUILD" = true ]; then
 else
     step_done $CURRENT_STEP $TOTAL_STEPS "Tauri 应用 (使用缓存)"
 fi
+fi
 
 # ============================================================================
 # 步骤 6: 数据库
@@ -1078,18 +1155,30 @@ step_running $CURRENT_STEP $TOTAL_STEPS "安装到系统路径"
 
 mkdir -p "$INSTALL_DIR"
 
-# 查找编译后的二进制文件
-if [ -f "src-tauri/target/release/cc-switch" ]; then
+# 查找编译后的二进制文件（源码编译或 --prebuilt）
+SOURCE_BIN=""
+if [ -n "${ARG_PREBUILT_BIN:-}" ]; then
+    SOURCE_BIN="$ARG_PREBUILT_BIN"
+elif [ -f "src-tauri/target/release/cc-switch" ]; then
+    SOURCE_BIN="src-tauri/target/release/cc-switch"
+fi
+
+if [ -n "$SOURCE_BIN" ] && [ -f "$SOURCE_BIN" ]; then
     # 删除旧的二进制文件（直接覆盖，不备份）
     rm -f "$INSTALL_DIR/cc-switch" 2>/dev/null || true
     rm -f "$INSTALL_DIR/csc" 2>/dev/null || true
 
     # 复制新的二进制文件
-    cp "src-tauri/target/release/cc-switch" "$INSTALL_DIR/"
+    cp "$SOURCE_BIN" "$INSTALL_DIR/cc-switch"
     chmod +x "$INSTALL_DIR/cc-switch"
 
     # 创建 csc 软链接（简写命令）
     ln -sf "$INSTALL_DIR/cc-switch" "$INSTALL_DIR/csc"
+else
+    step_error $CURRENT_STEP $TOTAL_STEPS "安装失败"
+    echo -e "${RED}未找到可安装的二进制文件${NC}"
+    echo -e "${YELLOW}提示：请先编译，或使用 --prebuilt 指定预构建二进制${NC}"
+    exit 1
 fi
 
 # 添加到 PATH

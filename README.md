@@ -4,18 +4,30 @@
 
 上游项目的原始 README 已保留为：`README_UPSTREAM.md`。
 
-## 一键部署（推荐）
+## 一键部署
 
-一行命令：目录存在则自动 `git pull --rebase` 更新后再执行部署脚本；不存在则 `git clone` 后部署。
+### Git 版本（实时更新代码）
+
+目录存在则自动 `git pull --rebase` 更新后再执行部署脚本；不存在则 `git clone` 后部署。该模式会在本机编译（首次耗时较久，但代码最新）。
 
 ```bash
 bash -lc 'set -e; dir="$HOME/cc-switch-cli"; if [ -d "$dir/.git" ]; then git -C "$dir" pull --rebase; else git clone https://github.com/Aaroen/cc-switch-cli.git "$dir"; fi; bash "$dir/install-ccs.sh"'
 ```
 
+### Release 版本（免编译，可能滞后）
+
+从 GitHub Releases 下载预构建二进制并安装运行（无需本机编译）。当前默认资产名：
+
+- `cc-switch-cli-linux-x86_64.tar.gz`
+
+```bash
+bash -lc 'set -e; repo="Aaroen/cc-switch-cli"; asset="cc-switch-cli-linux-x86_64.tar.gz"; tmp="$(mktemp -d)"; if command -v curl >/dev/null 2>&1; then curl -fsSL "https://github.com/$repo/releases/latest/download/$asset" -o "$tmp/$asset"; else wget -qO "$tmp/$asset" "https://github.com/$repo/releases/latest/download/$asset"; fi; tar -xzf "$tmp/$asset" -C "$tmp"; bash "$tmp/install-ccs.sh" --prebuilt "$tmp/cc-switch"'
+```
+
 说明：
 
 - 默认以 CLI 模式部署（无头 server），并自动处理端口占用（必要时自动换端口）。
-- 如需 GUI 模式（会启动 Tauri 界面）：把最后一段改为 `bash "$dir/install-ccs.sh" --gui`。
+- 如需 GUI 模式（会启动 Tauri 界面）：使用 Git 版本并执行 `bash "$HOME/cc-switch-cli/install-ccs.sh" --gui`。
 
 ## 权重轮询（Weight Round Robin）
 
@@ -57,4 +69,3 @@ source ~/.bashrc  # 或 source ~/.zshrc
 ```bash
 csc server status
 ```
-
