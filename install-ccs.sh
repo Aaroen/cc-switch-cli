@@ -311,7 +311,7 @@ if [ "$IS_TTY" -eq 1 ] && [ "${TERM:-}" != "dumb" ]; then
     clear
 fi
 echo -e "${CYAN}========================================${NC}"
-echo -e "${CYAN}  CC-Switch 一键部署脚本（增强版）${NC}"
+echo -e "${CYAN}  CC-Switch 部署${NC}"
 echo -e "${CYAN}========================================${NC}"
 echo ""
 
