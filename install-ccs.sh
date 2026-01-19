@@ -581,6 +581,9 @@ fi
 CURRENT_STEP=3
 step_running $CURRENT_STEP $TOTAL_STEPS "检查 Node.js 环境"
 
+if [ "$CLI_MODE" = "true" ]; then
+    step_done $CURRENT_STEP $TOTAL_STEPS "跳过 Node.js（CLI 模式不需要前端构建）"
+else
 NODE_CMD=""
 if command -v node &> /dev/null; then
     NODE_VERSION=$(node --version)
@@ -661,6 +664,7 @@ if [ -z "$NODE_CMD" ]; then
         echo "  - 查看日志: cat $LOG_DIR/node_install.log"
         exit 1
     fi
+fi
 fi
 
 # 检查 pnpm
@@ -748,14 +752,16 @@ EOF
     fi
 }
 
-ensure_pnpm
-
-# 选择 pnpm 执行器：优先 pnpm，其次 corepack pnpm
 PNPM_RUN=()
-if command -v pnpm >/dev/null 2>&1; then
-    PNPM_RUN=(pnpm)
-elif command -v corepack >/dev/null 2>&1; then
-    PNPM_RUN=(corepack pnpm)
+if [ "$CLI_MODE" != "true" ]; then
+    ensure_pnpm
+
+    # 选择 pnpm 执行器：优先 pnpm，其次 corepack pnpm
+    if command -v pnpm >/dev/null 2>&1; then
+        PNPM_RUN=(pnpm)
+    elif command -v corepack >/dev/null 2>&1; then
+        PNPM_RUN=(corepack pnpm)
+    fi
 fi
 
 # ============================================================================
@@ -767,6 +773,9 @@ step_running $CURRENT_STEP $TOTAL_STEPS "安装前端依赖"
 cd "$SCRIPT_DIR"
 FRONTEND_INSTALL_LOG="$LOG_DIR/frontend_install.log"
 
+if [ "$CLI_MODE" = "true" ]; then
+    step_done $CURRENT_STEP $TOTAL_STEPS "跳过前端依赖（CLI 模式）"
+else
 INSTALL_CMD=()
 if [ ${#PNPM_RUN[@]} -gt 0 ]; then
     INSTALL_CMD=("${PNPM_RUN[@]}" install)
@@ -823,6 +832,7 @@ if [ ! -d "node_modules" ] || [ "package.json" -nt "node_modules" ]; then
     fi
 else
     step_done $CURRENT_STEP $TOTAL_STEPS "前端依赖 (使用缓存)"
+fi
 fi
 
 # ============================================================================
@@ -885,28 +895,38 @@ if [ "$NEED_REBUILD" = true ]; then
     echo ""
     echo -e "${YELLOW}开始编译 Tauri 应用，这可能需要几分钟...${NC}"
 
-    # 运行Tauri构建，跳过 AppImage 打包（避免网络下载问题）
-    # 只生成 deb 和 rpm 包
     BUILD_START=$(date +%s)
-
-    if [ ${#PNPM_RUN[@]} -eq 0 ]; then
-        step_error $CURRENT_STEP $TOTAL_STEPS "编译失败"
-        echo -e "${RED}未找到 pnpm/corepack，无法执行 tauri build${NC}"
-        echo -e "${YELLOW}请先安装 pnpm 或启用 corepack:${NC}"
-        echo "  corepack prepare pnpm@latest --activate"
-        exit 1
-    fi
-
-    if "${PNPM_RUN[@]}" tauri build --bundles deb,rpm > "$LOG_DIR/tauri_build.log" 2>&1; then
-        BUILD_SUCCESS=true
+    if [ "$CLI_MODE" = "true" ]; then
+        # CLI 模式只需要 Rust 二进制，直接 cargo build 可规避 updater 签名要求
+        if cargo build --release --manifest-path src-tauri/Cargo.toml > "$LOG_DIR/tauri_build.log" 2>&1; then
+            BUILD_SUCCESS=true
+        else
+            BUILD_SUCCESS=false
+            if [ -f "$LOG_DIR/tauri_build.log" ]; then
+                LAST_ERROR=$(tail -20 "$LOG_DIR/tauri_build.log" | grep -i "error" | head -5)
+            fi
+        fi
     else
-        BUILD_SUCCESS=false
-        # 编译失败，尝试读取错误信息
-        if [ -f "$LOG_DIR/tauri_build.log" ]; then
-            LAST_ERROR=$(tail -20 "$LOG_DIR/tauri_build.log" | grep -i "error" | head -5)
+        # 运行Tauri构建，跳过 AppImage 打包（避免网络下载问题）
+        # 只生成 deb 和 rpm 包
+        if [ ${#PNPM_RUN[@]} -eq 0 ]; then
+            step_error $CURRENT_STEP $TOTAL_STEPS "编译失败"
+            echo -e "${RED}未找到 pnpm/corepack，无法执行 tauri build${NC}"
+            echo -e "${YELLOW}请先安装 pnpm 或启用 corepack:${NC}"
+            echo "  corepack prepare pnpm@latest --activate"
+            exit 1
+        fi
+
+        if "${PNPM_RUN[@]}" tauri build --bundles deb,rpm > "$LOG_DIR/tauri_build.log" 2>&1; then
+            BUILD_SUCCESS=true
+        else
+            BUILD_SUCCESS=false
+            # 编译失败，尝试读取错误信息
+            if [ -f "$LOG_DIR/tauri_build.log" ]; then
+                LAST_ERROR=$(tail -20 "$LOG_DIR/tauri_build.log" | grep -i "error" | head -5)
+            fi
         fi
     fi
-
     BUILD_END=$(date +%s)
     BUILD_TIME=$((BUILD_END - BUILD_START))
 
@@ -940,7 +960,8 @@ if [ "$NEED_REBUILD" = true ]; then
         echo -e "${YELLOW}建议尝试:${NC}"
         echo "  1. 检查系统依赖是否完整安装"
         echo "  2. 清理构建缓存: rm -rf src-tauri/target"
-        echo "  3. 手动编译: cd $SCRIPT_DIR && (pnpm tauri build || corepack pnpm tauri build)"
+        echo "  3. 手动编译（CLI）: cd $SCRIPT_DIR && cargo build --release --manifest-path src-tauri/Cargo.toml"
+        echo "  4. 手动编译（GUI）: cd $SCRIPT_DIR && (pnpm tauri build || corepack pnpm tauri build)"
         exit 1
     fi
 else
