@@ -159,6 +159,25 @@ jobs:
         if: runner.os == 'Linux'
         run: pnpm tauri build --bundles appimage,deb,rpm
 
+      - name: Prepare CLI no-compile tarball (Linux x86_64)
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          set -euxo pipefail
+          mkdir -p release-assets
+          # 该 tar.gz 供 README 的“无编译版本”一键部署脚本使用：
+          # - 包含 install-ccs.sh 与 cc-switch 二进制
+          BIN="src-tauri/target/release/cc-switch"
+          if [ ! -f "$BIN" ]; then
+            echo "cc-switch binary not found at $BIN" >&2
+            exit 1
+          fi
+          chmod +x install-ccs.sh "$BIN"
+          tmp_dir="$(mktemp -d)"
+          cp -f install-ccs.sh "$tmp_dir/install-ccs.sh"
+          cp -f "$BIN" "$tmp_dir/cc-switch"
+          tar -C "$tmp_dir" -czf "release-assets/cc-switch-cli-linux-x86_64.tar.gz" install-ccs.sh cc-switch
+
       - name: Prepare macOS Assets
         if: runner.os == 'macOS'
         shell: bash
@@ -302,7 +321,7 @@ jobs:
         with:
           tag_name: ${{ github.ref_name }}
           name: CC Switch ${{ github.ref_name }}
-          prerelease: true
+          prerelease: false
           body: |
             ## CC Switch ${{ github.ref_name }}
 

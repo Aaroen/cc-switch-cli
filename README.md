@@ -26,6 +26,7 @@ bash -lc 'set -e; repo="Aaroen/cc-switch-cli"; asset="cc-switch-cli-linux-x86_64
 
 说明：
 
+- 该命令依赖 Releases 中存在 `cc-switch-cli-linux-x86_64.tar.gz` 资产（包含 `install-ccs.sh` 与 `cc-switch` 二进制）。
 - 默认以 CLI 模式部署（无头 server），并自动处理端口占用（必要时自动换端口）。
 - 如需 GUI 模式（会启动 Tauri 界面）：使用 Git 版本并执行 `bash "$HOME/cc-switch-cli/install-ccs.sh" --gui`。
 
