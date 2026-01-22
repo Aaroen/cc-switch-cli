@@ -195,43 +195,82 @@ download_with_retry() {
 }
 
 # 智能查找可用端口
+is_port_free() {
+    local port="$1"
+
+    # 最可靠：直接尝试 bind（不依赖 ss/netstat/lsof，也不依赖连接握手）
+    if command -v python3 >/dev/null 2>&1; then
+        python3 - "$port" <<'PY'
+import errno
+import socket
+import sys
+
+port = int(sys.argv[1])
+
+def can_bind(family, addr):
+    s = socket.socket(family, socket.SOCK_STREAM)
+    try:
+        s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        s.bind((addr, port))
+        return True
+    except OSError as e:
+        if e.errno == errno.EADDRINUSE:
+            return False
+        # 其他错误：保守认为不可用（权限/地址族/系统限制等）
+        return False
+    finally:
+        try:
+            s.close()
+        except Exception:
+            pass
+
+ok4 = can_bind(socket.AF_INET, "127.0.0.1")
+if not ok4:
+    sys.exit(1)
+
+# IPv6 不是必须；若系统不支持/不可用，不阻塞
+try:
+    ok6 = can_bind(socket.AF_INET6, "::1")
+except OSError:
+    ok6 = True
+
+sys.exit(0 if (ok4 and ok6) else 1)
+PY
+        return $?
+    fi
+
+    # 次优：lsof/ss/netstat 查询
+    if command -v lsof >/dev/null 2>&1; then
+        ! lsof -Pi :"$port" -sTCP:LISTEN -t >/dev/null 2>&1
+        return $?
+    fi
+    if command -v ss >/dev/null 2>&1; then
+        ! ss -tln | grep -Eq ":[[:space:]]*${port}([[:space:]]|$)"
+        return $?
+    fi
+    if command -v netstat >/dev/null 2>&1; then
+        ! netstat -tln | grep -Eq ":[[:space:]]*${port}([[:space:]]|$)"
+        return $?
+    fi
+
+    # 兜底：尝试连接（可能受 backlog/防火墙/拥塞影响，仅作为最后手段）
+    if command -v timeout >/dev/null 2>&1; then
+        ! timeout 1 bash -c "cat < /dev/null > /dev/tcp/127.0.0.1/$port" 2>/dev/null
+        return $?
+    fi
+    ! bash -c "cat < /dev/null > /dev/tcp/127.0.0.1/$port" 2>/dev/null
+    return $?
+}
+
 find_available_port() {
     local start_port=$1
     local max_attempts=100
     local port=$start_port
 
     while [ $((port - start_port)) -lt $max_attempts ]; do
-        if ! command -v lsof &> /dev/null; then
-            # 如果没有lsof，尝试使用netstat或ss
-            if command -v ss &> /dev/null; then
-                if ! ss -tln | grep -q ":$port "; then
-                    echo "$port"
-                    return 0
-                fi
-            elif command -v netstat &> /dev/null; then
-                if ! netstat -tln | grep -q ":$port "; then
-                    echo "$port"
-                    return 0
-                fi
-            else
-                # 无工具可用：退化为尝试连接（能连接说明在监听）
-                if command -v timeout &> /dev/null; then
-                    if ! timeout 1 bash -c "cat < /dev/null > /dev/tcp/127.0.0.1/$port" 2>/dev/null; then
-                        echo "$port"
-                        return 0
-                    fi
-                else
-                    if ! bash -c "cat < /dev/null > /dev/tcp/127.0.0.1/$port" 2>/dev/null; then
-                        echo "$port"
-                        return 0
-                    fi
-                fi
-            fi
-        else
-            if ! lsof -Pi :$port -sTCP:LISTEN -t >/dev/null 2>&1; then
-                echo "$port"
-                return 0
-            fi
+        if is_port_free "$port"; then
+            echo "$port"
+            return 0
         fi
         port=$((port + 1))
     done
@@ -1212,6 +1251,47 @@ fi
 
 step_done $CURRENT_STEP $TOTAL_STEPS "安装到系统路径"
 
+# 将 PROXY_BASE 写入各 CLI 的配置（用于首次写入/端口变更后的重写）
+write_cli_configs() {
+    local proxy_base="$1"
+
+    # Claude CLI
+    if [ -n "${SHELL_CONFIG:-}" ]; then
+        if grep -q "ANTHROPIC_BASE_URL" "$SHELL_CONFIG" 2>/dev/null; then
+            sed -i '/# CC-Switch Claude CLI 配置/d' "$SHELL_CONFIG" 2>/dev/null || true
+            sed -i '/ANTHROPIC_BASE_URL/d' "$SHELL_CONFIG" 2>/dev/null || true
+            sed -i '/ANTHROPIC_API_KEY.*sk-placeholder-managed-by-cc-switch/d' "$SHELL_CONFIG" 2>/dev/null || true
+        fi
+        echo "" >> "$SHELL_CONFIG"
+        echo "# CC-Switch Claude CLI 配置" >> "$SHELL_CONFIG"
+        echo "export ANTHROPIC_BASE_URL=\"${proxy_base}\"" >> "$SHELL_CONFIG"
+        echo 'export ANTHROPIC_API_KEY="sk-placeholder-managed-by-cc-switch"' >> "$SHELL_CONFIG"
+    fi
+
+    # Codex CLI
+    CODEX_CONFIG_DIR="$HOME/.codex"
+    CODEX_CONFIG_FILE="$CODEX_CONFIG_DIR/config.toml"
+    mkdir -p "$CODEX_CONFIG_DIR"
+    cat > "$CODEX_CONFIG_FILE" <<EOF
+model = "gpt-4o"
+model_provider = "cc-switch"
+
+[model_providers.cc-switch]
+name = "CC-Switch Proxy"
+base_url = "$proxy_base/v1"
+wire_api = "responses"
+EOF
+
+    # Gemini CLI
+    GEMINI_CONFIG_DIR="$HOME/.gemini"
+    GEMINI_ENV_FILE="$GEMINI_CONFIG_DIR/.env"
+    mkdir -p "$GEMINI_CONFIG_DIR"
+    cat > "$GEMINI_ENV_FILE" <<EOF
+GEMINI_API_BASE_URL=$proxy_base
+GEMINI_API_KEY=sk-placeholder-managed-by-cc-switch
+EOF
+}
+
 # ============================================================================
 # 步骤 9: 配置环境变量
 # ============================================================================
@@ -1232,45 +1312,7 @@ fi
 
 PROXY_BASE="http://${PROXY_HOST}:${PROXY_PORT}"
 
-# 配置 Claude CLI
-if [ -n "$SHELL_CONFIG" ]; then
-    # 先清理旧的配置
-    if grep -q "ANTHROPIC_BASE_URL" "$SHELL_CONFIG" 2>/dev/null; then
-        sed -i '/# CC-Switch Claude CLI 配置/d' "$SHELL_CONFIG" 2>/dev/null || true
-        sed -i '/ANTHROPIC_BASE_URL/d' "$SHELL_CONFIG" 2>/dev/null || true
-        sed -i '/ANTHROPIC_API_KEY.*sk-placeholder-managed-by-cc-switch/d' "$SHELL_CONFIG" 2>/dev/null || true
-    fi
-
-    echo "" >> "$SHELL_CONFIG"
-    echo "# CC-Switch Claude CLI 配置" >> "$SHELL_CONFIG"
-    echo "export ANTHROPIC_BASE_URL=\"${PROXY_BASE}\"" >> "$SHELL_CONFIG"
-    echo 'export ANTHROPIC_API_KEY="sk-placeholder-managed-by-cc-switch"' >> "$SHELL_CONFIG"
-fi
-
-# 配置 Codex CLI
-CODEX_CONFIG_DIR="$HOME/.codex"
-CODEX_CONFIG_FILE="$CODEX_CONFIG_DIR/config.toml"
-mkdir -p "$CODEX_CONFIG_DIR"
-
-cat > "$CODEX_CONFIG_FILE" <<EOF
-model = "gpt-4o"
-model_provider = "cc-switch"
-
-[model_providers.cc-switch]
-name = "CC-Switch Proxy"
-base_url = "$PROXY_BASE/v1"
-wire_api = "responses"
-EOF
-
-# 配置 Gemini CLI
-GEMINI_CONFIG_DIR="$HOME/.gemini"
-GEMINI_ENV_FILE="$GEMINI_CONFIG_DIR/.env"
-mkdir -p "$GEMINI_CONFIG_DIR"
-
-cat > "$GEMINI_ENV_FILE" <<EOF
-GEMINI_API_BASE_URL=$PROXY_BASE
-GEMINI_API_KEY=sk-placeholder-managed-by-cc-switch
-EOF
+write_cli_configs "$PROXY_BASE"
 
 step_done $CURRENT_STEP $TOTAL_STEPS "配置环境变量"
 
@@ -1284,46 +1326,68 @@ cd "$SCRIPT_DIR"
 
 # 检查是否使用 CLI 模式
 if [ "$CLI_MODE" = "true" ]; then
-    # CLI 模式：自动启动无头服务器
-    nohup "$INSTALL_DIR/cc-switch" server start --host 127.0.0.1 --port $PROXY_PORT > "$LOG_DIR/server.log" 2>&1 &
-    LAUNCH_PID=$!
-
-    # 等待服务启动（最多10秒）
-    WAIT_TIME=0
-    MAX_WAIT=10
     SERVER_STARTED=false
+    PORT_RETRY=0
+    MAX_PORT_RETRY=10
 
-    while [ $WAIT_TIME -lt $MAX_WAIT ]; do
-        sleep 1
-        WAIT_TIME=$((WAIT_TIME + 1))
+    while [ $PORT_RETRY -le $MAX_PORT_RETRY ]; do
+        # CLI 模式：自动启动无头服务器
+        nohup "$INSTALL_DIR/cc-switch" server start --host 127.0.0.1 --port "$PROXY_PORT" >> "$LOG_DIR/server.log" 2>&1 &
 
-        # 检查PID文件和进程
-        if [ -f "$CC_SWITCH_DIR/server.pid" ]; then
-            SERVER_PID=$(cat "$CC_SWITCH_DIR/server.pid")
-            if ps -p $SERVER_PID > /dev/null 2>&1; then
-                # 检查端口是否真的在监听
-                if command -v ss &> /dev/null; then
-                    if ss -tln | grep -q ":$PROXY_PORT "; then
+        # 等待服务启动（最多10秒）
+        WAIT_TIME=0
+        MAX_WAIT=10
+
+        while [ $WAIT_TIME -lt $MAX_WAIT ]; do
+            sleep 1
+            WAIT_TIME=$((WAIT_TIME + 1))
+
+            if [ -f "$CC_SWITCH_DIR/server.pid" ]; then
+                SERVER_PID=$(cat "$CC_SWITCH_DIR/server.pid")
+                if ps -p "$SERVER_PID" > /dev/null 2>&1; then
+                    if command -v ss &> /dev/null; then
+                        if ss -tln | grep -Eq ":[[:space:]]*${PROXY_PORT}([[:space:]]|$)"; then
+                            SERVER_STARTED=true
+                            break
+                        fi
+                    elif command -v netstat &> /dev/null; then
+                        if netstat -tln | grep -Eq ":[[:space:]]*${PROXY_PORT}([[:space:]]|$)"; then
+                            SERVER_STARTED=true
+                            break
+                        fi
+                    elif command -v lsof &> /dev/null; then
+                        if lsof -Pi :"$PROXY_PORT" -sTCP:LISTEN -t >/dev/null 2>&1; then
+                            SERVER_STARTED=true
+                            break
+                        fi
+                    else
+                        # 无工具可用，仅检查进程存在
                         SERVER_STARTED=true
                         break
                     fi
-                elif command -v netstat &> /dev/null; then
-                    if netstat -tln | grep -q ":$PROXY_PORT "; then
-                        SERVER_STARTED=true
-                        break
-                    fi
-                elif command -v lsof &> /dev/null; then
-                    if lsof -Pi :$PROXY_PORT -sTCP:LISTEN -t >/dev/null 2>&1; then
-                        SERVER_STARTED=true
-                        break
-                    fi
-                else
-                    # 无工具可用，仅检查进程存在
-                    SERVER_STARTED=true
-                    break
                 fi
             fi
+        done
+
+        if [ "$SERVER_STARTED" = true ]; then
+            break
         fi
+
+        # 若日志提示端口占用，则自动换端口再试（避免“检测端口空闲”误判）
+        if [ -f "$LOG_DIR/server.log" ] && tail -50 "$LOG_DIR/server.log" | grep -qiE 'Address already in use|os error 98|地址绑定失败'; then
+            PORT_RETRY=$((PORT_RETRY + 1))
+            NEW_PORT=$(find_available_port $((PROXY_PORT + 1)))
+            if [ "$NEW_PORT" = "$PROXY_PORT" ]; then
+                break
+            fi
+            PROXY_PORT="$NEW_PORT"
+            PROXY_BASE="http://${PROXY_HOST}:${PROXY_PORT}"
+            echo -e "${YELLOW}检测到端口占用，自动切换到端口 $PROXY_PORT 并重试启动...${NC}"
+            write_cli_configs "$PROXY_BASE"
+            continue
+        fi
+
+        break
     done
 
     if [ "$SERVER_STARTED" = true ]; then
@@ -1336,7 +1400,6 @@ if [ "$CLI_MODE" = "true" ]; then
         echo "查看日志: tail -f $LOG_DIR/server.log"
         echo ""
 
-        # 显示最后几行日志
         if [ -f "$LOG_DIR/server.log" ]; then
             echo -e "${YELLOW}最近的日志:${NC}"
             tail -10 "$LOG_DIR/server.log"
