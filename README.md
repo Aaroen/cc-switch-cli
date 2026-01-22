@@ -21,12 +21,13 @@ bash -lc 'set -e; dir="$HOME/cc-switch-cli"; if [ -d "$dir/.git" ]; then git -C 
 - `cc-switch-cli-linux-x86_64.tar.gz`
 
 ```bash
-bash -lc 'set -e; repo="Aaroen/cc-switch-cli"; asset="cc-switch-cli-linux-x86_64.tar.gz"; tmp="$(mktemp -d)"; if command -v curl >/dev/null 2>&1; then curl -fsSL "https://github.com/$repo/releases/latest/download/$asset" -o "$tmp/$asset"; else wget -qO "$tmp/$asset" "https://github.com/$repo/releases/latest/download/$asset"; fi; tar -xzf "$tmp/$asset" -C "$tmp"; bash "$tmp/install-ccs.sh" --prebuilt "$tmp/cc-switch"'
+bash -lc 'set -e; repo="Aaroen/cc-switch-cli"; asset="cc-switch-cli-linux-x86_64.tar.gz"; tag="${TAG:-latest}"; if [ "$tag" = "latest" ]; then url="https://github.com/$repo/releases/latest/download/$asset"; else url="https://github.com/$repo/releases/download/$tag/$asset"; fi; tmp="$(mktemp -d)"; echo "下载: $url"; if command -v curl >/dev/null 2>&1; then curl -fL --retry 3 --retry-delay 1 "$url" -o "$tmp/$asset"; else wget -nv "$url" -O "$tmp/$asset"; fi; tar -tzf "$tmp/$asset" >/dev/null; tar -xzf "$tmp/$asset" -C "$tmp"; bash "$tmp/install-ccs.sh" --prebuilt "$tmp/cc-switch"'
 ```
 
 说明：
 
 - 该命令依赖 Releases 中存在 `cc-switch-cli-linux-x86_64.tar.gz` 资产（包含 `install-ccs.sh` 与 `cc-switch` 二进制）。
+- 如 `latest` 暂不可用，可指定版本：`TAG=v3.9.1-3`（示例）后再运行上面的一行命令。
 - 默认以 CLI 模式部署（无头 server），并自动处理端口占用（必要时自动换端口）。
 - 如需 GUI 模式（会启动 Tauri 界面）：使用 Git 版本并执行 `bash "$HOME/cc-switch-cli/install-ccs.sh" --gui`。
 

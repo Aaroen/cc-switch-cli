@@ -16,11 +16,13 @@ jobs:
   release:
     runs-on: ${{ matrix.os }}
     strategy:
+      fail-fast: false
       matrix:
         include:
           - os: windows-2022
           - os: ubuntu-22.04
           - os: macos-14
+    continue-on-error: ${{ matrix.os != 'ubuntu-22.04' }}
 
     steps:
       - name: Checkout
