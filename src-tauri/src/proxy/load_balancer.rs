@@ -6,7 +6,7 @@
 //! - weight=0: 禁用，永不使用
 //! - weight=1: 每1轮使用1次 (100%频率)
 //! - weight=2: 每2轮使用1次 (50%频率)
-//! - weight=10: 每10轮使用1次 (10%频率)
+//! - weight=100: 每100轮使用1次 (1%频率)
 
 use crate::provider::Provider;
 
@@ -14,7 +14,7 @@ use crate::provider::Provider;
 #[derive(Debug, Clone)]
 pub struct WeightedProvider {
     pub provider: Provider,
-    pub weight: u32, // 0-10, 0表示禁用
+    pub weight: u32, // 0-100, 0表示禁用
 }
 
 /// 频率控制轮询负载均衡器

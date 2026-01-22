@@ -332,7 +332,7 @@ pub fn sync_universal_provider(
 /// * `state` - 应用状态
 /// * `app` - 应用类型（"claude" | "codex" | "gemini"）
 /// * `id` - 供应商ID
-/// * `weight` - 权重值 (0-10, 0表示禁用, 1表示每轮都使用)
+/// * `weight` - 权重值 (0-100, 0表示禁用, 1表示每轮都使用)
 ///
 /// # Returns
 /// 成功返回 `true`，失败返回错误信息

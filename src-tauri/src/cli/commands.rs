@@ -238,8 +238,8 @@ pub async fn provider_set_weight(app: &str, id: &str, weight: u32) -> Result<(),
     let app_type = parse_app_type(app)?;
 
     // 检查权重范围
-    if weight > 10 {
-        return Err("权重必须在0-10范围内".to_string());
+    if weight > 100 {
+        return Err("权重必须在0-100范围内".to_string());
     }
 
     // 检查供应商是否存在

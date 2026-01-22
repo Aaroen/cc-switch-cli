@@ -864,7 +864,7 @@ impl Database {
     /// v3 -> v4 迁移：添加Provider权重字段（负载均衡功能）
     ///
     /// 新增字段：
-    /// - providers.weight (INTEGER NOT NULL DEFAULT 1) - 权重0-10，1表示每轮都使用
+    /// - providers.weight (INTEGER NOT NULL DEFAULT 1) - 权重0-100，1表示每轮都使用
     fn migrate_v3_to_v4(conn: &Connection) -> Result<(), AppError> {
         // 检查是否已经有weight列
         if Self::has_column(conn, "providers", "weight")? {

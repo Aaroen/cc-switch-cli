@@ -53,7 +53,7 @@ csc config lb --app claude --enabled false
 # 列出供应商并获取 ID
 csc provider list --app claude
 
-# 设置供应商权重（0-10）
+# 设置供应商权重（0-100）
 csc provider weight --app claude --id <PROVIDER_ID> --weight 1
 ```
 

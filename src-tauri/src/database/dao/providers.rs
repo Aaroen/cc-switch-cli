@@ -354,10 +354,10 @@ impl Database {
     /// # Arguments
     /// * `app_type` - 应用类型
     /// * `provider_id` - 供应商ID
-    /// * `weight` - 权重值 (0-10, 0表示禁用, 1表示每轮都使用)
+    /// * `weight` - 权重值 (0-100, 0表示禁用, 1表示每轮都使用)
     ///
     /// # Errors
-    /// - 权重超出范围 (0-10)
+    /// - 权重超出范围 (0-100)
     /// - 供应商不存在
     /// - 数据库操作失败
     pub fn update_provider_weight(
@@ -367,9 +367,9 @@ impl Database {
         weight: u32,
     ) -> Result<(), AppError> {
         // 验证权重范围
-        if weight > 10 {
+        if weight > 100 {
             return Err(AppError::Config(format!(
-                "权重必须在0-10范围内，当前值: {weight}"
+                "权重必须在0-100范围内，当前值: {weight}"
             )));
         }
 

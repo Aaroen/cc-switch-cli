@@ -40,7 +40,7 @@ pub struct Provider {
     #[serde(default)]
     #[serde(rename = "inFailoverQueue")]
     pub in_failover_queue: bool,
-    /// 负载均衡权重 (0-10, 0表示禁用, 1表示每轮都使用)
+    /// 负载均衡权重 (0-100, 0表示禁用, 1表示每轮都使用)
     #[serde(default = "default_weight")]
     pub weight: u32,
 }

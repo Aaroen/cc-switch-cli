@@ -156,7 +156,7 @@ pub enum ProviderCommands {
         #[arg(short, long)]
         id: String,
 
-        /// 权重值（0-10，0=禁用，1=每轮使用）
+        /// 权重值（0-100，0=禁用，1=每轮使用）
         #[arg(short, long)]
         weight: u32,
     },
