@@ -99,14 +99,13 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Prepare Tauri signing key
-        if: runner.os != 'Linux' && secrets.TAURI_SIGNING_PRIVATE_KEY != ''
+        if: runner.os != 'Linux'
         shell: bash
         run: |
           # 调试：检查 Secret 是否存在
           if [ -z "${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}" ]; then
-            echo "❌ TAURI_SIGNING_PRIVATE_KEY Secret 为空或不存在" >&2
-            echo "请检查 GitHub 仓库 Settings > Secrets and variables > Actions" >&2
-            exit 1
+            echo "⚠️ TAURI_SIGNING_PRIVATE_KEY 为空，跳过签名密钥准备与 GUI 构建（仅发布 Linux CLI 预构建包）"
+            exit 0
           fi
           
           RAW="${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}"
@@ -156,12 +155,26 @@ jobs:
           echo "✅ Tauri signing key prepared"
 
       - name: Build Tauri App (macOS)
-        if: runner.os == 'macOS' && secrets.TAURI_SIGNING_PRIVATE_KEY != ''
-        run: pnpm tauri build --target universal-apple-darwin
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -z "${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}" ]; then
+            echo "Skip macOS build: TAURI_SIGNING_PRIVATE_KEY is empty"
+            exit 0
+          fi
+          pnpm tauri build --target universal-apple-darwin
 
       - name: Build Tauri App (Windows)
-        if: runner.os == 'Windows' && secrets.TAURI_SIGNING_PRIVATE_KEY != ''
-        run: pnpm tauri build
+        if: runner.os == 'Windows'
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -z "${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}" ]; then
+            echo "Skip Windows build: TAURI_SIGNING_PRIVATE_KEY is empty"
+            exit 0
+          fi
+          pnpm tauri build
 
       - name: Build Tauri App (Linux)
         if: runner.os == 'Linux'
@@ -191,10 +204,14 @@ jobs:
           tar -C "$tmp_dir" -czf "release-assets/cc-switch-cli-linux-x86_64.tar.gz" install-ccs.sh cc-switch
 
       - name: Prepare macOS Assets
-        if: runner.os == 'macOS' && secrets.TAURI_SIGNING_PRIVATE_KEY != ''
+        if: runner.os == 'macOS'
         shell: bash
         run: |
           set -euxo pipefail
+          if [ -z "${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}" ]; then
+            echo "Skip macOS assets: TAURI_SIGNING_PRIVATE_KEY is empty"
+            exit 0
+          fi
           mkdir -p release-assets
           VERSION="${GITHUB_REF_NAME}"  # e.g., v3.5.0
           echo "Looking for updater artifact (.tar.gz) and .app for zip..."
@@ -230,10 +247,14 @@ jobs:
           fi
 
       - name: Prepare Windows Assets
-        if: runner.os == 'Windows' && secrets.TAURI_SIGNING_PRIVATE_KEY != ''
+        if: runner.os == 'Windows'
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
+          if ([string]::IsNullOrWhiteSpace('${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}')) {
+            Write-Host 'Skip Windows assets: TAURI_SIGNING_PRIVATE_KEY is empty'
+            exit 0
+          }
           New-Item -ItemType Directory -Force -Path release-assets | Out-Null
           $VERSION = $env:GITHUB_REF_NAME  # e.g., v3.5.0
           # 仅打包 MSI 安装器 + .sig（用于 Updater）
