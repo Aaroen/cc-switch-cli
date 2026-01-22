@@ -345,17 +345,15 @@ impl LayeredForwarder {
                     .await;
 
                 // 【新增】记录失败到文件日志
-                let status_code = match &error {
-                    ProxyError::UpstreamError { status, .. } => *status,
-                    _ => 0,
-                };
+                let status_code = super::error_mapper::map_proxy_error_to_status(&error);
+                let error_detail = super::error_mapper::get_error_message(&error);
                 get_file_logger().log_error(
                     app_type_str,
                     status_code,
                     &provider.name,
                     latency,
                     model,
-                    &error.to_string(),
+                    &error_detail,
                 );
 
                 log::debug!(

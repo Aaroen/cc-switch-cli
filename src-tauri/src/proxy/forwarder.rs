@@ -581,10 +581,8 @@ impl RequestForwarder {
                             .unwrap_or("unknown")
                             .to_string()
                     };
-                    let status_code = match &e {
-                        ProxyError::UpstreamError { status, .. } => *status,
-                        _ => 0,
-                    };
+                    let status_code = super::error_mapper::map_proxy_error_to_status(&e);
+                    let error_detail = super::error_mapper::get_error_message(&e);
 
                     // 【新增】记录失败到文件日志
                     get_file_logger().log_error(
@@ -593,7 +591,7 @@ impl RequestForwarder {
                         &provider.name,
                         latency.as_millis() as u64,
                         &model,
-                        &e.to_string(),
+                        &error_detail,
                     );
 
                     log::warn!(
