@@ -21,7 +21,7 @@ bash -lc 'set -e; dir="$HOME/cc-switch-cli"; if [ -d "$dir/.git" ]; then git -C 
 - `cc-switch-cli-linux-x86_64.tar.gz`
 
 ```bash
-bash -lc 'set -e; repo="Aaroen/cc-switch-cli"; asset="cc-switch-cli-linux-x86_64.tar.gz"; tag="${TAG:-latest}"; if [ "$tag" = "latest" ]; then url="https://github.com/$repo/releases/latest/download/$asset"; else url="https://github.com/$repo/releases/download/$tag/$asset"; fi; tmp="$(mktemp -d)"; echo "下载: $url"; if command -v curl >/dev/null 2>&1; then curl -fL --retry 3 --retry-delay 1 "$url" -o "$tmp/$asset"; else wget -nv "$url" -O "$tmp/$asset"; fi; tar -tzf "$tmp/$asset" >/dev/null; tar -xzf "$tmp/$asset" -C "$tmp"; bash "$tmp/install-ccs.sh" --prebuilt "$tmp/cc-switch"'
+bash -lc 'set -euo pipefail; repo="Aaroen/cc-switch-cli"; asset="cc-switch-cli-linux-x86_64.tar.gz"; tag="${TAG:-latest}"; if [ "$tag" = "latest" ]; then gh_url="https://github.com/$repo/releases/latest/download/$asset"; else gh_url="https://github.com/$repo/releases/download/$tag/$asset"; fi; urls=("$gh_url" "https://mirror.ghproxy.com/$gh_url" "https://ghproxy.com/$gh_url"); tmp="$(mktemp -d)"; ok=0; for url in "${urls[@]}"; do echo "下载: $url"; if command -v curl >/dev/null 2>&1; then if curl -4 -fL --connect-timeout 10 --max-time 600 --speed-time 20 --speed-limit 1024 --retry 3 --retry-delay 1 --retry-all-errors "$url" -o "$tmp/$asset"; then ok=1; break; fi; else if wget -4 -nv --timeout=20 --tries=3 "$url" -O "$tmp/$asset"; then ok=1; break; fi; fi; done; [ "$ok" = 1 ]; tar -tzf "$tmp/$asset" >/dev/null; tar -xzf "$tmp/$asset" -C "$tmp"; bash "$tmp/install-ccs.sh" --prebuilt "$tmp/cc-switch"'
 ```
 
 说明：
