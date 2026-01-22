@@ -919,7 +919,7 @@ fi
 # 步骤 5: 编译 Tauri 应用
 # ============================================================================
 CURRENT_STEP=5
-step_running $CURRENT_STEP $TOTAL_STEPS "编译 Tauri 应用"
+step_running $CURRENT_STEP $TOTAL_STEPS "编译 Tauri 应用，这可能需要几分钟..."
 
 cd "$SCRIPT_DIR"
 
@@ -988,9 +988,6 @@ fi
 if [ "$NEED_REBUILD" = true ]; then
     # 强制删除旧二进制，避免后续步骤误用旧文件
     rm -f "$BIN_PATH" 2>/dev/null || true
-
-    echo ""
-    echo -e "${YELLOW}开始编译 Tauri 应用，这可能需要几分钟...${NC}"
 
     BUILD_START=$(date +%s)
     if [ "$CLI_MODE" = "true" ]; then
