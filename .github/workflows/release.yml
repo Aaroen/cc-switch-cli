@@ -29,6 +29,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Setup Node.js
+        if: runner.os != 'Linux'
         uses: actions/setup-node@v4
         with:
           node-version: '20'
@@ -73,17 +74,20 @@ jobs:
             || sudo apt-get install -y --no-install-recommends libsoup2.4-dev
 
       - name: Setup pnpm
+        if: runner.os != 'Linux'
         uses: pnpm/action-setup@v2
         with:
           version: 10.12.3
           run_install: false
 
       - name: Get pnpm store directory
+        if: runner.os != 'Linux'
         id: pnpm-store
         shell: bash
         run: echo "path=$(pnpm store path --silent)" >> $GITHUB_OUTPUT
 
       - name: Setup pnpm cache
+        if: runner.os != 'Linux'
         uses: actions/cache@v4
         with:
           path: ${{ steps.pnpm-store.outputs.path }}
@@ -91,9 +95,11 @@ jobs:
           restore-keys: ${{ runner.os }}-pnpm-store-
 
       - name: Install frontend deps
+        if: runner.os != 'Linux'
         run: pnpm install --frozen-lockfile
 
       - name: Prepare Tauri signing key
+        if: runner.os != 'Linux' && secrets.TAURI_SIGNING_PRIVATE_KEY != ''
         shell: bash
         run: |
           # 调试：检查 Secret 是否存在
@@ -150,16 +156,20 @@ jobs:
           echo "✅ Tauri signing key prepared"
 
       - name: Build Tauri App (macOS)
-        if: runner.os == 'macOS'
+        if: runner.os == 'macOS' && secrets.TAURI_SIGNING_PRIVATE_KEY != ''
         run: pnpm tauri build --target universal-apple-darwin
 
       - name: Build Tauri App (Windows)
-        if: runner.os == 'Windows'
+        if: runner.os == 'Windows' && secrets.TAURI_SIGNING_PRIVATE_KEY != ''
         run: pnpm tauri build
 
       - name: Build Tauri App (Linux)
         if: runner.os == 'Linux'
-        run: pnpm tauri build --bundles appimage,deb,rpm
+        shell: bash
+        run: |
+          set -euxo pipefail
+          # CLI/无头模式只需要 Rust 二进制即可（供 README 的无编译一键安装使用）
+          cargo build --release --manifest-path src-tauri/Cargo.toml
 
       - name: Prepare CLI no-compile tarball (Linux x86_64)
         if: runner.os == 'Linux'
@@ -181,7 +191,7 @@ jobs:
           tar -C "$tmp_dir" -czf "release-assets/cc-switch-cli-linux-x86_64.tar.gz" install-ccs.sh cc-switch
 
       - name: Prepare macOS Assets
-        if: runner.os == 'macOS'
+        if: runner.os == 'macOS' && secrets.TAURI_SIGNING_PRIVATE_KEY != ''
         shell: bash
         run: |
           set -euxo pipefail
@@ -220,7 +230,7 @@ jobs:
           fi
 
       - name: Prepare Windows Assets
-        if: runner.os == 'Windows'
+        if: runner.os == 'Windows' && secrets.TAURI_SIGNING_PRIVATE_KEY != ''
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
@@ -319,6 +329,7 @@ jobs:
           ls -la release-assets/*.sig || echo "No signatures found"
 
       - name: Upload Release Assets
+        if: runner.os == 'Linux'
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ github.ref_name }}
