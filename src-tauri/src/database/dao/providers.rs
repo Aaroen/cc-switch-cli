@@ -133,7 +133,7 @@ impl Database {
         app_type: &str,
     ) -> Result<Option<Provider>, AppError> {
         let conn = lock_conn!(self.conn);
-        let result = conn.query_row(
+        let result: Result<Provider, rusqlite::Error> = conn.query_row(
             "SELECT name, settings_config, website_url, category, created_at, sort_index, notes, icon, icon_color, meta, in_failover_queue, weight
              FROM providers WHERE id = ?1 AND app_type = ?2",
             params![id, app_type],
@@ -173,7 +173,41 @@ impl Database {
         );
 
         match result {
-            Ok(provider) => Ok(Some(provider)),
+            Ok(mut provider) => {
+                // 补齐 endpoints（providers.meta.custom_endpoints 存表外，需要额外查询）
+                let mut stmt_endpoints = conn.prepare(
+                    "SELECT url, added_at FROM provider_endpoints WHERE provider_id = ?1 AND app_type = ?2 ORDER BY added_at ASC, url ASC"
+                ).map_err(|e| AppError::Database(e.to_string()))?;
+
+                let endpoints_iter = stmt_endpoints
+                    .query_map(params![id, app_type], |row| {
+                        let url: String = row.get(0)?;
+                        let added_at: Option<i64> = row.get(1)?;
+                        Ok((
+                            url,
+                            crate::settings::CustomEndpoint {
+                                url: "".to_string(),
+                                added_at: added_at.unwrap_or(0),
+                                last_used: None,
+                            },
+                        ))
+                    })
+                    .map_err(|e| AppError::Database(e.to_string()))?;
+
+                let mut custom_endpoints = HashMap::new();
+                for ep_res in endpoints_iter {
+                    let (url, mut ep) =
+                        ep_res.map_err(|e| AppError::Database(e.to_string()))?;
+                    ep.url = url.clone();
+                    custom_endpoints.insert(url, ep);
+                }
+
+                if let Some(meta) = &mut provider.meta {
+                    meta.custom_endpoints = custom_endpoints;
+                }
+
+                Ok(Some(provider))
+            }
             Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
             Err(e) => Err(AppError::Database(e.to_string())),
         }
