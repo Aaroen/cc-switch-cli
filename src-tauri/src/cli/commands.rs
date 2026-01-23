@@ -489,13 +489,13 @@ pub async fn provider_export(
     };
 
     if providers.is_empty() {
-        return Err(format!("没有可导出的供应商（app={}）", app));
+        output::warning(&format!("没有可导出的供应商（app={}），将导出空列表", app));
     }
 
-    if redact {
+    if redact && !providers.is_empty() {
         providers = providers.into_iter().map(redact_provider).collect();
         output::warning("已启用脱敏导出：密钥字段将被替换为 \"***\"（导入后不可直接使用）");
-    } else {
+    } else if !redact && !providers.is_empty() {
         output::warning("导出文件将包含密钥/令牌等敏感信息，请妥善保管");
     }
 
