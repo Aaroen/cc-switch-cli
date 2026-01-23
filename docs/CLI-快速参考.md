@@ -12,10 +12,25 @@ csc server start --port 15721       # 指定端口启动
 
 ### 供应商管理
 ```bash
+# 列表/详情
 csc provider list --app claude      # 列出 Claude 供应商
 csc provider list --app codex       # 列出 Codex 供应商
 csc provider list --app gemini      # 列出 Gemini 供应商
+csc provider list --app codex --verbose        # 显示更详细信息（含配置摘要）
+csc provider show --app codex --id <ID>        # 查看供应商详情（含 settings_config）
+
+# 添加/删除/切换
+csc provider add --app codex --name <NAME> --key <OPENAI_API_KEY> --url <BASE_URL>
+csc provider add --app claude --name <NAME> --key <ANTHROPIC_API_KEY> --url <ANTHROPIC_BASE_URL>
+csc provider add --app gemini --name <NAME> --key <GEMINI_API_KEY> --url <GEMINI_API_BASE_URL>
+
+# 从 JSON 文件添加（推荐：便于复用/迁移）
+csc provider add --app codex --name <NAME> --file ./provider.codex.json
+
+csc provider remove --app codex --id <ID>      # 删除供应商（会二次确认）
 csc provider switch --app codex --id <ID>  # 切换供应商
+
+# 修改配置（最常用的“编辑”能力）
 csc provider weight --app codex --id <ID> --weight 3  # 设置权重
 csc provider map --app codex --id <ID> --from gpt-5.2 --to gpt-5.2-2cx  # 设置模型映射
 csc provider env --app claude --id <ID> --key ANTHROPIC_DEFAULT_SONNET_MODEL --value <MODEL>  # 设置 Claude 模型映射
@@ -36,6 +51,38 @@ csc provider import --app codex --input ./codex.providers.json --new-ids
 
 # 覆盖同 ID 供应商（默认同 ID 会跳过）
 csc provider import --app codex --input ./codex.providers.json --overwrite
+```
+
+### 供应商 JSON 配置示例（配合 `csc provider add --file`）
+
+Codex（OpenAI 兼容）示例 `provider.codex.json`：
+```json
+{
+  "base_url": "https://example.com",
+  "env": {
+    "OPENAI_API_KEY": "sk-..."
+  }
+}
+```
+
+Claude 示例 `provider.claude.json`：
+```json
+{
+  "env": {
+    "ANTHROPIC_API_KEY": "sk-ant-...",
+    "ANTHROPIC_BASE_URL": "https://api.anthropic.com"
+  }
+}
+```
+
+Gemini 示例 `provider.gemini.json`：
+```json
+{
+  "env": {
+    "GEMINI_API_KEY": "AIza...",
+    "GEMINI_API_BASE_URL": "https://generativelanguage.googleapis.com"
+  }
+}
 ```
 
 ### 权重轮询（负载均衡）
