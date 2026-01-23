@@ -207,34 +207,25 @@ import sys
 
 port = int(sys.argv[1])
 
-def can_bind(family, addr):
-    s = socket.socket(family, socket.SOCK_STREAM)
+def can_bind_ipv4():
+    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     try:
         s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        s.bind((addr, port))
+        s.bind(("127.0.0.1", port))
         return True
     except OSError as e:
         if e.errno == errno.EADDRINUSE:
             return False
-        # 其他错误：保守认为不可用（权限/地址族/系统限制等）
-        return False
+        # 其他错误：不确定（例如系统策略/环境异常），不要把端口误判为“被占用”
+        # 交给后续启动阶段做最终判定（Address already in use 会自动换端口重试）
+        return True
     finally:
         try:
             s.close()
         except Exception:
             pass
 
-ok4 = can_bind(socket.AF_INET, "127.0.0.1")
-if not ok4:
-    sys.exit(1)
-
-# IPv6 不是必须；若系统不支持/不可用，不阻塞
-try:
-    ok6 = can_bind(socket.AF_INET6, "::1")
-except OSError:
-    ok6 = True
-
-sys.exit(0 if (ok4 and ok6) else 1)
+sys.exit(0 if can_bind_ipv4() else 1)
 PY
         return $?
     fi
@@ -277,7 +268,7 @@ find_available_port() {
 
     # 未找到可用端口，返回原始端口
     echo "$start_port"
-    return 1
+    return 0
 }
 
 # 进度条函数
