@@ -82,6 +82,28 @@ async fn run_cli_mode() {
                 new_ids,
                 set_current,
             } => cli::commands::provider_import(&app, &input, overwrite, new_ids, set_current).await,
+            cli::ProviderCommands::Update {
+                app,
+                id,
+                file,
+                key,
+                url,
+                replace,
+                name,
+                notes,
+            } => {
+                cli::commands::provider_update(
+                    &app,
+                    &id,
+                    file.as_deref(),
+                    key,
+                    url,
+                    replace,
+                    name,
+                    notes,
+                )
+                .await
+            }
         },
         cli::Commands::Config(cmd) => match cmd {
             cli::ConfigCommands::Show { app } => cli::commands::config_show(app).await,

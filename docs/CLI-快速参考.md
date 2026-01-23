@@ -35,6 +35,19 @@ csc provider weight --app codex --id <ID> --weight 3  # 设置权重
 csc provider map --app codex --id <ID> --from gpt-5.2 --to gpt-5.2-2cx  # 设置模型映射
 csc provider env --app claude --id <ID> --key ANTHROPIC_DEFAULT_SONNET_MODEL --value <MODEL>  # 设置 Claude 模型映射
 
+# 更新供应商 settings_config（merge 合并，默认不破坏已有字段）
+csc provider update --app codex --id <ID> --file ./patch.codex.json
+
+# 替换整个 settings_config（会覆盖原有配置）
+csc provider update --app codex --id <ID> --file ./full.codex.json --replace
+
+# 直接修改 key/base_url（无需文件；会写入 settings_config）
+csc provider update --app codex --id <ID> --key <OPENAI_API_KEY>
+csc provider update --app codex --id <ID> --url <BASE_URL>
+
+# 同时改名/备注
+csc provider update --app codex --id <ID> --name <NEW_NAME> --notes "..."
+
 # 导入/导出（用于备份/迁移）
 # 注意：默认导出会包含密钥/令牌等敏感信息，请妥善保管
 csc provider export --app codex --output ./codex.providers.json

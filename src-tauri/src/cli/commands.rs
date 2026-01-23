@@ -61,6 +61,24 @@ fn redact_provider(mut p: Provider) -> Provider {
     p
 }
 
+fn deep_merge_json(dst: &mut serde_json::Value, src: serde_json::Value) {
+    match (dst, src) {
+        (serde_json::Value::Object(dst_map), serde_json::Value::Object(src_map)) => {
+            for (k, v) in src_map {
+                match dst_map.get_mut(&k) {
+                    Some(existing) => deep_merge_json(existing, v),
+                    None => {
+                        dst_map.insert(k, v);
+                    }
+                }
+            }
+        }
+        (dst_any, src_any) => {
+            *dst_any = src_any;
+        }
+    }
+}
+
 // ============================================================================
 // Provider 命令实现
 // ============================================================================
@@ -641,6 +659,138 @@ pub async fn provider_import(
         "导入完成（app={}）：新增 {}，更新 {}，跳过 {}",
         app, added, updated, skipped
     ));
+    Ok(())
+}
+
+pub async fn provider_update(
+    app: &str,
+    id: &str,
+    file: Option<&str>,
+    key: Option<String>,
+    url: Option<String>,
+    replace: bool,
+    name: Option<String>,
+    notes: Option<String>,
+) -> Result<(), String> {
+    let db = get_database()?;
+    let app_type = parse_app_type(app)?;
+
+    if file.is_none() && key.is_none() && url.is_none() && name.is_none() && notes.is_none() {
+        return Err("未提供任何更新内容：请使用 --file/--key/--url/--name/--notes 之一".to_string());
+    }
+
+    let mut provider = db
+        .get_provider_by_id(id, app_type.as_str())
+        .map_err(|e| e.to_string())?
+        .ok_or_else(|| format!("供应商不存在: {}", id))?;
+
+    // 1) 文件配置：merge 或 replace settings_config
+    if let Some(path) = file {
+        let mut content = String::new();
+        if path == "-" {
+            std::io::stdin()
+                .read_to_string(&mut content)
+                .map_err(|e| format!("读取 stdin 失败: {}", e))?;
+        } else {
+            content = std::fs::read_to_string(path).map_err(|e| format!("读取文件失败 {}: {}", path, e))?;
+        }
+
+        let incoming: serde_json::Value =
+            serde_json::from_str(&content).map_err(|e| format!("解析配置文件失败: {}", e))?;
+
+        if replace {
+            provider.settings_config = incoming;
+        } else {
+            deep_merge_json(&mut provider.settings_config, incoming);
+        }
+    }
+
+    // 2) key/url：按 app 类型写入 settings_config（覆盖写入）
+    if let Some(api_key) = key {
+        match app_type {
+            AppType::Claude => {
+                let env = provider
+                    .settings_config
+                    .as_object_mut()
+                    .and_then(|o| o.get_mut("env"))
+                    .and_then(|v| v.as_object_mut());
+                if let Some(env) = env {
+                    env.insert("ANTHROPIC_API_KEY".to_string(), json!(api_key));
+                } else {
+                    provider.settings_config["env"] = json!({ "ANTHROPIC_API_KEY": api_key });
+                }
+            }
+            AppType::Codex => {
+                let env = provider
+                    .settings_config
+                    .as_object_mut()
+                    .and_then(|o| o.get_mut("env"))
+                    .and_then(|v| v.as_object_mut());
+                if let Some(env) = env {
+                    env.insert("OPENAI_API_KEY".to_string(), json!(api_key));
+                } else {
+                    provider.settings_config["env"] = json!({ "OPENAI_API_KEY": api_key });
+                }
+            }
+            AppType::Gemini => {
+                let env = provider
+                    .settings_config
+                    .as_object_mut()
+                    .and_then(|o| o.get_mut("env"))
+                    .and_then(|v| v.as_object_mut());
+                if let Some(env) = env {
+                    env.insert("GEMINI_API_KEY".to_string(), json!(api_key));
+                } else {
+                    provider.settings_config["env"] = json!({ "GEMINI_API_KEY": api_key });
+                }
+            }
+        }
+    }
+
+    if let Some(base_url) = url {
+        match app_type {
+            AppType::Claude => {
+                let env = provider
+                    .settings_config
+                    .as_object_mut()
+                    .and_then(|o| o.get_mut("env"))
+                    .and_then(|v| v.as_object_mut());
+                if let Some(env) = env {
+                    env.insert("ANTHROPIC_BASE_URL".to_string(), json!(base_url));
+                } else {
+                    provider.settings_config["env"] = json!({ "ANTHROPIC_BASE_URL": base_url });
+                }
+            }
+            AppType::Codex => {
+                provider.settings_config["base_url"] = json!(base_url);
+            }
+            AppType::Gemini => {
+                let env = provider
+                    .settings_config
+                    .as_object_mut()
+                    .and_then(|o| o.get_mut("env"))
+                    .and_then(|v| v.as_object_mut());
+                if let Some(env) = env {
+                    env.insert("GEMINI_API_BASE_URL".to_string(), json!(base_url));
+                } else {
+                    provider.settings_config["env"] = json!({ "GEMINI_API_BASE_URL": base_url });
+                }
+            }
+        }
+    }
+
+    // 3) name/notes
+    if let Some(new_name) = name {
+        provider.name = new_name;
+    }
+    if notes.is_some() {
+        provider.notes = notes;
+    }
+
+    db.save_provider(app_type.as_str(), &provider)
+        .map_err(|e| e.to_string())?;
+
+    output::success(&format!("供应商 '{}' 已更新 (ID: {})", provider.name, provider.id));
     Ok(())
 }
 

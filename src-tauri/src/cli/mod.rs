@@ -268,6 +268,42 @@ pub enum ProviderCommands {
         #[arg(long, default_value_t = true)]
         set_current: bool,
     },
+
+    /// 更新供应商配置（常用：修改 key/base_url/完整 JSON 配置）
+    #[command(alias = "upd")]
+    Update {
+        /// 应用类型（claude/codex/gemini）
+        #[arg(short, long)]
+        app: String,
+
+        /// 供应商ID
+        #[arg(short, long)]
+        id: String,
+
+        /// JSON配置文件路径（同 add --file；可用 "-" 从 stdin 读取）
+        #[arg(short, long)]
+        file: Option<String>,
+
+        /// 直接设置 API Key（会写入 settings_config）
+        #[arg(short, long)]
+        key: Option<String>,
+
+        /// 直接设置 Base URL（会写入 settings_config）
+        #[arg(short, long)]
+        url: Option<String>,
+
+        /// 替换整个 settings_config（默认：merge 合并）
+        #[arg(long, default_value_t = false)]
+        replace: bool,
+
+        /// 同时更新供应商名称（可选）
+        #[arg(long)]
+        name: Option<String>,
+
+        /// 同时更新备注（可选）
+        #[arg(long)]
+        notes: Option<String>,
+    },
 }
 
 #[derive(Subcommand)]
