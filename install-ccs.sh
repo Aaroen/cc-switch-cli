@@ -1248,15 +1248,21 @@ fi
 for cfg in "${SHELL_CONFIGS[@]}"; do
     touch "$cfg" 2>/dev/null || true
 
-    # 清理旧的 CC-Switch PATH 片段，避免多次部署导致重复写入
+    # 兼容旧版本：清理历史遗留的重复片段
     sed -i '/^# CC-Switch PATH$/d' "$cfg" 2>/dev/null || true
     sed -i '/^export PATH="\\$HOME\\/\\.local\\/bin:\\$PATH"$/d' "$cfg" 2>/dev/null || true
 
-    if ! grep -q '^# CC-Switch PATH$' "$cfg" 2>/dev/null && ! grep -q 'export PATH="$HOME/\.local/bin:\$PATH"' "$cfg" 2>/dev/null; then
-        echo "" >> "$cfg"
-        echo "# CC-Switch PATH" >> "$cfg"
-        echo 'export PATH="$HOME/.local/bin:$PATH"' >> "$cfg"
-    fi
+    # 新版本：用 begin/end 标记保证幂等（每次部署都会先删除旧块，再写入一次）
+    CCS_PATH_BEGIN="# >>> CC-Switch PATH >>>"
+    CCS_PATH_END="# <<< CC-Switch PATH <<<"
+    sed -i "/^${CCS_PATH_BEGIN}\$/,/^${CCS_PATH_END}\$/d" "$cfg" 2>/dev/null || true
+
+    {
+        echo ""
+        echo "$CCS_PATH_BEGIN"
+        echo 'export PATH="$HOME/.local/bin:$PATH"'
+        echo "$CCS_PATH_END"
+    } >> "$cfg"
 done
 
 step_done $CURRENT_STEP $TOTAL_STEPS "安装到系统路径"
@@ -1286,9 +1292,16 @@ EOF
         sed -i '/# CC-Switch Claude Code env/d' "$cfg" 2>/dev/null || true
         sed -i '/\\.cc-switch\\/env\\.sh/d' "$cfg" 2>/dev/null || true
 
-        echo "" >> "$cfg"
-        echo "# CC-Switch Claude Code env" >> "$cfg"
-        echo '[ -f "$HOME/.cc-switch/env.sh" ] && . "$HOME/.cc-switch/env.sh"' >> "$cfg"
+        CCS_CLAUDE_ENV_BEGIN="# >>> CC-Switch Claude Code env >>>"
+        CCS_CLAUDE_ENV_END="# <<< CC-Switch Claude Code env <<<"
+        sed -i "/^${CCS_CLAUDE_ENV_BEGIN}\$/,/^${CCS_CLAUDE_ENV_END}\$/d" "$cfg" 2>/dev/null || true
+
+        {
+            echo ""
+            echo "$CCS_CLAUDE_ENV_BEGIN"
+            echo '[ -f "$HOME/.cc-switch/env.sh" ] && . "$HOME/.cc-switch/env.sh"'
+            echo "$CCS_CLAUDE_ENV_END"
+        } >> "$cfg"
     done
 
     # Codex CLI
