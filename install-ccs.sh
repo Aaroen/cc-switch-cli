@@ -1247,6 +1247,11 @@ fi
 # 确保配置文件存在并写入 PATH
 for cfg in "${SHELL_CONFIGS[@]}"; do
     touch "$cfg" 2>/dev/null || true
+
+    # 清理旧的 CC-Switch PATH 片段，避免多次部署导致重复写入
+    sed -i '/^# CC-Switch PATH$/d' "$cfg" 2>/dev/null || true
+    sed -i '/^export PATH="\\$HOME\\/\\.local\\/bin:\\$PATH"$/d' "$cfg" 2>/dev/null || true
+
     if ! grep -q '^# CC-Switch PATH$' "$cfg" 2>/dev/null && ! grep -q 'export PATH="$HOME/\.local/bin:\$PATH"' "$cfg" 2>/dev/null; then
         echo "" >> "$cfg"
         echo "# CC-Switch PATH" >> "$cfg"
