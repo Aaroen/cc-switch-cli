@@ -4,9 +4,62 @@
 
 use super::output;
 use crate::{app_config::AppType, database::Database, provider::Provider};
+use serde::{Deserialize, Serialize};
 use serde_json::json;
+use std::collections::HashMap;
+use std::io::Read;
 use std::str::FromStr;
 use std::sync::Arc;
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct ProviderExportBundleV1 {
+    /// 文件格式版本
+    version: u32,
+    /// 应用类型（claude/codex/gemini）
+    app: String,
+    /// 导出时间（毫秒时间戳）
+    exported_at_ms: i64,
+    /// 导出时的 current provider id（若导出的集合包含 current）
+    current: Option<String>,
+    /// 供应商列表
+    providers: Vec<Provider>,
+}
+
+fn is_secret_key(key: &str) -> bool {
+    let k = key.to_ascii_lowercase();
+    k.contains("api_key")
+        || k.contains("apikey")
+        || k.contains("key")
+        || k.contains("token")
+        || k.contains("secret")
+        || k.contains("password")
+        || k.contains("auth")
+}
+
+fn redact_json_value(v: &mut serde_json::Value) {
+    match v {
+        serde_json::Value::Object(map) => {
+            for (k, vv) in map.iter_mut() {
+                if is_secret_key(k) {
+                    *vv = serde_json::Value::String("***".to_string());
+                } else {
+                    redact_json_value(vv);
+                }
+            }
+        }
+        serde_json::Value::Array(arr) => {
+            for vv in arr.iter_mut() {
+                redact_json_value(vv);
+            }
+        }
+        _ => {}
+    }
+}
+
+fn redact_provider(mut p: Provider) -> Provider {
+    redact_json_value(&mut p.settings_config);
+    p
+}
 
 // ============================================================================
 // Provider 命令实现
@@ -388,6 +441,206 @@ pub async fn provider_show(app: &str, id: &str) -> Result<(), String> {
 pub async fn provider_test(_app: &str, _id: &str) -> Result<(), String> {
     output::info("功能开发中...");
     // TODO: 实现供应商连接测试
+    Ok(())
+}
+
+pub async fn provider_export(
+    app: &str,
+    output_path: &str,
+    id: Option<&str>,
+    redact: bool,
+) -> Result<(), String> {
+    let db = get_database()?;
+    let app_type = parse_app_type(app)?;
+
+    let current_id = db
+        .get_current_provider(app_type.as_str())
+        .map_err(|e| e.to_string())?;
+
+    let mut providers: Vec<Provider> = if let Some(provider_id) = id {
+        let p = db
+            .get_provider_by_id(provider_id, app_type.as_str())
+            .map_err(|e| e.to_string())?
+            .ok_or_else(|| format!("供应商不存在: {}", provider_id))?;
+        vec![p]
+    } else {
+        db.get_all_providers(app_type.as_str())
+            .map_err(|e| e.to_string())?
+            .into_values()
+            .collect()
+    };
+
+    if providers.is_empty() {
+        return Err(format!("没有可导出的供应商（app={}）", app));
+    }
+
+    if redact {
+        providers = providers.into_iter().map(redact_provider).collect();
+        output::warning("已启用脱敏导出：密钥字段将被替换为 \"***\"（导入后不可直接使用）");
+    } else {
+        output::warning("导出文件将包含密钥/令牌等敏感信息，请妥善保管");
+    }
+
+    let mut current = current_id.clone();
+    if let Some(ref cid) = current {
+        let included = providers.iter().any(|p| &p.id == cid);
+        if !included {
+            current = None;
+        }
+    }
+
+    let bundle = ProviderExportBundleV1 {
+        version: 1,
+        app: app.to_string(),
+        exported_at_ms: chrono::Utc::now().timestamp_millis(),
+        current,
+        providers,
+    };
+
+    let content =
+        serde_json::to_string_pretty(&bundle).map_err(|e| format!("序列化失败: {}", e))?;
+
+    if output_path == "-" {
+        println!("{content}");
+        return Ok(());
+    }
+
+    let out = std::path::Path::new(output_path);
+    if let Some(parent) = out.parent() {
+        if !parent.as_os_str().is_empty() {
+            std::fs::create_dir_all(parent)
+                .map_err(|e| format!("创建目录失败 {}: {}", parent.display(), e))?;
+        }
+    }
+
+    std::fs::write(out, content)
+        .map_err(|e| format!("写入文件失败 {}: {}", out.display(), e))?;
+
+    output::success(&format!(
+        "已导出 {} 个 {} 供应商到: {}",
+        bundle.providers.len(),
+        app,
+        out.display()
+    ));
+    Ok(())
+}
+
+pub async fn provider_import(
+    app: &str,
+    input_path: &str,
+    overwrite: bool,
+    new_ids: bool,
+    set_current: bool,
+) -> Result<(), String> {
+    let db = get_database()?;
+    let app_type = parse_app_type(app)?;
+
+    let mut content = String::new();
+    if input_path == "-" {
+        std::io::stdin()
+            .read_to_string(&mut content)
+            .map_err(|e| format!("读取 stdin 失败: {}", e))?;
+    } else {
+        content = std::fs::read_to_string(input_path)
+            .map_err(|e| format!("读取文件失败 {}: {}", input_path, e))?;
+    }
+
+    let mut bundle: ProviderExportBundleV1 =
+        serde_json::from_str(&content).map_err(|e| format!("解析导入文件失败: {}", e))?;
+
+    if bundle.version != 1 {
+        return Err(format!(
+            "不支持的导入文件版本: {}（仅支持 version=1）",
+            bundle.version
+        ));
+    }
+    if bundle.app != app {
+        return Err(format!(
+            "导入文件 app 不匹配：文件为 '{}'，命令为 '{}'（请使用正确的 --app）",
+            bundle.app, app
+        ));
+    }
+
+    let mut id_map: HashMap<String, String> = HashMap::new();
+    let mut added = 0usize;
+    let mut updated = 0usize;
+    let mut skipped = 0usize;
+
+    for p in bundle.providers.iter_mut() {
+        if p.weight > 100 {
+            return Err(format!(
+                "供应商 '{}' 权重超出范围(0-100): {}",
+                p.name, p.weight
+            ));
+        }
+
+        if new_ids {
+            let old = p.id.clone();
+            let new_id = uuid::Uuid::new_v4().to_string();
+            p.id = new_id.clone();
+            id_map.insert(old, new_id);
+        }
+
+        let existing = db
+            .get_provider_by_id(&p.id, app_type.as_str())
+            .map_err(|e| e.to_string())?;
+
+        match existing {
+            Some(_existing_provider) => {
+                if !overwrite {
+                    skipped += 1;
+                    continue;
+                }
+                db.save_provider(app_type.as_str(), p)
+                    .map_err(|e| e.to_string())?;
+
+                // endpoints 只做“增量合并”，避免重复与破坏性删除
+                if let Some(import_meta) = &p.meta {
+                    let existed_urls = db
+                        .list_custom_endpoint_urls(app_type.as_str(), &p.id)
+                        .unwrap_or_default();
+                    for (url, _) in import_meta.custom_endpoints.iter() {
+                        if existed_urls.contains(url) {
+                            continue;
+                        }
+                        let _ = db.add_custom_endpoint(app_type.as_str(), &p.id, url);
+                    }
+                }
+
+                updated += 1;
+            }
+            None => {
+                db.save_provider(app_type.as_str(), p)
+                    .map_err(|e| e.to_string())?;
+                added += 1;
+            }
+        }
+    }
+
+    if set_current {
+        if let Some(cur) = bundle.current.take() {
+            let target = if new_ids {
+                id_map.get(&cur).cloned()
+            } else {
+                Some(cur)
+            };
+            if let Some(id) = target {
+                let existed = db
+                    .get_provider_by_id(&id, app_type.as_str())
+                    .map_err(|e| e.to_string())?
+                    .is_some();
+                if existed {
+                    db.set_current_provider(app_type.as_str(), &id)
+                        .map_err(|e| e.to_string())?;
+                }
+            }
+        }
+    }
+
+    output::success(&format!(
+        "导入完成（app={}）：新增 {}，更新 {}，跳过 {}",
+        app, added, updated, skipped
+    ));
     Ok(())
 }
 

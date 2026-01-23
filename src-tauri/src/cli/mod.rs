@@ -224,6 +224,50 @@ pub enum ProviderCommands {
         #[arg(short, long)]
         id: String,
     },
+
+    /// 导出供应商（用于备份/迁移）
+    #[command(alias = "exp")]
+    Export {
+        /// 应用类型（claude/codex/gemini）
+        #[arg(short, long)]
+        app: String,
+
+        /// 输出文件路径（可用 "-" 输出到 stdout）
+        #[arg(short, long)]
+        output: String,
+
+        /// 仅导出指定供应商ID（不指定则导出全部）
+        #[arg(short, long)]
+        id: Option<String>,
+
+        /// 脱敏导出（将疑似密钥字段替换为 "***"；导入后不可直接使用）
+        #[arg(long, default_value_t = false)]
+        redact: bool,
+    },
+
+    /// 导入供应商（从 Export 的 JSON 文件）
+    #[command(alias = "imp")]
+    Import {
+        /// 应用类型（claude/codex/gemini）
+        #[arg(short, long)]
+        app: String,
+
+        /// 输入文件路径（可用 "-" 从 stdin 读取）
+        #[arg(short, long)]
+        input: String,
+
+        /// 覆盖同 ID 供应商（默认跳过同 ID）
+        #[arg(long, default_value_t = false)]
+        overwrite: bool,
+
+        /// 导入时为每个供应商生成新 ID（避免与现有冲突）
+        #[arg(long, default_value_t = false)]
+        new_ids: bool,
+
+        /// 导入后切换到导出文件记录的 current 供应商（若存在）
+        #[arg(long, default_value_t = true)]
+        set_current: bool,
+    },
 }
 
 #[derive(Subcommand)]

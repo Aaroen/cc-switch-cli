@@ -8,6 +8,7 @@ use crate::provider::{Provider, ProviderMeta};
 use indexmap::IndexMap;
 use rusqlite::params;
 use std::collections::HashMap;
+use std::collections::HashSet;
 
 impl Database {
     /// 获取指定应用类型的所有供应商
@@ -429,6 +430,32 @@ impl Database {
             params![provider_id, app_type, url, added_at],
         ).map_err(|e| AppError::Database(e.to_string()))?;
         Ok(())
+    }
+
+    /// 列出自定义端点 URL（用于导入时去重）
+    pub fn list_custom_endpoint_urls(
+        &self,
+        app_type: &str,
+        provider_id: &str,
+    ) -> Result<HashSet<String>, AppError> {
+        let conn = lock_conn!(self.conn);
+        let mut stmt = conn
+            .prepare(
+                "SELECT url FROM provider_endpoints WHERE provider_id = ?1 AND app_type = ?2",
+            )
+            .map_err(|e| AppError::Database(e.to_string()))?;
+
+        let iter = stmt
+            .query_map(params![provider_id, app_type], |row| row.get::<_, String>(0))
+            .map_err(|e| AppError::Database(e.to_string()))?;
+
+        let mut set = HashSet::new();
+        for r in iter {
+            if let Ok(url) = r {
+                set.insert(url);
+            }
+        }
+        Ok(set)
     }
 
     /// 移除自定义端点

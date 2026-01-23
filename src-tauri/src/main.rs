@@ -69,6 +69,19 @@ async fn run_cli_mode() {
             cli::ProviderCommands::Test { app, id } => {
                 cli::commands::provider_test(&app, &id).await
             }
+            cli::ProviderCommands::Export {
+                app,
+                output,
+                id,
+                redact,
+            } => cli::commands::provider_export(&app, &output, id.as_deref(), redact).await,
+            cli::ProviderCommands::Import {
+                app,
+                input,
+                overwrite,
+                new_ids,
+                set_current,
+            } => cli::commands::provider_import(&app, &input, overwrite, new_ids, set_current).await,
         },
         cli::Commands::Config(cmd) => match cmd {
             cli::ConfigCommands::Show { app } => cli::commands::config_show(app).await,

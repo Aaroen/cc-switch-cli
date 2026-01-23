@@ -19,6 +19,23 @@ csc provider switch --app codex --id <ID>  # 切换供应商
 csc provider weight --app codex --id <ID> --weight 3  # 设置权重
 csc provider map --app codex --id <ID> --from gpt-5.2 --to gpt-5.2-2cx  # 设置模型映射
 csc provider env --app claude --id <ID> --key ANTHROPIC_DEFAULT_SONNET_MODEL --value <MODEL>  # 设置 Claude 模型映射
+
+# 导入/导出（用于备份/迁移）
+# 注意：默认导出会包含密钥/令牌等敏感信息，请妥善保管
+csc provider export --app codex --output ./codex.providers.json
+csc provider import --app codex --input ./codex.providers.json
+
+# 仅导出一个供应商
+csc provider export --app codex --id <ID> --output ./one.provider.json
+
+# 脱敏导出（用于分享模板，导入后不可直接使用）
+csc provider export --app codex --output ./codex.providers.redacted.json --redact
+
+# 导入时生成新 ID（避免与现有冲突）
+csc provider import --app codex --input ./codex.providers.json --new-ids
+
+# 覆盖同 ID 供应商（默认同 ID 会跳过）
+csc provider import --app codex --input ./codex.providers.json --overwrite
 ```
 
 ### 权重轮询（负载均衡）
