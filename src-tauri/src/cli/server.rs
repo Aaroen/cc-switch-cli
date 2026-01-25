@@ -135,6 +135,19 @@ pub async fn stop_server() -> Result<(), String> {
             .map_err(|e| format!("终止进程失败: {}", e))?;
 
         if output.status.success() {
+            // 等待进程真正退出，避免“端口仍被占用但 PID 文件已删除”的情况
+            for _ in 0..50 {
+                if !check_process_running(pid) {
+                    break;
+                }
+                sleep(Duration::from_millis(100)).await;
+            }
+
+            // 仍未退出则强制杀死
+            if check_process_running(pid) {
+                let _ = Command::new("kill").args(["-9", &pid.to_string()]).output();
+            }
+
             remove_pid_file()?;
             crate::cli::output::success("服务器已停止");
             Ok(())
