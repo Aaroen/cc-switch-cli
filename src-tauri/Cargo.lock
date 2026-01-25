@@ -766,6 +766,7 @@ dependencies = [
  "futures",
  "hyper",
  "indexmap 2.11.4",
+ "libc",
  "log",
  "objc2 0.5.2",
  "objc2-app-kit 0.2.2",

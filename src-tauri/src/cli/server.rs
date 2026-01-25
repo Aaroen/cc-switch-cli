@@ -1,12 +1,20 @@
 //! 无头代理服务器实现
 
 use crate::store::AppState;
+use std::fs::OpenOptions;
 use std::path::PathBuf;
+use std::process::{Command, Stdio};
 use std::sync::Arc;
 use tokio::signal;
+use tokio::time::{sleep, timeout, Duration, Instant};
 
 /// 启动无头代理服务器
 pub async fn start_headless_server(host: String, port: u16, daemon: bool) -> Result<(), String> {
+    // 默认后台启动：父进程负责拉起子进程并退出，子进程在后台常驻。
+    if daemon && !is_daemon_child() {
+        return start_headless_server_daemon(host, port).await;
+    }
+
     crate::cli::output::info(&format!("正在启动代理服务器 {}:{}...", host, port));
 
     // 初始化数据库（使用默认路径）
@@ -20,6 +28,15 @@ pub async fn start_headless_server(host: String, port: u16, daemon: bool) -> Res
 
     // 创建AppState
     let app_state = Arc::new(AppState::new(db));
+
+    // 将 CLI 传入的 host/port 写入数据库配置，确保本次启动使用该监听地址。
+    if let Ok(mut cfg) = app_state.db.get_proxy_config().await {
+        cfg.listen_address = host.clone();
+        cfg.listen_port = port;
+        if let Err(e) = app_state.db.update_proxy_config(cfg).await {
+            crate::cli::output::warning(&format!("更新代理监听地址失败（将使用已有配置）: {e}"));
+        }
+    }
 
     // 初始化全局HTTP客户端
     {
@@ -51,12 +68,36 @@ pub async fn start_headless_server(host: String, port: u16, daemon: bool) -> Res
             save_pid_file().map_err(|e| format!("保存PID失败: {}", e))?;
 
             if daemon {
-                crate::cli::output::info("以后台模式运行");
-                // 注意：真正的后台化需要使用daemonize crate
-                // 这里简单实现，用户需要手动使用 & 或 nohup
+                // 后台子进程：等待 SIGTERM/SIGINT，便于 stop/restart 时优雅退出并清理 PID。
+                #[cfg(unix)]
+                {
+                    use tokio::signal::unix::{signal as unix_signal, SignalKind};
+
+                    let mut sigterm =
+                        unix_signal(SignalKind::terminate()).map_err(|e| e.to_string())?;
+                    let mut sigint =
+                        unix_signal(SignalKind::interrupt()).map_err(|e| e.to_string())?;
+
+                    tokio::select! {
+                        _ = sigterm.recv() => {},
+                        _ = sigint.recv() => {},
+                    }
+                }
+
+                #[cfg(not(unix))]
+                {
+                    // 非 unix 平台：退化为 Ctrl+C
+                    signal::ctrl_c().await.map_err(|e| e.to_string())?;
+                }
+
+                app_state
+                    .proxy_service
+                    .stop()
+                    .await
+                    .map_err(|e| e.to_string())?;
+                remove_pid_file()?;
             } else {
                 crate::cli::output::info("按 Ctrl+C 停止服务器");
-                // 等待Ctrl+C信号
                 signal::ctrl_c().await.map_err(|e| e.to_string())?;
                 crate::cli::output::info("\n正在停止服务器...");
                 app_state
@@ -177,6 +218,111 @@ pub async fn restart_server(port: u16) -> Result<(), String> {
 // ============================================================================
 // 辅助函数
 // ============================================================================
+
+fn is_daemon_child() -> bool {
+    std::env::var("CC_SWITCH_DAEMON_CHILD")
+        .map(|v| v == "1")
+        .unwrap_or(false)
+}
+
+async fn start_headless_server_daemon(host: String, port: u16) -> Result<(), String> {
+    // 已在运行则直接返回状态
+    let pid_file_path = get_pid_file_path();
+    if pid_file_path.exists() {
+        if let Ok(pid) = read_pid_file() {
+            if check_process_running(pid) {
+                crate::cli::output::success("代理服务器已在运行");
+                server_status().await?;
+                return Ok(());
+            }
+        }
+        // PID 文件存在但进程不在：清理后再启动
+        let _ = remove_pid_file();
+    }
+
+    let log_path = get_config_dir().join("logs").join("server.log");
+    if let Some(parent) = log_path.parent() {
+        std::fs::create_dir_all(parent).ok();
+    }
+
+    let log_file = OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(&log_path)
+        .map_err(|e| format!("打开日志文件失败: {} ({})", log_path.display(), e))?;
+    let log_file_err = log_file
+        .try_clone()
+        .map_err(|e| format!("打开日志文件失败: {}", e))?;
+
+    let exe = std::env::current_exe().map_err(|e| format!("获取可执行文件路径失败: {}", e))?;
+
+    let mut cmd = Command::new(exe);
+    cmd.args([
+        "server",
+        "start",
+        "--host",
+        &host,
+        "--port",
+        &port.to_string(),
+    ])
+    .env("CC_SWITCH_DAEMON_CHILD", "1")
+    .stdin(Stdio::null())
+    .stdout(Stdio::from(log_file))
+    .stderr(Stdio::from(log_file_err));
+
+    // 在 unix 上创建新 session，避免终端关闭导致 SIGHUP 终止后台服务
+    #[cfg(unix)]
+    {
+        use std::os::unix::process::CommandExt;
+        unsafe {
+            cmd.pre_exec(|| {
+                // setsid 失败也不算致命：至少能后台运行
+                let _ = libc::setsid();
+                // 忽略 SIGHUP（保险起见）
+                libc::signal(libc::SIGHUP, libc::SIG_IGN);
+                Ok(())
+            });
+        }
+    }
+
+    let mut child = cmd
+        .spawn()
+        .map_err(|e| format!("启动后台进程失败: {}", e))?;
+
+    let start = Instant::now();
+    let deadline = Duration::from_secs(12);
+
+    // 等待端口可用或子进程退出
+    loop {
+        if let Ok(Some(status)) = child.try_wait() {
+            return Err(format!(
+                "启动失败（子进程已退出，退出码: {:?}），请查看日志: {}",
+                status.code(),
+                log_path.display()
+            ));
+        }
+
+        let addr = format!("{}:{}", host, port);
+        if timeout(Duration::from_millis(300), tokio::net::TcpStream::connect(&addr))
+            .await
+            .is_ok()
+        {
+            crate::cli::output::success("代理服务器启动成功（后台运行）");
+            server_status().await?;
+            crate::cli::output::hint("使用 'csc server stop' 停止服务");
+            return Ok(());
+        }
+
+        if start.elapsed() > deadline {
+            return Err(format!(
+                "启动超时，请查看日志: {}",
+                log_path.display()
+            ));
+        }
+
+        sleep(Duration::from_millis(200)).await;
+    }
+}
 
 fn get_config_dir() -> PathBuf {
     let config_dir = dirs::home_dir()

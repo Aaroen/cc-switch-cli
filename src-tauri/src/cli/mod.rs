@@ -64,8 +64,12 @@ pub enum ServerCommands {
         #[arg(short = 'H', long, default_value = "127.0.0.1")]
         host: String,
 
-        /// 后台运行
-        #[arg(short, long)]
+        /// 前台运行（默认后台启动；需要查看实时输出/调试时使用）
+        #[arg(short = 'f', long)]
+        foreground: bool,
+
+        /// 后台运行（兼容旧参数；当前已默认后台启动）
+        #[arg(short, long, hide = true, conflicts_with = "foreground")]
         daemon: bool,
     },
 

@@ -27,8 +27,15 @@ async fn run_cli_mode() {
     // 执行命令
     let result = match cli.command {
         cli::Commands::Server(cmd) => match cmd {
-            cli::ServerCommands::Start { port, host, daemon } => {
-                cli::server::start_headless_server(host, port, daemon).await
+            cli::ServerCommands::Start {
+                port,
+                host,
+                foreground,
+                daemon,
+            } => {
+                // 默认后台启动；--foreground 用于前台调试
+                let background = daemon || !foreground;
+                cli::server::start_headless_server(host, port, background).await
             }
             cli::ServerCommands::Stop => cli::server::stop_server().await,
             cli::ServerCommands::Status => cli::server::server_status().await,
