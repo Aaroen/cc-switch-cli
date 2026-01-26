@@ -41,6 +41,18 @@ async fn run_cli_mode() {
             cli::ServerCommands::Status => cli::server::server_status().await,
             cli::ServerCommands::Restart { port } => cli::server::restart_server(port).await,
         },
+        cli::Commands::Start {
+            port,
+            host,
+            foreground,
+            daemon,
+        } => {
+            let background = daemon || !foreground;
+            cli::server::start_headless_server(host, port, background).await
+        }
+        cli::Commands::Stop => cli::server::stop_server().await,
+        cli::Commands::Status => cli::server::server_status().await,
+        cli::Commands::Restart { port } => cli::server::restart_server(port).await,
         cli::Commands::Provider(cmd) => match cmd {
             cli::ProviderCommands::List { app, verbose } => {
                 cli::commands::provider_list(&app, verbose).await

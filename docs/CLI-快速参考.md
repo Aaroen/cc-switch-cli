@@ -4,6 +4,12 @@
 
 ### 服务器管理
 ```bash
+# 推荐：简写命令
+csc start                           # 启动服务器（默认后台运行，可直接关闭终端）
+csc status                          # 查看状态
+csc stop                            # 停止服务器
+
+# 完整命令（等价）
 csc server start                    # 启动服务器（默认后台运行，可直接关闭终端）
 csc server start --foreground        # 前台运行（调试/查看实时输出）
 csc server stop                     # 停止服务器

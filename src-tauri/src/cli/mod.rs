@@ -23,6 +23,38 @@ pub enum Commands {
     #[command(subcommand, alias = "srv")]
     Server(ServerCommands),
 
+    /// 启动代理服务器（`server start` 的简写）
+    Start {
+        /// 监听端口（默认15721）
+        #[arg(short, long, default_value = "15721")]
+        port: u16,
+
+        /// 监听地址（默认127.0.0.1）
+        #[arg(short = 'H', long, default_value = "127.0.0.1")]
+        host: String,
+
+        /// 前台运行（默认后台启动；需要查看实时输出/调试时使用）
+        #[arg(short = 'f', long)]
+        foreground: bool,
+
+        /// 后台运行（兼容旧参数；当前已默认后台启动）
+        #[arg(short, long, hide = true, conflicts_with = "foreground")]
+        daemon: bool,
+    },
+
+    /// 停止代理服务器（`server stop` 的简写）
+    Stop,
+
+    /// 查看服务器状态（`server status` 的简写）
+    Status,
+
+    /// 重启服务器（`server restart` 的简写）
+    Restart {
+        /// 监听端口
+        #[arg(short, long, default_value = "15721")]
+        port: u16,
+    },
+
     /// 供应商管理（增删改查/权重设置）
     #[command(subcommand, alias = "p")]
     Provider(ProviderCommands),

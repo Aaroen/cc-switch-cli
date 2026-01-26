@@ -38,6 +38,12 @@ pub async fn start_headless_server(host: String, port: u16, daemon: bool) -> Res
         }
     }
 
+    // 默认启用全部 App（claude/codex/gemini）：
+    // 若三项均未启用，视为“未初始化”状态，自动开启，避免 status 显示为空。
+    if let Err(e) = ensure_default_apps_enabled(&app_state.db).await {
+        crate::cli::output::warning(&format!("初始化启用应用失败（可忽略）: {e}"));
+    }
+
     // 初始化全局HTTP客户端
     {
         let proxy_state = app_state
@@ -201,7 +207,17 @@ pub async fn server_status() -> Result<(), String> {
                         "监听地址",
                         format!("{}:{}", config.listen_address, config.listen_port),
                     ),
-                    ("启用应用", format!("{:?}", get_enabled_apps(&db).await)),
+                    (
+                        "启用应用",
+                        {
+                            let apps = get_enabled_apps(&db).await;
+                            if apps.is_empty() {
+                                "(无)".to_string()
+                            } else {
+                                apps.join(", ")
+                            }
+                        },
+                    ),
                 ]);
             }
         }
@@ -304,6 +320,7 @@ async fn start_headless_server_daemon(host: String, port: u16) -> Result<(), Str
 
     let start = Instant::now();
     let deadline = Duration::from_secs(12);
+    let pid_file = get_pid_file_path();
 
     // 等待端口可用或子进程退出
     loop {
@@ -321,7 +338,19 @@ async fn start_headless_server_daemon(host: String, port: u16) -> Result<(), Str
             .is_ok()
         {
             crate::cli::output::success("代理服务器启动成功（后台运行）");
-            server_status().await?;
+            // 端口可用不代表 PID 文件已写入（子进程写 PID 在启动逻辑后段），稍等一会儿避免“状态不一致”
+            for _ in 0..25 {
+                if pid_file.exists() {
+                    break;
+                }
+                sleep(Duration::from_millis(80)).await;
+            }
+
+            if pid_file.exists() {
+                server_status().await?;
+            } else {
+                crate::cli::output::warning("已监听端口，但尚未检测到 PID 文件（稍后可用 'csc status' 再确认）");
+            }
             crate::cli::output::hint("使用 'csc server stop' 停止服务");
             return Ok(());
         }
@@ -428,4 +457,29 @@ async fn get_enabled_apps(db: &crate::database::Database) -> Vec<String> {
     }
 
     apps
+}
+
+async fn ensure_default_apps_enabled(db: &crate::database::Database) -> Result<(), String> {
+    let mut cfgs = Vec::new();
+
+    for app in ["claude", "codex", "gemini"] {
+        let cfg = db
+            .get_proxy_config_for_app(app)
+            .await
+            .map_err(|e| e.to_string())?;
+        cfgs.push(cfg);
+    }
+
+    if cfgs.iter().any(|c| c.enabled) {
+        return Ok(());
+    }
+
+    for mut cfg in cfgs {
+        cfg.enabled = true;
+        db.update_proxy_config_for_app(cfg)
+            .await
+            .map_err(|e| e.to_string())?;
+    }
+
+    Ok(())
 }
