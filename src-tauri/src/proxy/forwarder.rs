@@ -420,7 +420,13 @@ impl RequestForwarder {
 
                                 // 使用同一供应商重试（不计入熔断器）
                                 match self
-                                    .forward(provider, endpoint, &body, &headers, adapter.as_ref())
+                                    .forward_with_resilience(
+                                        provider,
+                                        endpoint,
+                                        &body,
+                                        &headers,
+                                        adapter.as_ref(),
+                                    )
                                     .await
                                 {
                                     Ok(response) => {

@@ -198,6 +198,19 @@ pub async fn provider_add(
                         "GEMINI_API_KEY": api_key
                     });
                 }
+                AppType::OpenCode => {
+                    let options = config.get_mut("options").and_then(|v| v.as_object_mut());
+                    if let Some(options) = options {
+                        options.insert("apiKey".to_string(), json!(api_key));
+                    } else {
+                        config["options"] = json!({
+                            "apiKey": api_key
+                        });
+                    }
+                }
+                AppType::OpenClaw => {
+                    config["apiKey"] = json!(api_key);
+                }
             }
         }
 
@@ -225,6 +238,19 @@ pub async fn provider_add(
                             "GEMINI_API_BASE_URL": base_url
                         });
                     }
+                }
+                AppType::OpenCode => {
+                    let options = config.get_mut("options").and_then(|v| v.as_object_mut());
+                    if let Some(options) = options {
+                        options.insert("baseURL".to_string(), json!(base_url));
+                    } else {
+                        config["options"] = json!({
+                            "baseURL": base_url
+                        });
+                    }
+                }
+                AppType::OpenClaw => {
+                    config["baseUrl"] = json!(base_url);
                 }
             }
         }
@@ -744,6 +770,21 @@ pub async fn provider_update(
                     provider.settings_config["env"] = json!({ "GEMINI_API_KEY": api_key });
                 }
             }
+            AppType::OpenCode => {
+                let options = provider
+                    .settings_config
+                    .as_object_mut()
+                    .and_then(|o| o.get_mut("options"))
+                    .and_then(|v| v.as_object_mut());
+                if let Some(options) = options {
+                    options.insert("apiKey".to_string(), json!(api_key));
+                } else {
+                    provider.settings_config["options"] = json!({ "apiKey": api_key });
+                }
+            }
+            AppType::OpenClaw => {
+                provider.settings_config["apiKey"] = json!(api_key);
+            }
         }
     }
 
@@ -775,6 +816,21 @@ pub async fn provider_update(
                 } else {
                     provider.settings_config["env"] = json!({ "GEMINI_API_BASE_URL": base_url });
                 }
+            }
+            AppType::OpenCode => {
+                let options = provider
+                    .settings_config
+                    .as_object_mut()
+                    .and_then(|o| o.get_mut("options"))
+                    .and_then(|v| v.as_object_mut());
+                if let Some(options) = options {
+                    options.insert("baseURL".to_string(), json!(base_url));
+                } else {
+                    provider.settings_config["options"] = json!({ "baseURL": base_url });
+                }
+            }
+            AppType::OpenClaw => {
+                provider.settings_config["baseUrl"] = json!(base_url);
             }
         }
     }
