@@ -9,11 +9,13 @@ import { FullScreenPanel } from "@/components/common/FullScreenPanel";
 import type { CustomEndpoint, EndpointCandidate } from "@/types";
 
 // 端点测速超时配置（秒）
-const ENDPOINT_TIMEOUT_SECS = {
+const ENDPOINT_TIMEOUT_SECS: Record<AppId, number> = {
   codex: 12,
   claude: 8,
-  gemini: 8, // 新增 gemini
-} as const;
+  gemini: 8,
+  opencode: 8,
+  openclaw: 8,
+};
 
 interface TestResult {
   url: string;
@@ -524,7 +526,7 @@ const EndpointSpeedTest: React.FC<EndpointSpeedTestProps> = ({
         <div className="space-y-1.5">
           <div className="flex gap-2">
             <Input
-              type="url"
+              type="text"
               value={customUrl}
               placeholder={t("endpointTest.addEndpointPlaceholder")}
               onChange={(event) => setCustomUrl(event.target.value)}
@@ -604,11 +606,6 @@ const EndpointSpeedTest: React.FC<EndpointSpeedTestProps> = ({
                           }`}
                         >
                           {latency}ms
-                        </div>
-                        <div className="text-[10px] text-gray-500 dark:text-gray-400">
-                          {entry.status
-                            ? t("endpointTest.status", { code: entry.status })
-                            : t("endpointTest.notTested")}
                         </div>
                       </div>
                     ) : isTesting ? (

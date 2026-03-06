@@ -1,8 +1,44 @@
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 
 interface UseModelStateProps {
   settingsConfig: string;
   onConfigChange: (config: string) => void;
+}
+
+/**
+ * Parse model values from settings config JSON
+ */
+function parseModelsFromConfig(settingsConfig: string) {
+  try {
+    const cfg = settingsConfig ? JSON.parse(settingsConfig) : {};
+    const env = cfg?.env || {};
+    const model =
+      typeof env.ANTHROPIC_MODEL === "string" ? env.ANTHROPIC_MODEL : "";
+    const reasoning =
+      typeof env.ANTHROPIC_REASONING_MODEL === "string"
+        ? env.ANTHROPIC_REASONING_MODEL
+        : "";
+    const small =
+      typeof env.ANTHROPIC_SMALL_FAST_MODEL === "string"
+        ? env.ANTHROPIC_SMALL_FAST_MODEL
+        : "";
+    const haiku =
+      typeof env.ANTHROPIC_DEFAULT_HAIKU_MODEL === "string"
+        ? env.ANTHROPIC_DEFAULT_HAIKU_MODEL
+        : small || model;
+    const sonnet =
+      typeof env.ANTHROPIC_DEFAULT_SONNET_MODEL === "string"
+        ? env.ANTHROPIC_DEFAULT_SONNET_MODEL
+        : model || small;
+    const opus =
+      typeof env.ANTHROPIC_DEFAULT_OPUS_MODEL === "string"
+        ? env.ANTHROPIC_DEFAULT_OPUS_MODEL
+        : model || small;
+
+    return { model, reasoning, haiku, sonnet, opus };
+  } catch {
+    return { model: "", reasoning: "", haiku: "", sonnet: "", opus: "" };
+  }
 }
 
 /**
@@ -13,11 +49,25 @@ export function useModelState({
   settingsConfig,
   onConfigChange,
 }: UseModelStateProps) {
-  const [claudeModel, setClaudeModel] = useState("");
-  const [reasoningModel, setReasoningModel] = useState("");
-  const [defaultHaikuModel, setDefaultHaikuModel] = useState("");
-  const [defaultSonnetModel, setDefaultSonnetModel] = useState("");
-  const [defaultOpusModel, setDefaultOpusModel] = useState("");
+  // Initialize state by parsing config directly (fixes edit mode backfill)
+  const [claudeModel, setClaudeModel] = useState(
+    () => parseModelsFromConfig(settingsConfig).model,
+  );
+  const [reasoningModel, setReasoningModel] = useState(
+    () => parseModelsFromConfig(settingsConfig).reasoning,
+  );
+  const [defaultHaikuModel, setDefaultHaikuModel] = useState(
+    () => parseModelsFromConfig(settingsConfig).haiku,
+  );
+  const [defaultSonnetModel, setDefaultSonnetModel] = useState(
+    () => parseModelsFromConfig(settingsConfig).sonnet,
+  );
+  const [defaultOpusModel, setDefaultOpusModel] = useState(
+    () => parseModelsFromConfig(settingsConfig).opus,
+  );
+
+  const isUserEditingRef = useRef(false);
+  const lastConfigRef = useRef(settingsConfig);
 
   // 初始化读取：读新键；若缺失，按兼容优先级回退
   // Haiku: DEFAULT_HAIKU || SMALL_FAST || MODEL
@@ -25,6 +75,18 @@ export function useModelState({
   // Opus: DEFAULT_OPUS || MODEL || SMALL_FAST
   // 仅在 settingsConfig 变化时同步一次（表单加载/切换预设时）
   useEffect(() => {
+    if (lastConfigRef.current === settingsConfig) {
+      return;
+    }
+
+    if (isUserEditingRef.current) {
+      isUserEditingRef.current = false;
+      lastConfigRef.current = settingsConfig;
+      return;
+    }
+
+    lastConfigRef.current = settingsConfig;
+
     try {
       const cfg = settingsConfig ? JSON.parse(settingsConfig) : {};
       const env = cfg?.env || {};
@@ -71,6 +133,8 @@ export function useModelState({
         | "ANTHROPIC_DEFAULT_OPUS_MODEL",
       value: string,
     ) => {
+      isUserEditingRef.current = true;
+
       if (field === "ANTHROPIC_MODEL") setClaudeModel(value);
       if (field === "ANTHROPIC_REASONING_MODEL") setReasoningModel(value);
       if (field === "ANTHROPIC_DEFAULT_HAIKU_MODEL")

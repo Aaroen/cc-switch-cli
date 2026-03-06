@@ -10,7 +10,7 @@ release/
 *.tsbuildinfo
 .npmrc
 CLAUDE.md
-AGENTS.md
+# AGENTS.md
 GEMINI.md
 /.claude
 /.codex
@@ -25,3 +25,4 @@ nul
 flatpak/cc-switch.deb
 flatpak-build/
 flatpak-repo/
+.worktrees/

@@ -12,10 +12,9 @@ use super::{
 use axum::response::{IntoResponse, Response};
 use bytes::Bytes;
 use futures::stream::{Stream, StreamExt};
-use rust_decimal::Decimal;
+use reqwest::header::HeaderMap;
 use serde_json::Value;
 use std::{
-    str::FromStr,
     sync::{
         atomic::{AtomicBool, Ordering},
         Arc,
@@ -47,6 +46,12 @@ pub async fn handle_streaming(
     parser_config: &UsageParserConfig,
 ) -> Response {
     let status = response.status();
+    log::debug!(
+        "[{}] 已接收上游流式响应: status={}, headers={}",
+        ctx.tag,
+        status.as_u16(),
+        format_headers(response.headers())
+    );
     let mut builder = axum::response::Response::builder().status(status);
 
     // 复制响应头
@@ -94,6 +99,19 @@ pub async fn handle_non_streaming(
         log::error!("[{}] 读取响应失败: {e}", ctx.tag);
         ProxyError::ForwardFailed(format!("Failed to read response body: {e}"))
     })?;
+    log::debug!(
+        "[{}] 已接收上游响应体: status={}, bytes={}, headers={}",
+        ctx.tag,
+        status.as_u16(),
+        body_bytes.len(),
+        format_headers(&response_headers)
+    );
+
+    log::debug!(
+        "[{}] 上游响应体内容: {}",
+        ctx.tag,
+        String::from_utf8_lossy(&body_bytes)
+    );
 
     // 解析并记录使用量
     if let Ok(json_value) = serde_json::from_slice::<Value>(&body_bytes) {
@@ -108,7 +126,15 @@ pub async fn handle_non_streaming(
                 ctx.request_model.clone()
             };
 
-            spawn_log_usage(state, ctx, usage, &model, status.as_u16(), false);
+            spawn_log_usage(
+                state,
+                ctx,
+                usage,
+                &model,
+                &ctx.request_model,
+                status.as_u16(),
+                false,
+            );
         } else {
             let model = json_value
                 .get("model")
@@ -120,6 +146,7 @@ pub async fn handle_non_streaming(
                 ctx,
                 TokenUsage::default(),
                 &model,
+                &ctx.request_model,
                 status.as_u16(),
                 false,
             );
@@ -138,6 +165,7 @@ pub async fn handle_non_streaming(
             state,
             ctx,
             TokenUsage::default(),
+            &ctx.request_model,
             &ctx.request_model,
             status.as_u16(),
             false,
@@ -273,6 +301,7 @@ fn create_usage_collector(
             let state = state.clone();
             let provider_id = provider_id.clone();
             let session_id = session_id.clone();
+            let request_model = request_model.clone();
 
             tokio::spawn(async move {
                 log_usage_internal(
@@ -280,6 +309,7 @@ fn create_usage_collector(
                     &provider_id,
                     app_type_str,
                     &model,
+                    &request_model,
                     usage,
                     latency_ms,
                     first_token_ms,
@@ -295,6 +325,7 @@ fn create_usage_collector(
             let state = state.clone();
             let provider_id = provider_id.clone();
             let session_id = session_id.clone();
+            let request_model = request_model.clone();
 
             tokio::spawn(async move {
                 log_usage_internal(
@@ -302,6 +333,7 @@ fn create_usage_collector(
                     &provider_id,
                     app_type_str,
                     &model,
+                    &request_model,
                     TokenUsage::default(),
                     latency_ms,
                     first_token_ms,
@@ -322,6 +354,7 @@ fn spawn_log_usage(
     ctx: &RequestContext,
     usage: TokenUsage,
     model: &str,
+    request_model: &str,
     status_code: u16,
     is_streaming: bool,
 ) {
@@ -329,6 +362,7 @@ fn spawn_log_usage(
     let provider_id = ctx.provider.id.clone();
     let app_type_str = ctx.app_type_str.to_string();
     let model = model.to_string();
+    let request_model = request_model.to_string();
     let latency_ms = ctx.latency_ms();
     let session_id = ctx.session_id.clone();
 
@@ -338,6 +372,7 @@ fn spawn_log_usage(
             &provider_id,
             &app_type_str,
             &model,
+            &request_model,
             usage,
             latency_ms,
             None,
@@ -356,6 +391,7 @@ async fn log_usage_internal(
     provider_id: &str,
     app_type: &str,
     model: &str,
+    request_model: &str,
     usage: TokenUsage,
     latency_ms: u64,
     first_token_ms: Option<u64>,
@@ -366,26 +402,12 @@ async fn log_usage_internal(
     use super::usage::logger::UsageLogger;
 
     let logger = UsageLogger::new(&state.db);
-
-    // 获取 provider 的 cost_multiplier
-    let multiplier = match state.db.get_provider_by_id(provider_id, app_type) {
-        Ok(Some(p)) => {
-            if let Some(meta) = p.meta {
-                if let Some(cm) = meta.cost_multiplier {
-                    Decimal::from_str(&cm).unwrap_or_else(|e| {
-                        log::warn!(
-                            "cost_multiplier 解析失败 (provider_id={provider_id}): {cm} - {e}"
-                        );
-                        Decimal::from(1)
-                    })
-                } else {
-                    Decimal::from(1)
-                }
-            } else {
-                Decimal::from(1)
-            }
-        }
-        _ => Decimal::from(1),
+    let (multiplier, pricing_model_source) =
+        logger.resolve_pricing_config(provider_id, app_type).await;
+    let pricing_model = if pricing_model_source == "request" {
+        request_model
+    } else {
+        model
     };
 
     let request_id = uuid::Uuid::new_v4().to_string();
@@ -404,6 +426,8 @@ async fn log_usage_internal(
         provider_id.to_string(),
         app_type.to_string(),
         model.to_string(),
+        request_model.to_string(),
+        pricing_model.to_string(),
         usage,
         multiplier,
         latency_ms,
@@ -470,6 +494,12 @@ pub fn create_logged_passthrough_stream(
 
             match chunk_result {
                 Some(Ok(bytes)) => {
+                    if is_first_chunk {
+                        log::debug!(
+                            "[{tag}] 已接收上游流式首包: bytes={}",
+                            bytes.len()
+                        );
+                    }
                     is_first_chunk = false;
                     let text = String::from_utf8_lossy(&bytes);
                     buffer.push_str(&text);
@@ -488,13 +518,9 @@ pub fn create_logged_passthrough_stream(
                                             if let Some(c) = &collector {
                                                 c.push(json_value.clone()).await;
                                             }
-                                            log::debug!(
-                                                "[{}] <<< SSE 事件: {}",
-                                                tag,
-                                                data.chars().take(100).collect::<String>()
-                                            );
+                                            log::debug!("[{tag}] <<< SSE 事件: {data}");
                                         } else {
-                                            log::debug!("[{tag}] <<< SSE 数据: {}", data.chars().take(100).collect::<String>());
+                                            log::debug!("[{tag}] <<< SSE 数据: {data}");
                                         }
                                     } else {
                                         log::debug!("[{tag}] <<< SSE: [DONE]");
@@ -521,5 +547,198 @@ pub fn create_logged_passthrough_stream(
         if let Some(c) = collector.take() {
             c.finish().await;
         }
+    }
+}
+
+fn format_headers(headers: &HeaderMap) -> String {
+    headers
+        .iter()
+        .map(|(key, value)| {
+            let value_str = value.to_str().unwrap_or("<non-utf8>");
+            format!("{key}={value_str}")
+        })
+        .collect::<Vec<_>>()
+        .join(", ")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::database::Database;
+    use crate::error::AppError;
+    use crate::provider::ProviderMeta;
+    use crate::proxy::failover_switch::FailoverSwitchManager;
+    use crate::proxy::provider_router::ProviderRouter;
+    use crate::proxy::types::{ProxyConfig, ProxyStatus};
+    use rust_decimal::Decimal;
+    use std::collections::HashMap;
+    use std::str::FromStr;
+    use std::sync::Arc;
+    use tokio::sync::RwLock;
+
+    fn build_state(db: Arc<Database>) -> ProxyState {
+        ProxyState {
+            db: db.clone(),
+            config: Arc::new(RwLock::new(ProxyConfig::default())),
+            status: Arc::new(RwLock::new(ProxyStatus::default())),
+            start_time: Arc::new(RwLock::new(None)),
+            current_providers: Arc::new(RwLock::new(HashMap::new())),
+            provider_router: Arc::new(ProviderRouter::new(db.clone())),
+            app_handle: None,
+            failover_manager: Arc::new(FailoverSwitchManager::new(db)),
+        }
+    }
+
+    fn seed_pricing(db: &Database) -> Result<(), AppError> {
+        let conn = crate::database::lock_conn!(db.conn);
+        conn.execute(
+            "INSERT OR REPLACE INTO model_pricing (model_id, display_name, input_cost_per_million, output_cost_per_million)
+             VALUES (?1, ?2, ?3, ?4)",
+            rusqlite::params!["resp-model", "Resp Model", "1.0", "0"],
+        )
+        .map_err(|e| AppError::Database(e.to_string()))?;
+        conn.execute(
+            "INSERT OR REPLACE INTO model_pricing (model_id, display_name, input_cost_per_million, output_cost_per_million)
+             VALUES (?1, ?2, ?3, ?4)",
+            rusqlite::params!["req-model", "Req Model", "2.0", "0"],
+        )
+        .map_err(|e| AppError::Database(e.to_string()))?;
+        Ok(())
+    }
+
+    fn insert_provider(
+        db: &Database,
+        id: &str,
+        app_type: &str,
+        meta: ProviderMeta,
+    ) -> Result<(), AppError> {
+        let meta_json =
+            serde_json::to_string(&meta).map_err(|e| AppError::Database(e.to_string()))?;
+        let conn = crate::database::lock_conn!(db.conn);
+        conn.execute(
+            "INSERT INTO providers (id, app_type, name, settings_config, meta)
+             VALUES (?1, ?2, ?3, ?4, ?5)",
+            rusqlite::params![id, app_type, "Test Provider", "{}", meta_json],
+        )
+        .map_err(|e| AppError::Database(e.to_string()))?;
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_log_usage_uses_provider_override_config() -> Result<(), AppError> {
+        let db = Arc::new(Database::memory()?);
+        let app_type = "claude";
+
+        db.set_default_cost_multiplier(app_type, "1.5").await?;
+        db.set_pricing_model_source(app_type, "response").await?;
+        seed_pricing(&db)?;
+
+        let mut meta = ProviderMeta::default();
+        meta.cost_multiplier = Some("2".to_string());
+        meta.pricing_model_source = Some("request".to_string());
+        insert_provider(&db, "provider-1", app_type, meta)?;
+
+        let state = build_state(db.clone());
+        let usage = TokenUsage {
+            input_tokens: 1_000_000,
+            output_tokens: 0,
+            cache_read_tokens: 0,
+            cache_creation_tokens: 0,
+            model: None,
+        };
+
+        log_usage_internal(
+            &state,
+            "provider-1",
+            app_type,
+            "resp-model",
+            "req-model",
+            usage,
+            10,
+            None,
+            false,
+            200,
+            None,
+        )
+        .await;
+
+        let conn = crate::database::lock_conn!(db.conn);
+        let (model, request_model, total_cost, cost_multiplier): (String, String, String, String) =
+            conn.query_row(
+                "SELECT model, request_model, total_cost_usd, cost_multiplier
+                 FROM proxy_request_logs WHERE provider_id = ?1",
+                ["provider-1"],
+                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)),
+            )
+            .map_err(|e| AppError::Database(e.to_string()))?;
+
+        assert_eq!(model, "resp-model");
+        assert_eq!(request_model, "req-model");
+        assert_eq!(
+            Decimal::from_str(&cost_multiplier).unwrap(),
+            Decimal::from_str("2").unwrap()
+        );
+        assert_eq!(
+            Decimal::from_str(&total_cost).unwrap(),
+            Decimal::from_str("4").unwrap()
+        );
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_log_usage_falls_back_to_global_defaults() -> Result<(), AppError> {
+        let db = Arc::new(Database::memory()?);
+        let app_type = "claude";
+
+        db.set_default_cost_multiplier(app_type, "1.5").await?;
+        db.set_pricing_model_source(app_type, "response").await?;
+        seed_pricing(&db)?;
+
+        let meta = ProviderMeta::default();
+        insert_provider(&db, "provider-2", app_type, meta)?;
+
+        let state = build_state(db.clone());
+        let usage = TokenUsage {
+            input_tokens: 1_000_000,
+            output_tokens: 0,
+            cache_read_tokens: 0,
+            cache_creation_tokens: 0,
+            model: None,
+        };
+
+        log_usage_internal(
+            &state,
+            "provider-2",
+            app_type,
+            "resp-model",
+            "req-model",
+            usage,
+            10,
+            None,
+            false,
+            200,
+            None,
+        )
+        .await;
+
+        let conn = crate::database::lock_conn!(db.conn);
+        let (total_cost, cost_multiplier): (String, String) = conn
+            .query_row(
+                "SELECT total_cost_usd, cost_multiplier
+                 FROM proxy_request_logs WHERE provider_id = ?1",
+                ["provider-2"],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .map_err(|e| AppError::Database(e.to_string()))?;
+
+        assert_eq!(
+            Decimal::from_str(&cost_multiplier).unwrap(),
+            Decimal::from_str("1.5").unwrap()
+        );
+        assert_eq!(
+            Decimal::from_str(&total_cost).unwrap(),
+            Decimal::from_str("1.5").unwrap()
+        );
+        Ok(())
     }
 }

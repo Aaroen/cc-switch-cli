@@ -3,6 +3,7 @@
 //! 提供支持全局代理配置的 HTTP 客户端。
 //! 所有需要发送 HTTP 请求的模块都应使用此模块提供的客户端。
 
+use crate::provider::ProviderProxyConfig;
 use once_cell::sync::OnceCell;
 use reqwest::Client;
 use std::net::IpAddr;
@@ -21,6 +22,9 @@ static CURRENT_POLICY: OnceCell<RwLock<ProxyPolicy>> = OnceCell::new();
 
 /// 直连 HTTP 客户端（永远不走任何代理，避免与系统/Clash 代理产生冲突）
 static DIRECT_CLIENT: OnceCell<Client> = OnceCell::new();
+
+/// CC Switch 代理服务器当前监听端口（用于上游兼容接口）
+static CC_SWITCH_PROXY_PORT: OnceCell<RwLock<u16>> = OnceCell::new();
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ProxyPolicy {
@@ -49,6 +53,17 @@ pub fn get_policy() -> ProxyPolicy {
         .and_then(|lock| lock.read().ok())
         .map(|p| *p)
         .unwrap_or(ProxyPolicy::Auto)
+}
+
+/// 设置 CC Switch 代理服务器监听端口
+pub fn set_proxy_port(port: u16) {
+    if let Some(lock) = CC_SWITCH_PROXY_PORT.get() {
+        if let Ok(mut current_port) = lock.write() {
+            *current_port = port;
+        }
+    } else {
+        let _ = CC_SWITCH_PROXY_PORT.set(RwLock::new(port));
+    }
 }
 
 /// 初始化全局 HTTP 客户端
@@ -541,6 +556,49 @@ pub fn mask_url(url: &str) -> String {
             url.to_string()
         }
     }
+}
+
+/// 根据供应商单独代理配置构建代理 URL
+fn build_proxy_url_from_config(config: &ProviderProxyConfig) -> Option<String> {
+    let proxy_type = config.proxy_type.as_deref().unwrap_or("http");
+    let host = config.proxy_host.as_deref()?;
+    let port = config.proxy_port?;
+
+    if let (Some(username), Some(password)) = (&config.proxy_username, &config.proxy_password) {
+        if !username.is_empty() && !password.is_empty() {
+            return Some(format!(
+                "{proxy_type}://{username}:{password}@{host}:{port}"
+            ));
+        }
+    }
+
+    Some(format!("{proxy_type}://{host}:{port}"))
+}
+
+/// 根据供应商代理配置构建 HTTP 客户端
+pub fn build_client_for_provider(proxy_config: Option<&ProviderProxyConfig>) -> Option<Client> {
+    let config = proxy_config.filter(|c| c.enabled)?;
+    let proxy_url = build_proxy_url_from_config(config)?;
+
+    match build_client(Some(&proxy_url)) {
+        Ok(client) => Some(client),
+        Err(e) => {
+            log::error!(
+                "[ProviderProxy] Failed to build client with proxy {}: {}",
+                mask_url(&proxy_url),
+                e
+            );
+            None
+        }
+    }
+}
+
+/// 获取供应商专用 HTTP 客户端（优先使用供应商代理）
+pub fn get_for_provider(proxy_config: Option<&ProviderProxyConfig>) -> Client {
+    if let Some(client) = build_client_for_provider(proxy_config) {
+        return client;
+    }
+    get()
 }
 
 #[cfg(test)]

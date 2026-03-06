@@ -16,13 +16,13 @@ pub struct ProxyConfig {
     /// 是否正在接管 Live 配置
     #[serde(default)]
     pub live_takeover_active: bool,
-    /// 流式首字超时（秒）- 等待首个数据块的最大时间
+    /// 流式首字超时（秒）- 等待首个数据块的最大时间，范围 1-120 秒，默认 60 秒
     #[serde(default = "default_streaming_first_byte_timeout")]
     pub streaming_first_byte_timeout: u64,
-    /// 流式静默超时（秒）- 两个数据块之间的最大间隔
+    /// 流式静默超时（秒）- 两个数据块之间的最大间隔，范围 60-600 秒，填 0 禁用（防止中途卡住）
     #[serde(default = "default_streaming_idle_timeout")]
     pub streaming_idle_timeout: u64,
-    /// 非流式总超时（秒）- 非流式请求的总超时时间
+    /// 非流式总超时（秒）- 非流式请求的总超时时间，范围 60-1200 秒，默认 600 秒（10 分钟）
     #[serde(default = "default_non_streaming_timeout")]
     pub non_streaming_timeout: u64,
 }
@@ -113,6 +113,8 @@ pub struct ProxyTakeoverStatus {
     pub claude: bool,
     pub codex: bool,
     pub gemini: bool,
+    pub opencode: bool,
+    pub openclaw: bool,
 }
 
 /// API 格式类型（预留，当前不需要格式转换）
@@ -201,14 +203,27 @@ pub struct AppProxyConfig {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct RectifierConfig {
-    /// 总开关：是否启用整流器
+    /// 总开关：是否启用整流器（默认开启）
     #[serde(default = "default_true")]
     pub enabled: bool,
-    /// 请求整流：启用 thinking 签名整流器
+    /// 请求整流：启用 thinking 签名整流器（默认开启）
     ///
     /// 处理错误：Invalid 'signature' in 'thinking' block
     #[serde(default = "default_true")]
     pub request_thinking_signature: bool,
+    /// 请求整流：启用 thinking budget 整流器（默认开启）
+    ///
+    /// 处理错误：budget_tokens + thinking 相关约束
+    #[serde(default = "default_true")]
+    pub request_thinking_budget: bool,
+}
+
+fn default_true() -> bool {
+    true
+}
+
+fn default_log_level() -> String {
+    "info".to_string()
 }
 
 impl Default for RectifierConfig {
@@ -216,12 +231,49 @@ impl Default for RectifierConfig {
         Self {
             enabled: true,
             request_thinking_signature: true,
+            request_thinking_budget: true,
         }
     }
 }
 
-fn default_true() -> bool {
-    true
+/// 日志配置
+///
+/// 存储在 settings 表的 log_config 字段中（JSON 格式）
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LogConfig {
+    /// 总开关：是否启用日志
+    #[serde(default = "default_true")]
+    pub enabled: bool,
+    /// 日志级别: error, warn, info, debug, trace
+    #[serde(default = "default_log_level")]
+    pub level: String,
+}
+
+impl Default for LogConfig {
+    fn default() -> Self {
+        Self {
+            enabled: true,
+            level: "info".to_string(),
+        }
+    }
+}
+
+impl LogConfig {
+    /// 将配置转换为 log::LevelFilter
+    pub fn to_level_filter(&self) -> log::LevelFilter {
+        if !self.enabled {
+            return log::LevelFilter::Off;
+        }
+        match self.level.to_lowercase().as_str() {
+            "error" => log::LevelFilter::Error,
+            "warn" => log::LevelFilter::Warn,
+            "info" => log::LevelFilter::Info,
+            "debug" => log::LevelFilter::Debug,
+            "trace" => log::LevelFilter::Trace,
+            _ => log::LevelFilter::Info,
+        }
+    }
 }
 
 #[cfg(test)]
@@ -230,31 +282,121 @@ mod tests {
 
     #[test]
     fn test_rectifier_config_default_enabled() {
-        // 验证 RectifierConfig::default() 返回全启用状态
-        // 防止回归：#[derive(Default)] 会使 bool 默认为 false
+        // 验证 RectifierConfig::default() 返回全开启状态
         let config = RectifierConfig::default();
         assert!(config.enabled, "整流器总开关默认应为 true");
         assert!(
             config.request_thinking_signature,
             "thinking 签名整流器默认应为 true"
         );
+        assert!(
+            config.request_thinking_budget,
+            "thinking budget 整流器默认应为 true"
+        );
     }
 
     #[test]
     fn test_rectifier_config_serde_default() {
-        // 验证反序列化缺字段时使用 default_true
+        // 验证反序列化缺字段时使用默认值 true
         let json = "{}";
         let config: RectifierConfig = serde_json::from_str(json).unwrap();
         assert!(config.enabled);
         assert!(config.request_thinking_signature);
+        assert!(config.request_thinking_budget);
     }
 
     #[test]
-    fn test_rectifier_config_serde_explicit_false() {
-        // 验证显式设置 false 时正确反序列化
-        let json = r#"{"enabled": false, "requestThinkingSignature": false}"#;
+    fn test_rectifier_config_serde_explicit_true() {
+        // 验证显式设置 true 时正确反序列化
+        let json =
+            r#"{"enabled": true, "requestThinkingSignature": true, "requestThinkingBudget": true}"#;
         let config: RectifierConfig = serde_json::from_str(json).unwrap();
-        assert!(!config.enabled);
+        assert!(config.enabled);
+        assert!(config.request_thinking_signature);
+        assert!(config.request_thinking_budget);
+    }
+
+    #[test]
+    fn test_rectifier_config_serde_partial_fields() {
+        // 验证只设置部分字段时，缺失字段使用默认值 true
+        let json = r#"{"enabled": true, "requestThinkingSignature": false}"#;
+        let config: RectifierConfig = serde_json::from_str(json).unwrap();
+        assert!(config.enabled);
         assert!(!config.request_thinking_signature);
+        assert!(config.request_thinking_budget);
+    }
+
+    #[test]
+    fn test_log_config_default() {
+        let config = LogConfig::default();
+        assert!(config.enabled);
+        assert_eq!(config.level, "info");
+    }
+
+    #[test]
+    fn test_log_config_serde_default() {
+        let json = "{}";
+        let config: LogConfig = serde_json::from_str(json).unwrap();
+        assert!(config.enabled);
+        assert_eq!(config.level, "info");
+    }
+
+    #[test]
+    fn test_log_config_to_level_filter() {
+        let config = LogConfig {
+            level: "error".to_string(),
+            ..Default::default()
+        };
+        assert_eq!(config.to_level_filter(), log::LevelFilter::Error);
+
+        let config = LogConfig {
+            level: "warn".to_string(),
+            ..Default::default()
+        };
+        assert_eq!(config.to_level_filter(), log::LevelFilter::Warn);
+
+        let config = LogConfig {
+            level: "info".to_string(),
+            ..Default::default()
+        };
+        assert_eq!(config.to_level_filter(), log::LevelFilter::Info);
+
+        let config = LogConfig {
+            level: "debug".to_string(),
+            ..Default::default()
+        };
+        assert_eq!(config.to_level_filter(), log::LevelFilter::Debug);
+
+        let config = LogConfig {
+            level: "trace".to_string(),
+            ..Default::default()
+        };
+        assert_eq!(config.to_level_filter(), log::LevelFilter::Trace);
+
+        // 无效级别回退到 info
+        let config = LogConfig {
+            level: "invalid".to_string(),
+            ..Default::default()
+        };
+        assert_eq!(config.to_level_filter(), log::LevelFilter::Info);
+
+        // 禁用时返回 Off
+        let config = LogConfig {
+            enabled: false,
+            level: "debug".to_string(),
+        };
+        assert_eq!(config.to_level_filter(), log::LevelFilter::Off);
+    }
+
+    #[test]
+    fn test_log_config_serde_roundtrip() {
+        let config = LogConfig {
+            enabled: true,
+            level: "debug".to_string(),
+        };
+        let json = serde_json::to_string(&config).unwrap();
+        let parsed: LogConfig = serde_json::from_str(&json).unwrap();
+        assert!(parsed.enabled);
+        assert_eq!(parsed.level, "debug");
     }
 }

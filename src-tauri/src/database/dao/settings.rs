@@ -49,7 +49,7 @@ impl Database {
         Ok(())
     }
 
-    // --- Config Snippets 辅助方法 ---
+    // --- 通用配置片段 (Common Config Snippet) ---
 
     /// 获取通用配置片段
     pub fn get_config_snippet(&self, app_type: &str) -> Result<Option<String>, AppError> {
@@ -217,7 +217,7 @@ impl Database {
 
     /// 获取整流器配置
     ///
-    /// 返回整流器配置，如果不存在则返回默认值（全部启用）
+    /// 返回整流器配置，如果不存在则返回默认值（全部开启）
     pub fn get_rectifier_config(&self) -> Result<crate::proxy::types::RectifierConfig, AppError> {
         match self.get_setting("rectifier_config")? {
             Some(json) => serde_json::from_str(&json)
@@ -234,6 +234,24 @@ impl Database {
         let json = serde_json::to_string(config)
             .map_err(|e| AppError::Database(format!("序列化整流器配置失败: {e}")))?;
         self.set_setting("rectifier_config", &json)
+    }
+
+    // --- 日志配置 ---
+
+    /// 获取日志配置
+    pub fn get_log_config(&self) -> Result<crate::proxy::types::LogConfig, AppError> {
+        match self.get_setting("log_config")? {
+            Some(json) => serde_json::from_str(&json)
+                .map_err(|e| AppError::Database(format!("解析日志配置失败: {e}"))),
+            None => Ok(crate::proxy::types::LogConfig::default()),
+        }
+    }
+
+    /// 更新日志配置
+    pub fn set_log_config(&self, config: &crate::proxy::types::LogConfig) -> Result<(), AppError> {
+        let json = serde_json::to_string(config)
+            .map_err(|e| AppError::Database(format!("序列化日志配置失败: {e}")))?;
+        self.set_setting("log_config", &json)
     }
 }
 

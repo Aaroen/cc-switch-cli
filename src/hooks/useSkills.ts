@@ -1,10 +1,10 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   skillsApi,
-  type AppType,
   type DiscoverableSkill,
   type InstalledSkill,
 } from "@/lib/api/skills";
+import type { AppId } from "@/lib/api/types";
 
 /**
  * 查询所有已安装的 Skills
@@ -38,7 +38,7 @@ export function useInstallSkill() {
       currentApp,
     }: {
       skill: DiscoverableSkill;
-      currentApp: AppType;
+      currentApp: AppId;
     }) => skillsApi.installUnified(skill, currentApp),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["skills", "installed"] });
@@ -73,7 +73,7 @@ export function useToggleSkillApp() {
       enabled,
     }: {
       id: string;
-      app: AppType;
+      app: AppId;
       enabled: boolean;
     }) => skillsApi.toggleApp(id, app, enabled),
     onSuccess: () => {
@@ -147,6 +147,26 @@ export function useRemoveSkillRepo() {
   });
 }
 
+/**
+ * 从 ZIP 文件安装 Skills
+ */
+export function useInstallSkillsFromZip() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      filePath,
+      currentApp,
+    }: {
+      filePath: string;
+      currentApp: AppId;
+    }) => skillsApi.installFromZip(filePath, currentApp),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["skills", "installed"] });
+      queryClient.invalidateQueries({ queryKey: ["skills", "unmanaged"] });
+    },
+  });
+}
+
 // ========== 辅助类型 ==========
 
-export type { InstalledSkill, DiscoverableSkill, AppType };
+export type { InstalledSkill, DiscoverableSkill, AppId };

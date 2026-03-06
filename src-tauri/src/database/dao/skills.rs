@@ -3,7 +3,7 @@
 //! 提供 Skills 和 Skill Repos 的 CRUD 操作。
 //!
 //! v3.10.0+ 统一管理架构：
-//! - Skills 使用统一的 id 主键，支持三应用启用标志
+//! - Skills 使用统一的 id 主键，支持四应用启用标志
 //! - 实际文件存储在 ~/.cc-switch/skills/，同步到各应用目录
 
 use crate::app_config::{InstalledSkill, SkillApps};
@@ -22,7 +22,7 @@ impl Database {
         let mut stmt = conn
             .prepare(
                 "SELECT id, name, description, directory, repo_owner, repo_name, repo_branch,
-                        readme_url, enabled_claude, enabled_codex, enabled_gemini, installed_at
+                        readme_url, enabled_claude, enabled_codex, enabled_gemini, enabled_opencode, installed_at
                  FROM skills ORDER BY name ASC",
             )
             .map_err(|e| AppError::Database(e.to_string()))?;
@@ -42,8 +42,9 @@ impl Database {
                         claude: row.get(8)?,
                         codex: row.get(9)?,
                         gemini: row.get(10)?,
+                        opencode: row.get(11)?,
                     },
-                    installed_at: row.get(11)?,
+                    installed_at: row.get(12)?,
                 })
             })
             .map_err(|e| AppError::Database(e.to_string()))?;
@@ -62,7 +63,7 @@ impl Database {
         let mut stmt = conn
             .prepare(
                 "SELECT id, name, description, directory, repo_owner, repo_name, repo_branch,
-                        readme_url, enabled_claude, enabled_codex, enabled_gemini, installed_at
+                        readme_url, enabled_claude, enabled_codex, enabled_gemini, enabled_opencode, installed_at
                  FROM skills WHERE id = ?1",
             )
             .map_err(|e| AppError::Database(e.to_string()))?;
@@ -81,8 +82,9 @@ impl Database {
                     claude: row.get(8)?,
                     codex: row.get(9)?,
                     gemini: row.get(10)?,
+                    opencode: row.get(11)?,
                 },
-                installed_at: row.get(11)?,
+                installed_at: row.get(12)?,
             })
         });
 
@@ -99,8 +101,8 @@ impl Database {
         conn.execute(
             "INSERT OR REPLACE INTO skills
              (id, name, description, directory, repo_owner, repo_name, repo_branch,
-              readme_url, enabled_claude, enabled_codex, enabled_gemini, installed_at)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)",
+              readme_url, enabled_claude, enabled_codex, enabled_gemini, enabled_opencode, installed_at)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13)",
             params![
                 skill.id,
                 skill.name,
@@ -113,6 +115,7 @@ impl Database {
                 skill.apps.claude,
                 skill.apps.codex,
                 skill.apps.gemini,
+                skill.apps.opencode,
                 skill.installed_at,
             ],
         )
@@ -142,8 +145,8 @@ impl Database {
         let conn = lock_conn!(self.conn);
         let affected = conn
             .execute(
-                "UPDATE skills SET enabled_claude = ?1, enabled_codex = ?2, enabled_gemini = ?3 WHERE id = ?4",
-                params![apps.claude, apps.codex, apps.gemini, id],
+                "UPDATE skills SET enabled_claude = ?1, enabled_codex = ?2, enabled_gemini = ?3, enabled_opencode = ?4 WHERE id = ?5",
+                params![apps.claude, apps.codex, apps.gemini, apps.opencode, id],
             )
             .map_err(|e| AppError::Database(e.to_string()))?;
         Ok(affected > 0)
@@ -200,24 +203,32 @@ impl Database {
         Ok(())
     }
 
-    /// 初始化默认的 Skill 仓库（首次启动时调用）
+    /// 初始化默认的 Skill 仓库（启动时调用，补充缺失的默认仓库）
     pub fn init_default_skill_repos(&self) -> Result<usize, AppError> {
-        // 检查是否已有仓库
+        // 获取已有仓库列表
         let existing = self.get_skill_repos()?;
-        if !existing.is_empty() {
-            return Ok(0);
-        }
+        let existing_keys: std::collections::HashSet<(String, String)> = existing
+            .iter()
+            .map(|r| (r.owner.clone(), r.name.clone()))
+            .collect();
 
         // 获取默认仓库列表
         let default_store = crate::services::skill::SkillStore::default();
         let mut count = 0;
 
+        // 仅插入缺失的默认仓库
         for repo in &default_store.repos {
-            self.save_skill_repo(repo)?;
-            count += 1;
+            let key = (repo.owner.clone(), repo.name.clone());
+            if !existing_keys.contains(&key) {
+                self.save_skill_repo(repo)?;
+                count += 1;
+                log::info!("补充默认 Skill 仓库: {}/{}", repo.owner, repo.name);
+            }
         }
 
-        log::info!("初始化默认 Skill 仓库完成，共 {count} 个");
+        if count > 0 {
+            log::info!("补充默认 Skill 仓库完成，新增 {count} 个");
+        }
         Ok(count)
     }
 }

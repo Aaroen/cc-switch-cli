@@ -19,6 +19,8 @@ interface UseCommonConfigSnippetProps {
     settingsConfig?: Record<string, unknown>;
   };
   selectedPresetId?: string;
+  /** When false, the hook skips all logic and returns disabled state. Default: true */
+  enabled?: boolean;
 }
 
 /**
@@ -30,6 +32,7 @@ export function useCommonConfigSnippet({
   onConfigChange,
   initialData,
   selectedPresetId,
+  enabled = true,
 }: UseCommonConfigSnippetProps) {
   const { t } = useTranslation();
   const [useCommonConfig, setUseCommonConfig] = useState(false);
@@ -47,11 +50,16 @@ export function useCommonConfigSnippet({
 
   // 当预设变化时，重置初始化标记，使新预设能够重新触发初始化逻辑
   useEffect(() => {
+    if (!enabled) return;
     hasInitializedNewMode.current = false;
-  }, [selectedPresetId]);
+  }, [selectedPresetId, enabled]);
 
   // 初始化：从 config.json 加载，支持从 localStorage 迁移
   useEffect(() => {
+    if (!enabled) {
+      setIsLoading(false);
+      return;
+    }
     let mounted = true;
 
     const loadSnippet = async () => {
@@ -100,10 +108,11 @@ export function useCommonConfigSnippet({
     return () => {
       mounted = false;
     };
-  }, []);
+  }, [enabled]);
 
   // 初始化时检查通用配置片段（编辑模式）
   useEffect(() => {
+    if (!enabled) return;
     if (initialData && !isLoading) {
       const configString = JSON.stringify(initialData.settingsConfig, null, 2);
       const hasCommon = hasCommonConfigSnippet(
@@ -112,10 +121,11 @@ export function useCommonConfigSnippet({
       );
       setUseCommonConfig(hasCommon);
     }
-  }, [initialData, commonConfigSnippet, isLoading]);
+  }, [enabled, initialData, commonConfigSnippet, isLoading]);
 
   // 新建模式：如果通用配置片段存在且有效，默认启用
   useEffect(() => {
+    if (!enabled) return;
     // 仅新建模式、加载完成、尚未初始化过
     if (!initialData && !isLoading && !hasInitializedNewMode.current) {
       hasInitializedNewMode.current = true;
@@ -145,6 +155,7 @@ export function useCommonConfigSnippet({
       }
     }
   }, [
+    enabled,
     initialData,
     commonConfigSnippet,
     isLoading,
@@ -189,12 +200,14 @@ export function useCommonConfigSnippet({
       if (!value.trim()) {
         setCommonConfigError("");
         // 保存到 config.json（清空）
-        configApi.setCommonConfigSnippet("claude", "").catch((error) => {
-          console.error("保存通用配置失败:", error);
-          setCommonConfigError(
-            t("claudeConfig.saveFailed", { error: String(error) }),
-          );
-        });
+        configApi
+          .setCommonConfigSnippet("claude", "")
+          .catch((error: unknown) => {
+            console.error("保存通用配置失败:", error);
+            setCommonConfigError(
+              t("claudeConfig.saveFailed", { error: String(error) }),
+            );
+          });
 
         if (useCommonConfig) {
           const { updatedConfig } = updateCommonConfigSnippet(
@@ -215,12 +228,14 @@ export function useCommonConfigSnippet({
       } else {
         setCommonConfigError("");
         // 保存到 config.json
-        configApi.setCommonConfigSnippet("claude", value).catch((error) => {
-          console.error("保存通用配置失败:", error);
-          setCommonConfigError(
-            t("claudeConfig.saveFailed", { error: String(error) }),
-          );
-        });
+        configApi
+          .setCommonConfigSnippet("claude", value)
+          .catch((error: unknown) => {
+            console.error("保存通用配置失败:", error);
+            setCommonConfigError(
+              t("claudeConfig.saveFailed", { error: String(error) }),
+            );
+          });
       }
 
       // 若当前启用通用配置且格式正确，需要替换为最新片段
@@ -259,6 +274,7 @@ export function useCommonConfigSnippet({
 
   // 当配置变化时检查是否包含通用配置（但避免在通过通用配置更新时检查）
   useEffect(() => {
+    if (!enabled) return;
     if (isUpdatingFromCommonConfig.current || isLoading) {
       return;
     }
@@ -267,7 +283,7 @@ export function useCommonConfigSnippet({
       commonConfigSnippet,
     );
     setUseCommonConfig(hasCommon);
-  }, [settingsConfig, commonConfigSnippet, isLoading]);
+  }, [enabled, settingsConfig, commonConfigSnippet, isLoading]);
 
   // 从编辑器当前内容提取通用配置片段
   const handleExtract = useCallback(async () => {

@@ -151,6 +151,55 @@ pub struct UsageResult {
     pub error: Option<String>,
 }
 
+/// 供应商单独的模型测试配置
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct ProviderTestConfig {
+    /// 是否启用单独配置（false 时使用全局配置）
+    #[serde(default)]
+    pub enabled: bool,
+    /// 测试用的模型名称（覆盖全局配置）
+    #[serde(rename = "testModel", skip_serializing_if = "Option::is_none")]
+    pub test_model: Option<String>,
+    /// 超时时间（秒）
+    #[serde(rename = "timeoutSecs", skip_serializing_if = "Option::is_none")]
+    pub timeout_secs: Option<u64>,
+    /// 测试提示词
+    #[serde(rename = "testPrompt", skip_serializing_if = "Option::is_none")]
+    pub test_prompt: Option<String>,
+    /// 降级阈值（毫秒）
+    #[serde(
+        rename = "degradedThresholdMs",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub degraded_threshold_ms: Option<u64>,
+    /// 最大重试次数
+    #[serde(rename = "maxRetries", skip_serializing_if = "Option::is_none")]
+    pub max_retries: Option<u32>,
+}
+
+/// 供应商单独的代理配置
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct ProviderProxyConfig {
+    /// 是否启用单独配置（false 时使用全局/系统代理）
+    #[serde(default)]
+    pub enabled: bool,
+    /// 代理类型：http, https, socks5
+    #[serde(rename = "proxyType", skip_serializing_if = "Option::is_none")]
+    pub proxy_type: Option<String>,
+    /// 代理主机
+    #[serde(rename = "proxyHost", skip_serializing_if = "Option::is_none")]
+    pub proxy_host: Option<String>,
+    /// 代理端口
+    #[serde(rename = "proxyPort", skip_serializing_if = "Option::is_none")]
+    pub proxy_port: Option<u16>,
+    /// 代理用户名（可选）
+    #[serde(rename = "proxyUsername", skip_serializing_if = "Option::is_none")]
+    pub proxy_username: Option<String>,
+    /// 代理密码（可选）
+    #[serde(rename = "proxyPassword", skip_serializing_if = "Option::is_none")]
+    pub proxy_password: Option<String>,
+}
+
 /// 供应商元数据
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct ProviderMeta {
@@ -175,12 +224,26 @@ pub struct ProviderMeta {
     /// 成本倍数（用于计算实际成本）
     #[serde(rename = "costMultiplier", skip_serializing_if = "Option::is_none")]
     pub cost_multiplier: Option<String>,
+    /// 计费模式来源（response/request）
+    #[serde(rename = "pricingModelSource", skip_serializing_if = "Option::is_none")]
+    pub pricing_model_source: Option<String>,
     /// 每日消费限额（USD）
     #[serde(rename = "limitDailyUsd", skip_serializing_if = "Option::is_none")]
     pub limit_daily_usd: Option<String>,
     /// 每月消费限额（USD）
     #[serde(rename = "limitMonthlyUsd", skip_serializing_if = "Option::is_none")]
     pub limit_monthly_usd: Option<String>,
+    /// 供应商单独的模型测试配置
+    #[serde(rename = "testConfig", skip_serializing_if = "Option::is_none")]
+    pub test_config: Option<ProviderTestConfig>,
+    /// 供应商单独的代理配置
+    #[serde(rename = "proxyConfig", skip_serializing_if = "Option::is_none")]
+    pub proxy_config: Option<ProviderProxyConfig>,
+    /// Claude API 格式（仅 Claude 供应商使用）
+    /// - "anthropic": 原生 Anthropic Messages API，直接透传
+    /// - "openai_chat": OpenAI Chat Completions 格式，需要转换
+    #[serde(rename = "apiFormat", skip_serializing_if = "Option::is_none")]
+    pub api_format: Option<String>,
 }
 
 impl ProviderManager {
@@ -393,11 +456,18 @@ impl UniversalProvider {
             .and_then(|m| m.reasoning_effort.clone())
             .unwrap_or_else(|| "high".to_string());
 
-        // 确保 base_url 以 /v1 结尾（Codex 使用 OpenAI 兼容 API）
-        let codex_base_url = if self.base_url.ends_with("/v1") {
-            self.base_url.clone()
+        // Codex/OpenAI 的 base_url 既可能是纯 origin（需要补 /v1），也可能包含自定义前缀（不应强行补版本）
+        let base_trimmed = self.base_url.trim_end_matches('/');
+        let origin_only = match base_trimmed.split_once("://") {
+            Some((_scheme, rest)) => !rest.contains('/'),
+            None => !base_trimmed.contains('/'),
+        };
+        let codex_base_url = if base_trimmed.ends_with("/v1") {
+            base_trimmed.to_string()
+        } else if origin_only {
+            format!("{base_trimmed}/v1")
         } else {
-            format!("{}/v1", self.base_url.trim_end_matches('/'))
+            base_trimmed.to_string()
         };
 
         // 生成 Codex 的 config.toml 内容
@@ -472,5 +542,409 @@ requires_openai_auth = true"#
             in_failover_queue: false,
             weight: 1, // 默认权重
         })
+    }
+}
+
+// ============================================================================
+// OpenCode 供应商配置结构
+// ============================================================================
+
+/// OpenCode 供应商的 settings_config 结构
+///
+/// OpenCode 使用 AI SDK 包名来指定供应商类型，与其他应用的配置格式不同。
+/// 配置示例：
+/// ```json
+/// {
+///   "npm": "@ai-sdk/openai-compatible",
+///   "options": { "baseURL": "https://api.example.com/v1", "apiKey": "sk-xxx" },
+///   "models": { "gpt-4o": { "name": "GPT-4o" } }
+/// }
+/// ```
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct OpenCodeProviderConfig {
+    /// AI SDK 包名，如 "@ai-sdk/openai-compatible", "@ai-sdk/anthropic"
+    pub npm: String,
+
+    /// 供应商名称（可选，用于显示）
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub name: Option<String>,
+
+    /// 供应商选项（API 密钥、基础 URL 等）
+    #[serde(default)]
+    pub options: OpenCodeProviderOptions,
+
+    /// 模型定义映射
+    #[serde(default)]
+    pub models: HashMap<String, OpenCodeModel>,
+}
+
+impl Default for OpenCodeProviderConfig {
+    fn default() -> Self {
+        Self {
+            npm: "@ai-sdk/openai-compatible".to_string(),
+            name: None,
+            options: OpenCodeProviderOptions::default(),
+            models: HashMap::new(),
+        }
+    }
+}
+
+/// OpenCode 供应商选项
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct OpenCodeProviderOptions {
+    /// API 基础 URL
+    #[serde(rename = "baseURL", skip_serializing_if = "Option::is_none")]
+    pub base_url: Option<String>,
+
+    /// API 密钥（支持环境变量引用，如 "{env:API_KEY}"）
+    #[serde(rename = "apiKey", skip_serializing_if = "Option::is_none")]
+    pub api_key: Option<String>,
+
+    /// 自定义请求头
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub headers: Option<HashMap<String, String>>,
+
+    /// 额外选项（timeout, setCacheKey 等）
+    /// 使用 flatten 捕获所有未明确定义的字段
+    #[serde(flatten, default, skip_serializing_if = "HashMap::is_empty")]
+    pub extra: HashMap<String, Value>,
+}
+
+/// OpenCode 模型定义
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct OpenCodeModel {
+    /// 模型显示名称
+    pub name: String,
+
+    /// 模型限制（上下文和输出 token 数）
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub limit: Option<OpenCodeModelLimit>,
+
+    /// 模型额外选项（provider 路由等）
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub options: Option<HashMap<String, Value>>,
+
+    /// 额外字段（cost、modalities、thinking、variants 等）
+    /// 使用 flatten 捕获所有未明确定义的字段
+    #[serde(flatten, default, skip_serializing_if = "HashMap::is_empty")]
+    pub extra: HashMap<String, Value>,
+}
+
+/// OpenCode 模型限制
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct OpenCodeModelLimit {
+    /// 上下文 token 限制
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub context: Option<u64>,
+
+    /// 输出 token 限制
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub output: Option<u64>,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{
+        ClaudeModelConfig, CodexModelConfig, GeminiModelConfig, OpenCodeProviderConfig, Provider,
+        ProviderManager, ProviderMeta, UniversalProvider,
+    };
+    use serde_json::json;
+
+    #[test]
+    fn provider_meta_serializes_pricing_model_source() {
+        let mut meta = ProviderMeta::default();
+        meta.pricing_model_source = Some("response".to_string());
+
+        let value = serde_json::to_value(&meta).expect("serialize ProviderMeta");
+
+        assert_eq!(
+            value
+                .get("pricingModelSource")
+                .and_then(|item| item.as_str()),
+            Some("response")
+        );
+        assert!(value.get("pricing_model_source").is_none());
+    }
+
+    #[test]
+    fn provider_meta_omits_pricing_model_source_when_none() {
+        let meta = ProviderMeta::default();
+        let value = serde_json::to_value(&meta).expect("serialize ProviderMeta");
+
+        assert!(value.get("pricingModelSource").is_none());
+    }
+
+    #[test]
+    fn provider_with_id_populates_defaults() {
+        let settings_config = json!({
+            "env": { "API_KEY": "test" }
+        });
+        let provider = Provider::with_id(
+            "provider-1".to_string(),
+            "Provider".to_string(),
+            settings_config.clone(),
+            Some("https://example.com".to_string()),
+        );
+
+        assert_eq!(provider.id, "provider-1");
+        assert_eq!(provider.name, "Provider");
+        assert_eq!(provider.settings_config, settings_config);
+        assert_eq!(provider.website_url.as_deref(), Some("https://example.com"));
+        assert!(provider.category.is_none());
+        assert!(provider.created_at.is_none());
+        assert!(provider.sort_index.is_none());
+        assert!(provider.notes.is_none());
+        assert!(provider.meta.is_none());
+        assert!(provider.icon.is_none());
+        assert!(provider.icon_color.is_none());
+        assert!(!provider.in_failover_queue);
+    }
+
+    #[test]
+    fn provider_manager_get_all_providers_returns_map() {
+        let mut manager = ProviderManager::default();
+        let provider = Provider::with_id(
+            "provider-1".to_string(),
+            "Provider".to_string(),
+            json!({ "env": {} }),
+            None,
+        );
+        manager.providers.insert("provider-1".to_string(), provider);
+
+        assert_eq!(manager.get_all_providers().len(), 1);
+        assert!(manager.get_all_providers().contains_key("provider-1"));
+    }
+
+    #[test]
+    fn universal_provider_to_claude_provider_uses_models() {
+        let mut universal = UniversalProvider::new(
+            "u1".to_string(),
+            "Universal".to_string(),
+            "newapi".to_string(),
+            "https://api.example.com".to_string(),
+            "api-key".to_string(),
+        );
+        universal.apps.claude = true;
+        universal.models.claude = Some(ClaudeModelConfig {
+            model: Some("claude-main".to_string()),
+            haiku_model: Some("claude-haiku".to_string()),
+            sonnet_model: Some("claude-sonnet".to_string()),
+            opus_model: Some("claude-opus".to_string()),
+        });
+
+        let provider = universal.to_claude_provider().expect("claude provider");
+
+        assert_eq!(provider.id, "universal-claude-u1");
+        assert_eq!(provider.name, "Universal");
+        assert_eq!(provider.category.as_deref(), Some("aggregator"));
+        assert_eq!(
+            provider
+                .settings_config
+                .pointer("/env/ANTHROPIC_MODEL")
+                .and_then(|item| item.as_str()),
+            Some("claude-main")
+        );
+        assert_eq!(
+            provider
+                .settings_config
+                .pointer("/env/ANTHROPIC_DEFAULT_HAIKU_MODEL")
+                .and_then(|item| item.as_str()),
+            Some("claude-haiku")
+        );
+        assert_eq!(
+            provider
+                .settings_config
+                .pointer("/env/ANTHROPIC_DEFAULT_SONNET_MODEL")
+                .and_then(|item| item.as_str()),
+            Some("claude-sonnet")
+        );
+        assert_eq!(
+            provider
+                .settings_config
+                .pointer("/env/ANTHROPIC_DEFAULT_OPUS_MODEL")
+                .and_then(|item| item.as_str()),
+            Some("claude-opus")
+        );
+    }
+
+    #[test]
+    fn universal_provider_to_claude_provider_disabled_returns_none() {
+        let universal = UniversalProvider::new(
+            "u1".to_string(),
+            "Universal".to_string(),
+            "newapi".to_string(),
+            "https://api.example.com".to_string(),
+            "api-key".to_string(),
+        );
+
+        assert!(universal.to_claude_provider().is_none());
+    }
+
+    #[test]
+    fn universal_provider_to_codex_provider_appends_v1() {
+        let mut universal = UniversalProvider::new(
+            "u1".to_string(),
+            "Universal".to_string(),
+            "newapi".to_string(),
+            "https://api.example.com".to_string(),
+            "api-key".to_string(),
+        );
+        universal.apps.codex = true;
+        universal.models.codex = Some(CodexModelConfig {
+            model: Some("gpt-4o-mini".to_string()),
+            reasoning_effort: Some("low".to_string()),
+        });
+
+        let provider = universal.to_codex_provider().expect("codex provider");
+        let config = provider
+            .settings_config
+            .get("config")
+            .and_then(|item| item.as_str())
+            .expect("config toml");
+
+        assert!(config.contains("base_url = \"https://api.example.com/v1\""));
+        assert_eq!(
+            provider
+                .settings_config
+                .pointer("/auth/OPENAI_API_KEY")
+                .and_then(|item| item.as_str()),
+            Some("api-key")
+        );
+    }
+
+    #[test]
+    fn universal_provider_to_codex_provider_keeps_v1_suffix() {
+        let mut universal = UniversalProvider::new(
+            "u1".to_string(),
+            "Universal".to_string(),
+            "newapi".to_string(),
+            "https://api.example.com/v1".to_string(),
+            "api-key".to_string(),
+        );
+        universal.apps.codex = true;
+
+        let provider = universal.to_codex_provider().expect("codex provider");
+        let config = provider
+            .settings_config
+            .get("config")
+            .and_then(|item| item.as_str())
+            .expect("config toml");
+
+        assert!(config.contains("base_url = \"https://api.example.com/v1\""));
+    }
+
+    #[test]
+    fn universal_provider_to_codex_provider_disabled_returns_none() {
+        let universal = UniversalProvider::new(
+            "u1".to_string(),
+            "Universal".to_string(),
+            "newapi".to_string(),
+            "https://api.example.com".to_string(),
+            "api-key".to_string(),
+        );
+
+        assert!(universal.to_codex_provider().is_none());
+    }
+
+    #[test]
+    fn universal_provider_to_gemini_provider_defaults_model() {
+        let mut universal = UniversalProvider::new(
+            "u1".to_string(),
+            "Universal".to_string(),
+            "newapi".to_string(),
+            "https://api.example.com".to_string(),
+            "api-key".to_string(),
+        );
+        universal.apps.gemini = true;
+
+        let provider = universal.to_gemini_provider().expect("gemini provider");
+
+        assert_eq!(
+            provider
+                .settings_config
+                .pointer("/env/GEMINI_MODEL")
+                .and_then(|item| item.as_str()),
+            Some("gemini-2.5-pro")
+        );
+    }
+
+    #[test]
+    fn universal_provider_to_gemini_provider_uses_model() {
+        let mut universal = UniversalProvider::new(
+            "u1".to_string(),
+            "Universal".to_string(),
+            "newapi".to_string(),
+            "https://api.example.com".to_string(),
+            "api-key".to_string(),
+        );
+        universal.apps.gemini = true;
+        universal.models.gemini = Some(GeminiModelConfig {
+            model: Some("gemini-custom".to_string()),
+        });
+
+        let provider = universal.to_gemini_provider().expect("gemini provider");
+
+        assert_eq!(
+            provider
+                .settings_config
+                .pointer("/env/GEMINI_MODEL")
+                .and_then(|item| item.as_str()),
+            Some("gemini-custom")
+        );
+    }
+
+    #[test]
+    fn opencode_provider_config_defaults() {
+        let config = OpenCodeProviderConfig::default();
+        assert_eq!(config.npm, "@ai-sdk/openai-compatible");
+        assert!(config.name.is_none());
+        assert!(config.models.is_empty());
+        assert!(config.options.base_url.is_none());
+        assert!(config.options.api_key.is_none());
+        assert!(config.options.headers.is_none());
+        assert!(config.options.extra.is_empty());
+    }
+
+    #[test]
+    fn universal_codex_provider_origin_base_url_adds_v1() {
+        let mut p = UniversalProvider::new(
+            "id".to_string(),
+            "Test".to_string(),
+            "custom".to_string(),
+            "https://api.openai.com".to_string(),
+            "sk-test".to_string(),
+        );
+        p.apps.codex = true;
+
+        let provider = p.to_codex_provider().expect("should build codex provider");
+        let toml = provider
+            .settings_config
+            .get("config")
+            .and_then(|v| v.as_str())
+            .expect("config should be a toml string");
+
+        assert!(toml.contains("base_url = \"https://api.openai.com/v1\""));
+    }
+
+    #[test]
+    fn universal_codex_provider_custom_prefix_does_not_force_v1() {
+        let mut p = UniversalProvider::new(
+            "id".to_string(),
+            "Test".to_string(),
+            "custom".to_string(),
+            "https://example.com/openai".to_string(),
+            "sk-test".to_string(),
+        );
+        p.apps.codex = true;
+
+        let provider = p.to_codex_provider().expect("should build codex provider");
+        let toml = provider
+            .settings_config
+            .get("config")
+            .and_then(|v| v.as_str())
+            .expect("config should be a toml string");
+
+        assert!(toml.contains("base_url = \"https://example.com/openai\""));
+        assert!(!toml.contains("https://example.com/openai/v1"));
     }
 }

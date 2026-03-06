@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { isWindows, isLinux } from "@/lib/platform";
+import { isTextEditableTarget } from "@/utils/domUtils";
 
 interface FullScreenPanelProps {
   isOpen: boolean;
@@ -34,6 +35,39 @@ export const FullScreenPanel: React.FC<FullScreenPanelProps> = ({
     }
     return () => {
       document.body.style.overflow = "";
+    };
+  }, [isOpen]);
+
+  // ESC 键关闭面板
+  const onCloseRef = React.useRef(onClose);
+
+  React.useEffect(() => {
+    onCloseRef.current = onClose;
+  }, [onClose]);
+
+  React.useEffect(() => {
+    if (!isOpen) return;
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        // 子组件（例如 Radix 的 Select/Dialog/Dropdown）如果已经消费了 ESC，就不要再关闭整个面板
+        if (event.defaultPrevented) {
+          return;
+        }
+
+        if (isTextEditableTarget(event.target)) {
+          return; // 让输入框自己处理 ESC（比如清空、失焦等）
+        }
+
+        event.stopPropagation(); // 阻止事件继续冒泡到 window，避免触发 App.tsx 的全局监听
+        onCloseRef.current();
+      }
+    };
+
+    // 使用冒泡阶段监听，让子组件（如 Radix UI）优先处理 ESC
+    window.addEventListener("keydown", handleKeyDown, false);
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown, false);
     };
   }, [isOpen]);
 
@@ -72,7 +106,7 @@ export const FullScreenPanel: React.FC<FullScreenPanelProps> = ({
             }
           >
             <div
-              className="mx-auto max-w-[56rem] px-6 w-full flex items-center gap-4"
+              className="px-6 w-full flex items-center gap-4"
               data-tauri-drag-region
               style={{ WebkitAppRegion: "drag" } as React.CSSProperties}
             >
@@ -94,9 +128,7 @@ export const FullScreenPanel: React.FC<FullScreenPanelProps> = ({
 
           {/* Content */}
           <div className="flex-1 overflow-y-auto scroll-overlay">
-            <div className="mx-auto max-w-[56rem] px-6 py-6 space-y-6 w-full">
-              {children}
-            </div>
+            <div className="px-6 py-6 space-y-6 w-full">{children}</div>
           </div>
 
           {/* Footer */}
@@ -105,7 +137,7 @@ export const FullScreenPanel: React.FC<FullScreenPanelProps> = ({
               className="flex-shrink-0 py-4 border-t border-border-default"
               style={{ backgroundColor: "hsl(var(--background))" }}
             >
-              <div className="mx-auto max-w-[56rem] px-6 flex items-center justify-end gap-3">
+              <div className="px-6 flex items-center justify-end gap-3">
                 {footer}
               </div>
             </div>

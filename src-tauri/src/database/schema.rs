@@ -59,7 +59,7 @@ impl Database {
             id TEXT PRIMARY KEY, name TEXT NOT NULL, server_config TEXT NOT NULL,
             description TEXT, homepage TEXT, docs TEXT, tags TEXT NOT NULL DEFAULT '[]',
             enabled_claude BOOLEAN NOT NULL DEFAULT 0, enabled_codex BOOLEAN NOT NULL DEFAULT 0,
-            enabled_gemini BOOLEAN NOT NULL DEFAULT 0
+            enabled_gemini BOOLEAN NOT NULL DEFAULT 0, enabled_opencode BOOLEAN NOT NULL DEFAULT 0
         )",
             [],
         )
@@ -86,6 +86,7 @@ impl Database {
             enabled_claude BOOLEAN NOT NULL DEFAULT 0,
             enabled_codex BOOLEAN NOT NULL DEFAULT 0,
             enabled_gemini BOOLEAN NOT NULL DEFAULT 0,
+            enabled_opencode BOOLEAN NOT NULL DEFAULT 0,
             installed_at INTEGER NOT NULL DEFAULT 0
         )",
             [],
@@ -121,6 +122,8 @@ impl Database {
             circuit_failure_threshold INTEGER NOT NULL DEFAULT 4, circuit_success_threshold INTEGER NOT NULL DEFAULT 2,
             circuit_timeout_seconds INTEGER NOT NULL DEFAULT 60, circuit_error_rate_threshold REAL NOT NULL DEFAULT 0.6,
             circuit_min_requests INTEGER NOT NULL DEFAULT 10,
+            default_cost_multiplier TEXT NOT NULL DEFAULT '1',
+            pricing_model_source TEXT NOT NULL DEFAULT 'response',
             created_at TEXT NOT NULL DEFAULT (datetime('now')), updated_at TEXT NOT NULL DEFAULT (datetime('now'))
         )", []).map_err(|e| AppError::Database(e.to_string()))?;
 
@@ -171,6 +174,7 @@ impl Database {
         // 10. Proxy Request Logs 表
         conn.execute("CREATE TABLE IF NOT EXISTS proxy_request_logs (
             request_id TEXT PRIMARY KEY, provider_id TEXT NOT NULL, app_type TEXT NOT NULL, model TEXT NOT NULL,
+            request_model TEXT,
             input_tokens INTEGER NOT NULL DEFAULT 0, output_tokens INTEGER NOT NULL DEFAULT 0,
             cache_read_tokens INTEGER NOT NULL DEFAULT 0, cache_creation_tokens INTEGER NOT NULL DEFAULT 0,
             input_cost_usd TEXT NOT NULL DEFAULT '0', output_cost_usd TEXT NOT NULL DEFAULT '0',
@@ -349,12 +353,12 @@ impl Database {
                         Self::set_user_version(conn, 3)?;
                     }
                     3 => {
-                        log::info!("迁移数据库从 v3 到 v4（添加Provider权重字段）");
+                        log::info!("迁移数据库从 v3 到 v4（权重 + OpenCode 支持）");
                         Self::migrate_v3_to_v4(conn)?;
                         Self::set_user_version(conn, 4)?;
                     }
                     4 => {
-                        log::info!("迁移数据库从 v4 到 v5（添加权重轮询开关字段）");
+                        log::info!("迁移数据库从 v4 到 v5（权重轮询 + 计费模式）");
                         Self::migrate_v4_to_v5(conn)?;
                         Self::set_user_version(conn, 5)?;
                     }
@@ -527,6 +531,7 @@ impl Database {
         // proxy_request_logs 表
         conn.execute("CREATE TABLE IF NOT EXISTS proxy_request_logs (
             request_id TEXT PRIMARY KEY, provider_id TEXT NOT NULL, app_type TEXT NOT NULL, model TEXT NOT NULL,
+            request_model TEXT,
             input_tokens INTEGER NOT NULL DEFAULT 0, output_tokens INTEGER NOT NULL DEFAULT 0,
             cache_read_tokens INTEGER NOT NULL DEFAULT 0, cache_creation_tokens INTEGER NOT NULL DEFAULT 0,
             input_cost_usd TEXT NOT NULL DEFAULT '0', output_cost_usd TEXT NOT NULL DEFAULT '0',
@@ -683,6 +688,8 @@ impl Database {
             circuit_failure_threshold INTEGER NOT NULL DEFAULT 4, circuit_success_threshold INTEGER NOT NULL DEFAULT 2,
             circuit_timeout_seconds INTEGER NOT NULL DEFAULT 60, circuit_error_rate_threshold REAL NOT NULL DEFAULT 0.6,
             circuit_min_requests INTEGER NOT NULL DEFAULT 10,
+            default_cost_multiplier TEXT NOT NULL DEFAULT '1',
+            pricing_model_source TEXT NOT NULL DEFAULT 'response',
             created_at TEXT NOT NULL DEFAULT (datetime('now')), updated_at TEXT NOT NULL DEFAULT (datetime('now'))
         )", [])?;
 
@@ -861,57 +868,64 @@ impl Database {
         Ok(())
     }
 
-    /// v3 -> v4 迁移：添加Provider权重字段（负载均衡功能）
+    /// v3 -> v4 迁移：添加 Provider 权重与 OpenCode 支持
     ///
     /// 新增字段：
-    /// - providers.weight (INTEGER NOT NULL DEFAULT 1) - 权重0-100，1表示每轮都使用
+    /// - providers.weight (INTEGER NOT NULL DEFAULT 1)
+    /// - mcp_servers.enabled_opencode (BOOLEAN NOT NULL DEFAULT 0)
+    /// - skills.enabled_opencode (BOOLEAN NOT NULL DEFAULT 0)
     fn migrate_v3_to_v4(conn: &Connection) -> Result<(), AppError> {
-        // 检查是否已经有weight列
-        if Self::has_column(conn, "providers", "weight")? {
-            log::info!("providers 表已有 weight 列，跳过迁移");
-            return Ok(());
-        }
-
-        log::info!("开始迁移 providers 表到 v4 结构（添加权重字段）...");
-
-        // 添加weight列，默认值为1（每轮都使用）
         Self::add_column_if_missing(conn, "providers", "weight", "INTEGER NOT NULL DEFAULT 1")?;
+        Self::add_column_if_missing(
+            conn,
+            "mcp_servers",
+            "enabled_opencode",
+            "BOOLEAN NOT NULL DEFAULT 0",
+        )?;
+        Self::add_column_if_missing(
+            conn,
+            "skills",
+            "enabled_opencode",
+            "BOOLEAN NOT NULL DEFAULT 0",
+        )?;
 
-        log::info!("providers 表已成功添加 weight 列（默认值: 1）");
-
+        log::info!("v3 -> v4 迁移完成：已添加权重字段与 OpenCode 支持");
         Ok(())
     }
 
-    /// v4 -> v5 迁移：添加权重轮询开关字段
+    /// v4 -> v5 迁移：新增权重轮询与计费模式配置
     ///
     /// 新增字段：
-    /// - proxy_config.weight_round_robin_enabled (INTEGER NOT NULL DEFAULT 0) - 权重轮询开关
+    /// - proxy_config.weight_round_robin_enabled (INTEGER NOT NULL DEFAULT 0)
+    /// - proxy_config.default_cost_multiplier (TEXT NOT NULL DEFAULT '1')
+    /// - proxy_config.pricing_model_source (TEXT NOT NULL DEFAULT 'response')
+    /// - proxy_request_logs.request_model (TEXT)
     fn migrate_v4_to_v5(conn: &Connection) -> Result<(), AppError> {
-        // 兼容：极旧/不完整的测试数据库可能没有 proxy_config 表。
-        // 在真实启动流程中会先 create_tables_on_conn() 创建该表。
-        if !Self::table_exists(conn, "proxy_config")? {
-            log::info!("proxy_config 表不存在，跳过 v4->v5 迁移（将由建表流程补齐）");
-            return Ok(());
+        if Self::table_exists(conn, "proxy_config")? {
+            Self::add_column_if_missing(
+                conn,
+                "proxy_config",
+                "weight_round_robin_enabled",
+                "INTEGER NOT NULL DEFAULT 0",
+            )?;
+            Self::add_column_if_missing(
+                conn,
+                "proxy_config",
+                "default_cost_multiplier",
+                "TEXT NOT NULL DEFAULT '1'",
+            )?;
+            Self::add_column_if_missing(
+                conn,
+                "proxy_config",
+                "pricing_model_source",
+                "TEXT NOT NULL DEFAULT 'response'",
+            )?;
+        }
+        if Self::table_exists(conn, "proxy_request_logs")? {
+            Self::add_column_if_missing(conn, "proxy_request_logs", "request_model", "TEXT")?;
         }
 
-        // 检查是否已经有 weight_round_robin_enabled 列
-        if Self::has_column(conn, "proxy_config", "weight_round_robin_enabled")? {
-            log::info!("proxy_config 表已有 weight_round_robin_enabled 列，跳过迁移");
-            return Ok(());
-        }
-
-        log::info!("开始迁移 proxy_config 表到 v5 结构（添加权重轮询开关字段）...");
-
-        // 添加 weight_round_robin_enabled 列，默认值为 0（禁用）
-        Self::add_column_if_missing(
-            conn,
-            "proxy_config",
-            "weight_round_robin_enabled",
-            "INTEGER NOT NULL DEFAULT 0",
-        )?;
-
-        log::info!("proxy_config 表已成功添加 weight_round_robin_enabled 列（默认值: 0）");
-
+        log::info!("v4 -> v5 迁移完成：已添加权重轮询、计费模式与请求模型字段");
         Ok(())
     }
 
@@ -920,7 +934,16 @@ impl Database {
     /// 注意: model_id 使用短横线格式（如 claude-haiku-4-5），与 API 返回的模型名称标准化后一致
     fn seed_model_pricing(conn: &Connection) -> Result<(), AppError> {
         let pricing_data = [
-            // Claude 4.5 系列 (Latest Models)
+            // Claude 4.6 系列
+            (
+                "claude-opus-4-6-20260206",
+                "Claude Opus 4.6",
+                "5",
+                "25",
+                "0.50",
+                "6.25",
+            ),
+            // Claude 4.5 系列
             (
                 "claude-opus-4-5-20251101",
                 "Claude Opus 4.5",
@@ -1021,6 +1044,40 @@ impl Database {
             (
                 "gpt-5.2-codex-xhigh",
                 "GPT-5.2 Codex",
+                "1.75",
+                "14",
+                "0.175",
+                "0",
+            ),
+            // GPT-5.3 Codex 系列
+            ("gpt-5.3-codex", "GPT-5.3 Codex", "1.75", "14", "0.175", "0"),
+            (
+                "gpt-5.3-codex-low",
+                "GPT-5.3 Codex",
+                "1.75",
+                "14",
+                "0.175",
+                "0",
+            ),
+            (
+                "gpt-5.3-codex-medium",
+                "GPT-5.3 Codex",
+                "1.75",
+                "14",
+                "0.175",
+                "0",
+            ),
+            (
+                "gpt-5.3-codex-high",
+                "GPT-5.3 Codex",
+                "1.75",
+                "14",
+                "0.175",
+                "0",
+            ),
+            (
+                "gpt-5.3-codex-xhigh",
+                "GPT-5.3 Codex",
                 "1.75",
                 "14",
                 "0.175",
@@ -1213,7 +1270,7 @@ impl Database {
 
         for (model_id, display_name, input, output, cache_read, cache_creation) in pricing_data {
             conn.execute(
-                "INSERT OR REPLACE INTO model_pricing (
+                "INSERT OR IGNORE INTO model_pricing (
                     model_id, display_name, input_cost_per_million, output_cost_per_million,
                     cache_read_cost_per_million, cache_creation_cost_per_million
                 ) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
@@ -1240,14 +1297,8 @@ impl Database {
     }
 
     fn ensure_model_pricing_seeded_on_conn(conn: &Connection) -> Result<(), AppError> {
-        let count: i64 = conn
-            .query_row("SELECT COUNT(*) FROM model_pricing", [], |row| row.get(0))
-            .map_err(|e| AppError::Database(format!("统计模型定价数据失败: {e}")))?;
-
-        if count == 0 {
-            Self::seed_model_pricing(conn)?;
-        }
-        Ok(())
+        // 每次启动都执行 INSERT OR IGNORE，增量追加新模型，已有数据不覆盖
+        Self::seed_model_pricing(conn)
     }
 
     // --- 辅助方法 ---

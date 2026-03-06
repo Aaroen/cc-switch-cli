@@ -20,6 +20,7 @@ fn parse_app_type(app: &str) -> Result<AppType, String> {
         "claude" => Ok(AppType::Claude),
         "codex" => Ok(AppType::Codex),
         "gemini" => Ok(AppType::Gemini),
+        "opencode" => Ok(AppType::OpenCode),
         _ => Err(format!("不支持的 app 类型: {app}")),
     }
 }
@@ -247,4 +248,17 @@ pub fn remove_skill_repo(
         .delete_skill_repo(&owner, &name)
         .map_err(|e| e.to_string())?;
     Ok(true)
+}
+
+/// 从 ZIP 文件安装 Skills
+#[tauri::command]
+pub fn install_skills_from_zip(
+    file_path: String,
+    current_app: String,
+    app_state: State<'_, AppState>,
+) -> Result<Vec<InstalledSkill>, String> {
+    let app_type = parse_app_type(&current_app)?;
+    let path = std::path::Path::new(&file_path);
+
+    SkillService::install_from_zip(&app_state.db, path, &app_type).map_err(|e| e.to_string())
 }

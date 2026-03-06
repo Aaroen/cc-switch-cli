@@ -62,6 +62,17 @@ export function EditProviderDialog({
         return;
       }
 
+      // OpenCode uses additive mode - each provider's config is stored independently in DB
+      // Reading live config would return the full opencode.json (with $schema, provider, mcp etc.)
+      // instead of just the provider fragment, causing incorrect nested structure on save
+      if (appId === "opencode") {
+        if (!cancelled) {
+          setLiveSettings(null);
+          setHasLoadedLive(true);
+        }
+        return;
+      }
+
       try {
         const currentId = await providersApi.getCurrent(appId);
         if (currentId && provider.id === currentId) {
@@ -117,9 +128,10 @@ export function EditProviderDialog({
       iconColor: provider.iconColor,
     };
   }, [
+    open, // 修复：编辑保存后再次打开显示旧数据，依赖 open 确保每次打开时重新读取最新 provider 数据
     provider?.id, // 只依赖 ID，provider 对象更新不会触发重新计算
+    provider?.meta, // 需要依赖 meta 以便正确初始化 testConfig 和 proxyConfig
     initialSettingsConfig,
-    // 注意：不依赖 provider 的其他字段，防止表单重置
   ]);
 
   const handleSubmit = useCallback(
