@@ -374,15 +374,13 @@ CODEX 权重轮询配置
 
 ### 导出/导入配置
 
-```bash
-# 导出配置
-csc config export --output ./backup-config.json
-
-# 导入配置
-csc config import --input ./backup-config.json
-```
-
----
+    - 导出全部供应商：csc provider export --app codex --output /mnt/disk_A/ccswitchcli/codex.providers.json
+    - 导出单个供应商：csc provider export --app codex --id <ID> --output /path/one.provider.json
+    - 脱敏导出：csc provider export --app codex --output /path/codex.redacted.json --redact
+    - 导入文件：csc provider import --app codex --input /mnt/disk_A/ccswitchcli/codex.providers.json
+    - 覆盖同 ID 导入：csc provider import --app codex --input /mnt/disk_A/ccswitchcli/codex.providers.json --overwrite
+    - 导入时生成新 ID：csc provider import --app codex --input /mnt/disk_A/ccswitchcli/codex.providers.json --new-ids
+    - 导入后切回文件里记录的当前供应商：csc provider import --app codex --input /mnt/disk_A/ccswitchcli/codex.providers.json --set-current
 
 ## 故障转移 (failover)
 
