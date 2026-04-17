@@ -28,6 +28,8 @@ export interface Provider {
   iconColor?: string; // 图标颜色（Hex 格式，如 "#00A67E"）
   // 是否加入故障转移队列
   inFailoverQueue?: boolean;
+  // 权重轮询频率控制值（0-100，0 表示禁用，1 表示每轮都使用）
+  weight?: number;
 }
 
 export interface AppConfig {
@@ -138,6 +140,8 @@ export interface ProviderMeta {
   testConfig?: ProviderTestConfig;
   // 供应商单独的代理配置
   proxyConfig?: ProviderProxyConfig;
+  // 权重轮询频率控制值
+  routingWeight?: number;
   // 供应商成本倍率
   costMultiplier?: string;
   // 供应商计费模式来源

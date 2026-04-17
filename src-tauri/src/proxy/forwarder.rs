@@ -125,7 +125,7 @@ impl RequestForwarder {
         rectifier_config: RectifierConfig,
     ) -> Self {
         // 分层转发器已废弃，权重轮询功能已集成到 ProviderRouter 中
-        // 通过 proxy_config.weight_round_robin_enabled 配置控制
+        // 通过应用级配置读取 settings-backed 的权重轮询开关
         // 可通过 CLI: csc config lb --app <app> --enabled true/false
         // 或 GUI 进行配置
         let layered_forwarder = None;

@@ -17,17 +17,46 @@ type OmoProviderRow = (
     String,
 );
 
+fn parse_provider_meta(meta_str: &str) -> ProviderMeta {
+    if meta_str.trim().is_empty() {
+        ProviderMeta::default()
+    } else {
+        serde_json::from_str(meta_str).unwrap_or_default()
+    }
+}
+
+fn normalize_routing_weight(weight: u32) -> Option<u32> {
+    if weight == 1 {
+        None
+    } else {
+        Some(weight)
+    }
+}
+
+fn resolve_provider_weight(meta: &ProviderMeta, legacy_weight: Option<u32>) -> u32 {
+    meta.routing_weight.or(legacy_weight).unwrap_or(1)
+}
+
 impl Database {
     pub fn get_all_providers(
         &self,
         app_type: &str,
     ) -> Result<IndexMap<String, Provider>, AppError> {
         let conn = lock_conn!(self.conn);
-        let mut stmt = conn.prepare(
-            "SELECT id, name, settings_config, website_url, category, created_at, sort_index, notes, icon, icon_color, meta, in_failover_queue, weight
+        let has_legacy_weight = Self::has_column(&conn, "providers", "weight")?;
+        let weight_select = if has_legacy_weight {
+            "weight"
+        } else {
+            "1 AS weight"
+        };
+        let sql = format!(
+            "SELECT id, name, settings_config, website_url, category, created_at, sort_index, notes, icon, icon_color, meta, in_failover_queue, {weight_select}
              FROM providers WHERE app_type = ?1
              ORDER BY COALESCE(sort_index, 999999), created_at ASC, id ASC"
-        ).map_err(|e| AppError::Database(e.to_string()))?;
+        );
+        let mut stmt = conn
+            .prepare(&sql)
+            .map_err(|e| AppError::Database(e.to_string()))?;
 
         let provider_iter = stmt
             .query_map(params![app_type], |row| {
@@ -47,7 +76,15 @@ impl Database {
 
                 let settings_config =
                     serde_json::from_str(&settings_config_str).unwrap_or(serde_json::Value::Null);
-                let meta: ProviderMeta = serde_json::from_str(&meta_str).unwrap_or_default();
+                let meta = parse_provider_meta(&meta_str);
+                let effective_weight = resolve_provider_weight(
+                    &meta,
+                    if has_legacy_weight {
+                        Some(weight)
+                    } else {
+                        None
+                    },
+                );
 
                 Ok((
                     id,
@@ -64,7 +101,7 @@ impl Database {
                         icon,
                         icon_color,
                         in_failover_queue,
-                        weight,
+                        weight: effective_weight,
                     },
                 ))
             })
@@ -136,11 +173,18 @@ impl Database {
         app_type: &str,
     ) -> Result<Option<Provider>, AppError> {
         let conn = lock_conn!(self.conn);
-        let result: Result<Provider, rusqlite::Error> = conn.query_row(
-            "SELECT name, settings_config, website_url, category, created_at, sort_index, notes, icon, icon_color, meta, in_failover_queue, weight
-             FROM providers WHERE id = ?1 AND app_type = ?2",
-            params![id, app_type],
-            |row| {
+        let has_legacy_weight = Self::has_column(&conn, "providers", "weight")?;
+        let weight_select = if has_legacy_weight {
+            "weight"
+        } else {
+            "1 AS weight"
+        };
+        let sql = format!(
+            "SELECT name, settings_config, website_url, category, created_at, sort_index, notes, icon, icon_color, meta, in_failover_queue, {weight_select}
+             FROM providers WHERE id = ?1 AND app_type = ?2"
+        );
+        let result: Result<Provider, rusqlite::Error> =
+            conn.query_row(&sql, params![id, app_type], |row| {
                 let name: String = row.get(0)?;
                 let settings_config_str: String = row.get(1)?;
                 let website_url: Option<String> = row.get(2)?;
@@ -154,8 +198,17 @@ impl Database {
                 let in_failover_queue: bool = row.get(10)?;
                 let weight: u32 = row.get(11)?;
 
-                let settings_config = serde_json::from_str(&settings_config_str).unwrap_or(serde_json::Value::Null);
-                let meta: ProviderMeta = serde_json::from_str(&meta_str).unwrap_or_default();
+                let settings_config =
+                    serde_json::from_str(&settings_config_str).unwrap_or(serde_json::Value::Null);
+                let meta = parse_provider_meta(&meta_str);
+                let effective_weight = resolve_provider_weight(
+                    &meta,
+                    if has_legacy_weight {
+                        Some(weight)
+                    } else {
+                        None
+                    },
+                );
 
                 Ok(Provider {
                     id: id.to_string(),
@@ -170,10 +223,9 @@ impl Database {
                     icon,
                     icon_color,
                     in_failover_queue,
-                    weight,
+                    weight: effective_weight,
                 })
-            },
-        );
+            });
 
         match result {
             Ok(mut provider) => {
@@ -199,8 +251,7 @@ impl Database {
 
                 let mut custom_endpoints = HashMap::new();
                 for ep_res in endpoints_iter {
-                    let (url, mut ep) =
-                        ep_res.map_err(|e| AppError::Database(e.to_string()))?;
+                    let (url, mut ep) = ep_res.map_err(|e| AppError::Database(e.to_string()))?;
                     ep.url = url.clone();
                     custom_endpoints.insert(url, ep);
                 }
@@ -223,6 +274,7 @@ impl Database {
             .map_err(|e| AppError::Database(e.to_string()))?;
 
         let mut meta_clone = provider.meta.clone().unwrap_or_default();
+        meta_clone.routing_weight = normalize_routing_weight(provider.weight);
         let endpoints = std::mem::take(&mut meta_clone.custom_endpoints);
 
         // 检查是否存在（用于判断新增/更新，以及保留 is_current）
@@ -253,9 +305,8 @@ impl Database {
                     icon_color = ?9,
                     meta = ?10,
                     is_current = ?11,
-                    in_failover_queue = ?12,
-                    weight = ?13
-                WHERE id = ?14 AND app_type = ?15",
+                    in_failover_queue = ?12
+                WHERE id = ?13 AND app_type = ?14",
                 params![
                     provider.name,
                     serde_json::to_string(&provider.settings_config).map_err(|e| {
@@ -273,7 +324,6 @@ impl Database {
                     )))?,
                     is_current,
                     in_failover_queue,
-                    provider.weight,
                     provider.id,
                     app_type,
                 ],
@@ -283,8 +333,8 @@ impl Database {
             tx.execute(
                 "INSERT INTO providers (
                     id, app_type, name, settings_config, website_url, category,
-                    created_at, sort_index, notes, icon, icon_color, meta, is_current, in_failover_queue, weight
-                ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15)",
+                    created_at, sort_index, notes, icon, icon_color, meta, is_current, in_failover_queue
+                ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14)",
                 params![
                     provider.id,
                     app_type,
@@ -302,7 +352,6 @@ impl Database {
                         .map_err(|e| AppError::Database(format!("Failed to serialize meta: {e}")))?,
                     is_current,
                     in_failover_queue,
-                    provider.weight,
                 ],
             )
             .map_err(|e| AppError::Database(e.to_string()))?;
@@ -399,28 +448,34 @@ impl Database {
         }
 
         let conn = lock_conn!(self.conn);
+        let meta_str: String = match conn.query_row(
+            "SELECT meta FROM providers WHERE id = ?1 AND app_type = ?2",
+            params![provider_id, app_type],
+            |row| row.get(0),
+        ) {
+            Ok(value) => value,
+            Err(rusqlite::Error::QueryReturnedNoRows) => {
+                return Err(AppError::Config(format!(
+                    "供应商不存在: {} ({})",
+                    provider_id, app_type
+                )));
+            }
+            Err(e) => return Err(AppError::Database(e.to_string())),
+        };
 
-        // 检查Provider是否存在
-        let exists: bool = conn
-            .query_row(
-                "SELECT COUNT(*) > 0 FROM providers WHERE id = ?1 AND app_type = ?2",
-                params![provider_id, app_type],
-                |row| row.get(0),
-            )
-            .map_err(|e| AppError::Database(e.to_string()))?;
+        let mut meta = parse_provider_meta(&meta_str);
+        meta.routing_weight = normalize_routing_weight(weight);
 
-        if !exists {
-            return Err(AppError::Config(format!(
-                "供应商不存在: {} ({})",
-                provider_id, app_type
-            )));
-        }
-
-        // 更新权重
         let rows_affected = conn
             .execute(
-                "UPDATE providers SET weight = ?1 WHERE id = ?2 AND app_type = ?3",
-                params![weight, provider_id, app_type],
+                "UPDATE providers SET meta = ?1 WHERE id = ?2 AND app_type = ?3",
+                params![
+                    serde_json::to_string(&meta).map_err(|e| AppError::Database(format!(
+                        "Failed to serialize meta: {e}"
+                    )))?,
+                    provider_id,
+                    app_type
+                ],
             )
             .map_err(|e| AppError::Database(e.to_string()))?;
 
@@ -464,13 +519,13 @@ impl Database {
     ) -> Result<HashSet<String>, AppError> {
         let conn = lock_conn!(self.conn);
         let mut stmt = conn
-            .prepare(
-                "SELECT url FROM provider_endpoints WHERE provider_id = ?1 AND app_type = ?2",
-            )
+            .prepare("SELECT url FROM provider_endpoints WHERE provider_id = ?1 AND app_type = ?2")
             .map_err(|e| AppError::Database(e.to_string()))?;
 
         let iter = stmt
-            .query_map(params![provider_id, app_type], |row| row.get::<_, String>(0))
+            .query_map(params![provider_id, app_type], |row| {
+                row.get::<_, String>(0)
+            })
             .map_err(|e| AppError::Database(e.to_string()))?;
 
         let mut set = HashSet::new();

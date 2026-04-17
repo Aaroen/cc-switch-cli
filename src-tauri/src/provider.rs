@@ -239,6 +239,12 @@ pub struct ProviderMeta {
     /// 供应商单独的代理配置
     #[serde(rename = "proxyConfig", skip_serializing_if = "Option::is_none")]
     pub proxy_config: Option<ProviderProxyConfig>,
+    /// 权重轮询的频率控制值
+    /// - 0: 禁用该供应商
+    /// - 1: 每轮都使用（默认值，不持久化）
+    /// - N: 每 N 轮使用一次
+    #[serde(rename = "routingWeight", skip_serializing_if = "Option::is_none")]
+    pub routing_weight: Option<u32>,
     /// Claude API 格式（仅 Claude 供应商使用）
     /// - "anthropic": 原生 Anthropic Messages API，直接透传
     /// - "openai_chat": OpenAI Chat Completions 格式，需要转换
@@ -672,6 +678,28 @@ mod tests {
         let value = serde_json::to_value(&meta).expect("serialize ProviderMeta");
 
         assert!(value.get("pricingModelSource").is_none());
+    }
+
+    #[test]
+    fn provider_meta_serializes_routing_weight() {
+        let mut meta = ProviderMeta::default();
+        meta.routing_weight = Some(3);
+
+        let value = serde_json::to_value(&meta).expect("serialize ProviderMeta");
+
+        assert_eq!(
+            value.get("routingWeight").and_then(|item| item.as_u64()),
+            Some(3)
+        );
+        assert!(value.get("routing_weight").is_none());
+    }
+
+    #[test]
+    fn provider_meta_omits_routing_weight_when_none() {
+        let meta = ProviderMeta::default();
+        let value = serde_json::to_value(&meta).expect("serialize ProviderMeta");
+
+        assert!(value.get("routingWeight").is_none());
     }
 
     #[test]

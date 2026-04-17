@@ -18,6 +18,11 @@ pub enum GlobalProxyState {
 }
 
 impl Database {
+    /// 应用级权重轮询开关的存储键名
+    fn weight_round_robin_enabled_key(app_type: &str) -> String {
+        format!("proxy_weight_round_robin_enabled_{app_type}")
+    }
+
     /// 获取设置值
     pub fn get_setting(&self, key: &str) -> Result<Option<String>, AppError> {
         let conn = lock_conn!(self.conn);
@@ -47,6 +52,36 @@ impl Database {
         )
         .map_err(|e| AppError::Database(e.to_string()))?;
         Ok(())
+    }
+
+    /// 获取指定应用的权重轮询开关状态
+    ///
+    /// 返回 None 表示未设置，此时由调用方决定是否回退到旧存储字段。
+    pub fn get_weight_round_robin_enabled(&self, app_type: &str) -> Result<Option<bool>, AppError> {
+        let key = Self::weight_round_robin_enabled_key(app_type);
+        let Some(value) = self.get_setting(&key)? else {
+            return Ok(None);
+        };
+
+        let trimmed = value.trim();
+        if trimmed.eq_ignore_ascii_case("true") || trimmed == "1" {
+            Ok(Some(true))
+        } else if trimmed.eq_ignore_ascii_case("false") || trimmed == "0" {
+            Ok(Some(false))
+        } else {
+            log::warn!("忽略无效的权重轮询开关配置: key={}, value={}", key, value);
+            Ok(None)
+        }
+    }
+
+    /// 设置指定应用的权重轮询开关状态
+    pub fn set_weight_round_robin_enabled(
+        &self,
+        app_type: &str,
+        enabled: bool,
+    ) -> Result<(), AppError> {
+        let key = Self::weight_round_robin_enabled_key(app_type);
+        self.set_setting(&key, if enabled { "true" } else { "false" })
     }
 
     // --- 通用配置片段 (Common Config Snippet) ---

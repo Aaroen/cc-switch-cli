@@ -196,36 +196,51 @@ impl Database {
         let app_type_owned = app_type.to_string();
         let result = {
             let conn = lock_conn!(self.conn);
-            conn.query_row(
-                "SELECT app_type, enabled, auto_failover_enabled, weight_round_robin_enabled,
+            let has_legacy_weight_round_robin =
+                Self::has_column(&conn, "proxy_config", "weight_round_robin_enabled")?;
+            let legacy_weight_select = if has_legacy_weight_round_robin {
+                "weight_round_robin_enabled"
+            } else {
+                "NULL AS weight_round_robin_enabled"
+            };
+            let sql = format!(
+                "SELECT app_type, enabled, auto_failover_enabled,
                         max_retries, streaming_first_byte_timeout, streaming_idle_timeout, non_streaming_timeout,
                         circuit_failure_threshold, circuit_success_threshold, circuit_timeout_seconds,
-                        circuit_error_rate_threshold, circuit_min_requests
-                 FROM proxy_config WHERE app_type = ?1",
-                [app_type],
-                |row| {
-                    Ok(AppProxyConfig {
+                        circuit_error_rate_threshold, circuit_min_requests, {legacy_weight_select}
+                 FROM proxy_config WHERE app_type = ?1"
+            );
+            conn.query_row(&sql, [app_type], |row| {
+                Ok((
+                    AppProxyConfig {
                         app_type: row.get(0)?,
                         enabled: row.get::<_, i32>(1)? != 0,
                         auto_failover_enabled: row.get::<_, i32>(2)? != 0,
-                        weight_round_robin_enabled: row.get::<_, i32>(3).unwrap_or(0) != 0,
-                        max_retries: row.get::<_, i32>(4)? as u32,
-                        streaming_first_byte_timeout: row.get::<_, i32>(5)? as u32,
-                        streaming_idle_timeout: row.get::<_, i32>(6)? as u32,
-                        non_streaming_timeout: row.get::<_, i32>(7)? as u32,
-                        circuit_failure_threshold: row.get::<_, i32>(8)? as u32,
-                        circuit_success_threshold: row.get::<_, i32>(9)? as u32,
-                        circuit_timeout_seconds: row.get::<_, i32>(10)? as u32,
-                        circuit_error_rate_threshold: row.get(11)?,
-                        circuit_min_requests: row.get::<_, i32>(12)? as u32,
-                    })
-                },
-            )
+                        weight_round_robin_enabled: false,
+                        max_retries: row.get::<_, i32>(3)? as u32,
+                        streaming_first_byte_timeout: row.get::<_, i32>(4)? as u32,
+                        streaming_idle_timeout: row.get::<_, i32>(5)? as u32,
+                        non_streaming_timeout: row.get::<_, i32>(6)? as u32,
+                        circuit_failure_threshold: row.get::<_, i32>(7)? as u32,
+                        circuit_success_threshold: row.get::<_, i32>(8)? as u32,
+                        circuit_timeout_seconds: row.get::<_, i32>(9)? as u32,
+                        circuit_error_rate_threshold: row.get(10)?,
+                        circuit_min_requests: row.get::<_, i32>(11)? as u32,
+                    },
+                    row.get::<_, Option<i32>>(12)?.map(|value| value != 0),
+                ))
+            })
         };
         // conn 已在 block 结束时释放
 
         match result {
-            Ok(config) => Ok(config),
+            Ok((mut config, legacy_weight_round_robin_enabled)) => {
+                config.weight_round_robin_enabled = self
+                    .get_weight_round_robin_enabled(app_type)?
+                    .or(legacy_weight_round_robin_enabled)
+                    .unwrap_or(false);
+                Ok(config)
+            }
             Err(rusqlite::Error::QueryReturnedNoRows) => {
                 // 如果不存在，创建默认配置
                 self.init_proxy_config_rows().await?;
@@ -233,7 +248,9 @@ impl Database {
                     app_type: app_type_owned,
                     enabled: false,
                     auto_failover_enabled: false,
-                    weight_round_robin_enabled: false,
+                    weight_round_robin_enabled: self
+                        .get_weight_round_robin_enabled(app_type)?
+                        .unwrap_or(false),
                     max_retries: 3,
                     streaming_first_byte_timeout: 60,
                     streaming_idle_timeout: 120,
@@ -254,45 +271,45 @@ impl Database {
         &self,
         config: AppProxyConfig,
     ) -> Result<(), AppError> {
-        let conn = lock_conn!(self.conn);
+        self.ensure_proxy_config_row_exists(&config.app_type)?;
 
-        conn.execute(
-            "UPDATE proxy_config SET
-                enabled = ?2,
-                auto_failover_enabled = ?3,
-                weight_round_robin_enabled = ?4,
-                max_retries = ?5,
-                streaming_first_byte_timeout = ?6,
-                streaming_idle_timeout = ?7,
-                non_streaming_timeout = ?8,
-                circuit_failure_threshold = ?9,
-                circuit_success_threshold = ?10,
-                circuit_timeout_seconds = ?11,
-                circuit_error_rate_threshold = ?12,
-                circuit_min_requests = ?13,
-                updated_at = datetime('now')
-             WHERE app_type = ?1",
-            rusqlite::params![
-                config.app_type,
-                if config.enabled { 1 } else { 0 },
-                if config.auto_failover_enabled { 1 } else { 0 },
-                if config.weight_round_robin_enabled {
-                    1
-                } else {
-                    0
-                },
-                config.max_retries as i32,
-                config.streaming_first_byte_timeout as i32,
-                config.streaming_idle_timeout as i32,
-                config.non_streaming_timeout as i32,
-                config.circuit_failure_threshold as i32,
-                config.circuit_success_threshold as i32,
-                config.circuit_timeout_seconds as i32,
-                config.circuit_error_rate_threshold,
-                config.circuit_min_requests as i32,
-            ],
-        )
-        .map_err(|e| AppError::Database(e.to_string()))?;
+        {
+            let conn = lock_conn!(self.conn);
+
+            conn.execute(
+                "UPDATE proxy_config SET
+                    enabled = ?2,
+                    auto_failover_enabled = ?3,
+                    max_retries = ?4,
+                    streaming_first_byte_timeout = ?5,
+                    streaming_idle_timeout = ?6,
+                    non_streaming_timeout = ?7,
+                    circuit_failure_threshold = ?8,
+                    circuit_success_threshold = ?9,
+                    circuit_timeout_seconds = ?10,
+                    circuit_error_rate_threshold = ?11,
+                    circuit_min_requests = ?12,
+                    updated_at = datetime('now')
+                 WHERE app_type = ?1",
+                rusqlite::params![
+                    config.app_type,
+                    if config.enabled { 1 } else { 0 },
+                    if config.auto_failover_enabled { 1 } else { 0 },
+                    config.max_retries as i32,
+                    config.streaming_first_byte_timeout as i32,
+                    config.streaming_idle_timeout as i32,
+                    config.non_streaming_timeout as i32,
+                    config.circuit_failure_threshold as i32,
+                    config.circuit_success_threshold as i32,
+                    config.circuit_timeout_seconds as i32,
+                    config.circuit_error_rate_threshold,
+                    config.circuit_min_requests as i32,
+                ],
+            )
+            .map_err(|e| AppError::Database(e.to_string()))?;
+        }
+
+        self.set_weight_round_robin_enabled(&config.app_type, config.weight_round_robin_enabled)?;
 
         Ok(())
     }

@@ -1,6 +1,11 @@
 # CC-Switch CLI 版（cc-switch-cli）
 
-本项目是上游 [farion1231/cc-switch](https://github.com/farion1231/cc-switch) 的 CLI/无头（Headless）变体：保留核心代理与配置能力，面向 Linux 终端与服务器环境，重点提供稳定的一键部署与命令行管理体验。
+本项目是上游 [farion1231/cc-switch](https://github.com/farion1231/cc-switch) 的 CLI/无头（Headless）变体：在持续贴近上游结构的同时，保留并强化以下核心能力：
+
+- 供应商权重轮询
+- 无头终端运行与后台代理服务
+- CLI 全功能控制
+- GUI 中对轮询/故障转移的可视化配置入口
 
 上游项目的原始 README 已保留为：`README_UPSTREAM.md`。
 
@@ -27,7 +32,7 @@ bash -lc 'set -euo pipefail; repo="Aaroen/cc-switch-cli"; asset="cc-switch-cli-l
 说明：
 
 - 该命令依赖 Releases 中存在 `cc-switch-cli-linux-x86_64.tar.gz` 资产（包含 `install-ccs.sh` 与 `cc-switch` 二进制）。
-- 如 `latest` 暂不可用，可指定版本：`TAG=v3.9.1-3`（示例）后再运行上面的一行命令。
+- 如 `latest` 暂不可用，可指定版本：`TAG=v3.11.2`（示例）后再运行上面的一行命令。
 - 默认会将下载的 Release 资产缓存到 `~/.cc-switch/.cache/prebuilt/<TAG>/`；如需强制重新下载：`FORCE=1`。
 - 为避免历史脚本导致 `~/.bashrc` 重复写入等问题，本命令会额外拉取仓库分支 `cc-switch-cli` 的最新版 `install-ccs.sh` 覆盖执行（不需要重新编译）。
 - 默认以 CLI 模式部署（无头 server），并自动处理端口占用（必要时自动换端口）。
@@ -41,7 +46,7 @@ rm -rf ~/.cc-switch/.cache/prebuilt
 
 ## 权重轮询（Weight Round Robin）
 
-本仓库在 CLI 场景下默认启用“按供应商权重分配请求”的能力（部署脚本会为 `claude/codex/gemini` 默认打开权重轮询）。
+本仓库在 CLI 场景下默认启用“按供应商权重分配请求”的能力（部署脚本会为 `claude/codex/gemini` 默认打开权重轮询），同时 GUI 中也提供同风格的权重面板用于可视化调整。
 
 规则（与 CLI 输出保持一致）：
 
@@ -65,6 +70,11 @@ csc provider list --app claude
 # 设置供应商权重（0-100）
 csc provider weight --app claude --id <PROVIDER_ID> --weight 1
 ```
+
+GUI 配置入口：
+
+- `设置 -> 代理 -> 自动故障转移 -> 权重轮询`
+- 每个应用（`claude/codex/gemini`）均可独立开关，并按供应商逐项设置权重
 
 ## 启动与验证
 

@@ -1735,6 +1735,25 @@
       "successThresholdExplain": "半開状態でこの回数成功するとサーキットブレーカーが閉じ、プロバイダーが再び利用可能になります",
       "errorRateLabel": "エラー率しきい値",
       "errorRateExplain": "失敗しきい値に達していなくても、エラー率がこの値を超えるとサーキットブレーカーが開きます"
+    },
+    "weightRoundRobin": {
+      "title": "重み付きラウンドロビン",
+      "description": "プロバイダー重みに応じてリクエスト頻度を分配しつつ、同一リクエスト内のフェイルオーバー回復も維持します。",
+      "enabled": "重み付きラウンドロビンを有効化",
+      "enabledDescription": "有効にすると、まずプロバイダー重みに応じてリクエストを分配し、同一リクエスト内のフェイルオーバー回復も維持されます。",
+      "info": "重み 0 はそのプロバイダーを無効化、1 は毎ラウンド使用、2 は 2 ラウンドごとに 1 回使用します。値が小さいほどリクエスト頻度は高くなります。",
+      "configUnavailable": "プロキシ設定がまだ読み込まれていません",
+      "providersTitle": "プロバイダー重み",
+      "providerWeightHint": "0 から 100 の整数を入力してください。0 = 無効、1 = 毎ラウンド使用、値が小さいほど頻度が高くなります。",
+      "weight": "重み",
+      "frequency": "頻度",
+      "frequencyDisabled": "無効",
+      "frequencyEveryRound": "毎ラウンド",
+      "frequencyEveryN": "1/{{weight}}",
+      "badgeDisabled": "ルーティング無効",
+      "badgeFrequency": "ルーティング 1/{{weight}}",
+      "empty": "このアプリで設定可能なプロバイダーはありません。",
+      "validationFailed": "次のプロバイダー重みが無効です: {{providers}}"
     }
   },
   "streamCheck": {

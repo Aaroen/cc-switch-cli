@@ -8,6 +8,7 @@ import type {
 import type { Provider } from "@/types";
 import type { AppId } from "@/lib/api";
 import { cn } from "@/lib/utils";
+import { Badge } from "@/components/ui/badge";
 import { ProviderActions } from "@/components/providers/ProviderActions";
 import { ProviderIcon } from "@/components/ProviderIcon";
 import UsageFooter from "@/components/UsageFooter";
@@ -208,6 +209,18 @@ export function ProviderCard({
   const shouldUseBlue =
     (isAnyOmo && isActiveProvider) ||
     (!isAnyOmo && !isProxyTakeover && isActiveProvider);
+  const supportsWeightRoundRobin =
+    appId === "claude" || appId === "codex" || appId === "gemini";
+  const routingWeight = provider.weight ?? provider.meta?.routingWeight ?? 1;
+  const routingBadgeLabel =
+    routingWeight === 0
+      ? t("proxy.weightRoundRobin.badgeDisabled", {
+          defaultValue: "轮询禁用",
+        })
+      : t("proxy.weightRoundRobin.badgeFrequency", {
+          weight: routingWeight,
+          defaultValue: `轮询 1/${routingWeight}`,
+        });
 
   return (
     <div
@@ -288,6 +301,20 @@ export function ProviderCard({
                 failoverPriority && (
                   <FailoverPriorityBadge priority={failoverPriority} />
                 )}
+
+              {supportsWeightRoundRobin && (
+                <Badge
+                  variant="secondary"
+                  className={cn(
+                    "border-transparent",
+                    routingWeight === 0
+                      ? "bg-rose-500/10 text-rose-600 dark:text-rose-300"
+                      : "bg-sky-500/10 text-sky-700 dark:text-sky-300",
+                  )}
+                >
+                  {routingBadgeLabel}
+                </Badge>
+              )}
 
               {provider.category === "third_party" &&
                 provider.meta?.isPartner && (

@@ -1735,6 +1735,25 @@
       "successThresholdExplain": "In half-open state, close circuit breaker after this many successes, making provider available again",
       "errorRateLabel": "Error Rate Threshold",
       "errorRateExplain": "Open circuit breaker when error rate exceeds this value, even if failure threshold not reached"
+    },
+    "weightRoundRobin": {
+      "title": "Weighted Round Robin",
+      "description": "Distribute requests by provider weight while preserving same-request failover fallback.",
+      "enabled": "Enable Weighted Round Robin",
+      "enabledDescription": "When enabled, requests are distributed by provider weight first, while same-request failover fallback remains available.",
+      "info": "Weight 0 disables a provider, 1 uses it every round, and 2 uses it once every 2 rounds. Lower values mean higher request frequency.",
+      "configUnavailable": "Proxy config is not loaded yet",
+      "providersTitle": "Provider Weights",
+      "providerWeightHint": "Enter an integer from 0 to 100. 0 = disabled, 1 = every round, smaller values mean higher frequency.",
+      "weight": "Weight",
+      "frequency": "Frequency",
+      "frequencyDisabled": "Disabled",
+      "frequencyEveryRound": "Every round",
+      "frequencyEveryN": "1/{{weight}}",
+      "badgeDisabled": "Routing disabled",
+      "badgeFrequency": "Routing 1/{{weight}}",
+      "empty": "No providers are available for this app.",
+      "validationFailed": "Invalid weights for: {{providers}}"
     }
   },
   "streamCheck": {

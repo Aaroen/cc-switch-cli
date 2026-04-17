@@ -207,17 +207,14 @@ pub async fn server_status() -> Result<(), String> {
                         "监听地址",
                         format!("{}:{}", config.listen_address, config.listen_port),
                     ),
-                    (
-                        "启用应用",
-                        {
-                            let apps = get_enabled_apps(&db).await;
-                            if apps.is_empty() {
-                                "(无)".to_string()
-                            } else {
-                                apps.join(", ")
-                            }
-                        },
-                    ),
+                    ("启用应用", {
+                        let apps = get_enabled_apps(&db).await;
+                        if apps.is_empty() {
+                            "(无)".to_string()
+                        } else {
+                            apps.join(", ")
+                        }
+                    }),
                 ]);
             }
         }
@@ -333,9 +330,12 @@ async fn start_headless_server_daemon(host: String, port: u16) -> Result<(), Str
         }
 
         let addr = format!("{}:{}", host, port);
-        if timeout(Duration::from_millis(300), tokio::net::TcpStream::connect(&addr))
-            .await
-            .is_ok()
+        if timeout(
+            Duration::from_millis(300),
+            tokio::net::TcpStream::connect(&addr),
+        )
+        .await
+        .is_ok()
         {
             crate::cli::output::success("代理服务器启动成功（后台运行）");
             // 端口可用不代表 PID 文件已写入（子进程写 PID 在启动逻辑后段），稍等一会儿避免“状态不一致”
@@ -349,17 +349,16 @@ async fn start_headless_server_daemon(host: String, port: u16) -> Result<(), Str
             if pid_file.exists() {
                 server_status().await?;
             } else {
-                crate::cli::output::warning("已监听端口，但尚未检测到 PID 文件（稍后可用 'csc status' 再确认）");
+                crate::cli::output::warning(
+                    "已监听端口，但尚未检测到 PID 文件（稍后可用 'csc status' 再确认）",
+                );
             }
             crate::cli::output::hint("使用 'csc server stop' 停止服务");
             return Ok(());
         }
 
         if start.elapsed() > deadline {
-            return Err(format!(
-                "启动超时，请查看日志: {}",
-                log_path.display()
-            ));
+            return Err(format!("启动超时，请查看日志: {}", log_path.display()));
         }
 
         sleep(Duration::from_millis(200)).await;

@@ -13,6 +13,7 @@ import { Badge } from "@/components/ui/badge";
 import { ProxyPanel } from "@/components/proxy";
 import { AutoFailoverConfigPanel } from "@/components/proxy/AutoFailoverConfigPanel";
 import { FailoverQueueManager } from "@/components/proxy/FailoverQueueManager";
+import { WeightRoundRobinConfigPanel } from "@/components/proxy/WeightRoundRobinConfigPanel";
 import { RectifierConfigPanel } from "@/components/settings/RectifierConfigPanel";
 import { GlobalProxySettings } from "@/components/settings/GlobalProxySettings";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
@@ -168,6 +169,12 @@ export function ProxyTabContent({
                       disabled={!isRunning}
                     />
                   </div>
+                  <div className="border-t border-border/50 pt-6">
+                    <WeightRoundRobinConfigPanel
+                      appType="claude"
+                      disabled={!isRunning}
+                    />
+                  </div>
                 </TabsContent>
                 <TabsContent value="codex" className="mt-4 space-y-6">
                   <div className="space-y-4">
@@ -190,6 +197,12 @@ export function ProxyTabContent({
                       disabled={!isRunning}
                     />
                   </div>
+                  <div className="border-t border-border/50 pt-6">
+                    <WeightRoundRobinConfigPanel
+                      appType="codex"
+                      disabled={!isRunning}
+                    />
+                  </div>
                 </TabsContent>
                 <TabsContent value="gemini" className="mt-4 space-y-6">
                   <div className="space-y-4">
@@ -208,6 +221,12 @@ export function ProxyTabContent({
                   </div>
                   <div className="border-t border-border/50 pt-6">
                     <AutoFailoverConfigPanel
+                      appType="gemini"
+                      disabled={!isRunning}
+                    />
+                  </div>
+                  <div className="border-t border-border/50 pt-6">
+                    <WeightRoundRobinConfigPanel
                       appType="gemini"
                       disabled={!isRunning}
                     />

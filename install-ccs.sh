@@ -1,7 +1,7 @@
 #!/bin/bash
 #
-# CC-Switch v3.9.1+ 一键部署脚本（增强版）
-# 支持官方更新拉取、分层转发器、负载均衡等特性
+# CC-Switch CLI v3.11.2+ 一键部署脚本（增强版）
+# 支持 CLI/无头部署、可选 GUI 部署、权重轮询与当前分支更新
 #
 # 功能特性:
 #   - 自动检测和安装系统依赖（支持多发行版）
@@ -10,11 +10,12 @@
 #   - 自动安装 Rust 和 Node.js
 #   - 编译缓存优化
 #   - 健壮的服务启动和验证
+#   - 默认启用 claude/codex/gemini 的权重轮询
 #
 # 使用方法:
 #   ./install-ccs.sh              # CLI模式部署（默认）
 #   ./install-ccs.sh --gui        # GUI模式部署
-#   ./install-ccs.sh --update     # 拉取官方更新后部署
+#   ./install-ccs.sh --update     # 拉取当前分支最新代码后部署
 #   CLI_MODE=false ./install-ccs.sh --gui  # 环境变量方式
 #
 # 环境变量:
@@ -600,10 +601,10 @@ if [ -d "$SCRIPT_DIR/.git" ]; then
     GIT_BRANCH=$(cd "$SCRIPT_DIR" && git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "unknown")
     GIT_COMMIT=$(cd "$SCRIPT_DIR" && git rev-parse --short HEAD 2>/dev/null || echo "unknown")
 
-    # 询问是否拉取官方更新
+    # 可选：拉取当前分支最新提交
     if [ "${ARG_UPDATE:-0}" -eq 1 ]; then
         echo ""
-        echo -e "${YELLOW}正在拉取官方更新...${NC}"
+        echo -e "${YELLOW}正在拉取当前分支更新...${NC}"
         cd "$SCRIPT_DIR"
 
         # 保存本地修改
@@ -614,7 +615,7 @@ if [ -d "$SCRIPT_DIR/.git" ]; then
 
         # 拉取并 rebase（跟随当前分支）
         if git pull --rebase 2>&1 | tee "$LOG_DIR/git_update.log"; then
-            echo -e "${GREEN}✓ 官方更新已拉取${NC}"
+            echo -e "${GREEN}✓ 当前分支更新已拉取${NC}"
 
             # 恢复本地修改
             if git stash list | grep -q "Auto-stash before update"; then

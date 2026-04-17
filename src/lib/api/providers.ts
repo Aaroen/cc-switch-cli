@@ -38,6 +38,14 @@ export const providersApi = {
     return await invoke("update_provider", { provider, app: appId });
   },
 
+  async updateWeight(
+    id: string,
+    appId: AppId,
+    weight: number,
+  ): Promise<boolean> {
+    return await invoke("update_provider_weight", { id, app: appId, weight });
+  },
+
   async delete(id: string, appId: AppId): Promise<boolean> {
     return await invoke("delete_provider", { id, app: appId });
   },

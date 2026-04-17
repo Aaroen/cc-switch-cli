@@ -1735,6 +1735,25 @@
       "successThresholdExplain": "半开状态下，成功达到此次数时关闭熔断器，供应商恢复可用",
       "errorRateLabel": "错误率阈值",
       "errorRateExplain": "错误率超过此值时，即使未达到失败阈值也会打开熔断器"
+    },
+    "weightRoundRobin": {
+      "title": "权重轮询",
+      "description": "按供应商权重分配请求频率，并保留同一请求内的故障转移回退。",
+      "enabled": "启用权重轮询",
+      "enabledDescription": "开启后，请求将优先按供应商权重分配；同一请求内仍保留故障转移回退。",
+      "info": "权重 0 表示禁用该供应商，1 表示每轮都使用，2 表示每 2 轮使用一次。数值越小，请求频率越高。",
+      "configUnavailable": "代理配置尚未加载完成",
+      "providersTitle": "供应商权重",
+      "providerWeightHint": "输入 0-100 的整数。0 = 禁用，1 = 每轮都使用，数值越小频率越高。",
+      "weight": "权重",
+      "frequency": "频率",
+      "frequencyDisabled": "已禁用",
+      "frequencyEveryRound": "每轮",
+      "frequencyEveryN": "1/{{weight}}",
+      "badgeDisabled": "轮询禁用",
+      "badgeFrequency": "轮询 1/{{weight}}",
+      "empty": "当前应用暂无可配置的供应商。",
+      "validationFailed": "以下供应商权重无效: {{providers}}"
     }
   },
   "streamCheck": {

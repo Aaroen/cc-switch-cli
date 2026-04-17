@@ -557,8 +557,7 @@ pub async fn provider_export(
         }
     }
 
-    std::fs::write(out, content)
-        .map_err(|e| format!("写入文件失败 {}: {}", out.display(), e))?;
+    std::fs::write(out, content).map_err(|e| format!("写入文件失败 {}: {}", out.display(), e))?;
 
     output::success(&format!(
         "已导出 {} 个 {} 供应商到: {}",
@@ -702,7 +701,9 @@ pub async fn provider_update(
     let app_type = parse_app_type(app)?;
 
     if file.is_none() && key.is_none() && url.is_none() && name.is_none() && notes.is_none() {
-        return Err("未提供任何更新内容：请使用 --file/--key/--url/--name/--notes 之一".to_string());
+        return Err(
+            "未提供任何更新内容：请使用 --file/--key/--url/--name/--notes 之一".to_string(),
+        );
     }
 
     let mut provider = db
@@ -718,7 +719,8 @@ pub async fn provider_update(
                 .read_to_string(&mut content)
                 .map_err(|e| format!("读取 stdin 失败: {}", e))?;
         } else {
-            content = std::fs::read_to_string(path).map_err(|e| format!("读取文件失败 {}: {}", path, e))?;
+            content = std::fs::read_to_string(path)
+                .map_err(|e| format!("读取文件失败 {}: {}", path, e))?;
         }
 
         let incoming: serde_json::Value =
@@ -846,7 +848,10 @@ pub async fn provider_update(
     db.save_provider(app_type.as_str(), &provider)
         .map_err(|e| e.to_string())?;
 
-    output::success(&format!("供应商 '{}' 已更新 (ID: {})", provider.name, provider.id));
+    output::success(&format!(
+        "供应商 '{}' 已更新 (ID: {})",
+        provider.name, provider.id
+    ));
     Ok(())
 }
 
