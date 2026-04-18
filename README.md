@@ -23,22 +23,34 @@ bash -lc 'set -e; dir="$HOME/cc-switch-cli"; if [ -d "$dir/.git" ]; then git -C 
 
 ### Release 版本（免编译，可能滞后）
 
-从 GitHub Releases 下载预构建二进制并安装运行（无需本机编译）。当前默认资产名：
+从 GitHub Releases 下载预构建二进制并安装运行（无需本机编译）。
 
-- `cc-switch-cli-linux-x86_64.tar.gz`
+当前 Tag Release 会生成以下资产：
+
+- Linux GUI：`CC-Switch-<TAG>-Linux-x86_64.AppImage` / `.deb` / `.rpm`
+- Linux GUI：`CC-Switch-<TAG>-Linux-arm64.AppImage` / `.deb` / `.rpm`
+- Linux CLI：`cc-switch-cli-linux-x86_64.tar.gz`
+- Linux CLI：`cc-switch-cli-linux-arm64.tar.gz`
+- macOS GUI：`CC-Switch-<TAG>-macOS.zip`，如配置签名密钥则同时生成 `CC-Switch-<TAG>-macOS.tar.gz`
+- macOS CLI：`cc-switch-cli-macos-universal.tar.gz`
+- Windows GUI：`CC-Switch-<TAG>-Windows.msi` 与 `CC-Switch-<TAG>-Windows-Portable.zip`
+- Windows CLI：`cc-switch-cli-windows-x86_64.zip`
+
+Linux 终端环境可直接使用下述一行命令自动识别 `x86_64/arm64` 并安装 CLI 版本：
 
 ```bash
-bash -lc 'set -euo pipefail; repo="Aaroen/cc-switch-cli"; asset="cc-switch-cli-linux-x86_64.tar.gz"; tag="${TAG:-latest}"; cache_root="${CACHE_DIR:-$HOME/.cc-switch/.cache/prebuilt}"; cache="$cache_root/$tag"; mkdir -p "$cache"; if [ "$tag" = "latest" ]; then gh_url="https://github.com/$repo/releases/latest/download/$asset"; else gh_url="https://github.com/$repo/releases/download/$tag/$asset"; fi; urls=("$gh_url" "https://mirror.ghproxy.com/$gh_url" "https://ghproxy.com/$gh_url"); meta="$cache/meta.txt"; pkg="$cache/$asset"; get_meta(){ local url="$1"; local hdr="$2"; local eff; local etag; eff="$(curl -4fsSLI -D "$hdr" -o /dev/null -w "%{url_effective}" "$url")"; etag="$(grep -i "^etag:" "$hdr" | tail -n1 | sed -E "s/^etag:[[:space:]]*//I; s/\\r//g; s/\\\"//g")"; printf "url=%s\\netag=%s\\n" "$eff" "$etag"; }; need_dl=1; if [ -f "$pkg" ]; then if command -v curl >/dev/null 2>&1 && [ -f "$meta" ]; then tmp="$(mktemp -d)"; trap "rm -rf \\"$tmp\\"" EXIT; get_meta "$gh_url" "$tmp/hdr" > "$tmp/meta.new" 2>/dev/null || true; if [ -s "$tmp/meta.new" ] && cmp -s "$tmp/meta.new" "$meta"; then need_dl=0; fi; rm -rf "$tmp"; trap - EXIT; else need_dl=0; fi; fi; [ "${FORCE:-0}" = "1" ] && need_dl=1; if [ "$need_dl" = 1 ]; then tmp="$(mktemp -d)"; trap "rm -rf \\"$tmp\\"" EXIT; ok=0; for url in "${urls[@]}"; do echo "下载: $url"; if command -v curl >/dev/null 2>&1; then if curl -4 -fL --connect-timeout 10 --max-time 600 --speed-time 20 --speed-limit 1024 --retry 3 --retry-delay 1 --retry-all-errors "$url" -o "$tmp/$asset"; then tar -tzf "$tmp/$asset" >/dev/null; mv -f "$tmp/$asset" "$pkg"; get_meta "$gh_url" "$tmp/hdr2" > "$meta" 2>/dev/null || printf "url=%s\\netag=\\n" "$url" > "$meta"; ok=1; break; fi; else if wget -4 -nv --timeout=20 --tries=3 "$url" -O "$tmp/$asset"; then tar -tzf "$tmp/$asset" >/dev/null; mv -f "$tmp/$asset" "$pkg"; printf "url=%s\\netag=\\n" "$url" > "$meta"; ok=1; break; fi; fi; done; [ "$ok" = 1 ]; rm -rf "$tmp"; trap - EXIT; fi; tmp="$(mktemp -d)"; trap "rm -rf \\"$tmp\\"" EXIT; tar -xzf "$pkg" -C "$tmp"; raw="https://raw.githubusercontent.com/$repo/cc-switch-cli/install-ccs.sh"; raw_urls=("$raw" "https://mirror.ghproxy.com/$raw" "https://ghproxy.com/$raw"); ok=0; for url in "${raw_urls[@]}"; do echo "获取最新 install-ccs.sh: $url"; if command -v curl >/dev/null 2>&1; then if curl -4 -fL --connect-timeout 10 --max-time 120 --retry 3 --retry-delay 1 --retry-all-errors "$url" -o "$tmp/install-ccs.sh"; then ok=1; break; fi; else if wget -4 -nv --timeout=20 --tries=3 "$url" -O "$tmp/install-ccs.sh"; then ok=1; break; fi; fi; done; [ "$ok" = 1 ]; chmod +x "$tmp/install-ccs.sh"; bash "$tmp/install-ccs.sh" --prebuilt "$tmp/cc-switch"'
+bash -lc 'set -euo pipefail; repo="Aaroen/cc-switch-cli"; arch="$(uname -m)"; case "$arch" in x86_64|amd64) asset="cc-switch-cli-linux-x86_64.tar.gz" ;; aarch64|arm64) asset="cc-switch-cli-linux-arm64.tar.gz" ;; *) echo "暂不支持的架构: $arch" >&2; exit 1 ;; esac; tag="${TAG:-latest}"; cache_root="${CACHE_DIR:-$HOME/.cc-switch/.cache/prebuilt}"; cache="$cache_root/$tag"; mkdir -p "$cache"; if [ "$tag" = "latest" ]; then gh_url="https://github.com/$repo/releases/latest/download/$asset"; else gh_url="https://github.com/$repo/releases/download/$tag/$asset"; fi; urls=("$gh_url" "https://mirror.ghproxy.com/$gh_url" "https://ghproxy.com/$gh_url"); meta="$cache/meta.txt"; pkg="$cache/$asset"; get_meta(){ local url="$1"; local hdr="$2"; local eff; local etag; eff="$(curl -4fsSLI -D "$hdr" -o /dev/null -w "%{url_effective}" "$url")"; etag="$(grep -i "^etag:" "$hdr" | tail -n1 | sed -E "s/^etag:[[:space:]]*//I; s/\\r//g; s/\\\"//g")"; printf "url=%s\\netag=%s\\n" "$eff" "$etag"; }; need_dl=1; if [ -f "$pkg" ]; then if command -v curl >/dev/null 2>&1 && [ -f "$meta" ]; then tmp="$(mktemp -d)"; trap "rm -rf \\"$tmp\\"" EXIT; get_meta "$gh_url" "$tmp/hdr" > "$tmp/meta.new" 2>/dev/null || true; if [ -s "$tmp/meta.new" ] && cmp -s "$tmp/meta.new" "$meta"; then need_dl=0; fi; rm -rf "$tmp"; trap - EXIT; else need_dl=0; fi; fi; [ "${FORCE:-0}" = "1" ] && need_dl=1; if [ "$need_dl" = 1 ]; then tmp="$(mktemp -d)"; trap "rm -rf \\"$tmp\\"" EXIT; ok=0; for url in "${urls[@]}"; do echo "下载: $url"; if command -v curl >/dev/null 2>&1; then if curl -4 -fL --connect-timeout 10 --max-time 600 --speed-time 20 --speed-limit 1024 --retry 3 --retry-delay 1 --retry-all-errors "$url" -o "$tmp/$asset"; then tar -tzf "$tmp/$asset" >/dev/null; mv -f "$tmp/$asset" "$pkg"; get_meta "$gh_url" "$tmp/hdr2" > "$meta" 2>/dev/null || printf "url=%s\\netag=\\n" "$url" > "$meta"; ok=1; break; fi; else if wget -4 -nv --timeout=20 --tries=3 "$url" -O "$tmp/$asset"; then tar -tzf "$tmp/$asset" >/dev/null; mv -f "$tmp/$asset" "$pkg"; printf "url=%s\\netag=\\n" "$url" > "$meta"; ok=1; break; fi; fi; done; [ "$ok" = 1 ]; rm -rf "$tmp"; trap - EXIT; fi; tmp="$(mktemp -d)"; trap "rm -rf \\"$tmp\\"" EXIT; tar -xzf "$pkg" -C "$tmp"; raw="https://raw.githubusercontent.com/$repo/cc-switch-cli/install-ccs.sh"; raw_urls=("$raw" "https://mirror.ghproxy.com/$raw" "https://ghproxy.com/$raw"); ok=0; for url in "${raw_urls[@]}"; do echo "获取最新 install-ccs.sh: $url"; if command -v curl >/dev/null 2>&1; then if curl -4 -fL --connect-timeout 10 --max-time 120 --retry 3 --retry-delay 1 --retry-all-errors "$url" -o "$tmp/install-ccs.sh"; then ok=1; break; fi; else if wget -4 -nv --timeout=20 --tries=3 "$url" -O "$tmp/install-ccs.sh"; then ok=1; break; fi; fi; done; [ "$ok" = 1 ]; chmod +x "$tmp/install-ccs.sh"; bash "$tmp/install-ccs.sh" --prebuilt "$tmp/cc-switch"'
 ```
 
 说明：
 
-- 该命令依赖 Releases 中存在 `cc-switch-cli-linux-x86_64.tar.gz` 资产（包含 `install-ccs.sh` 与 `cc-switch` 二进制）。
+- 该命令依赖 Releases 中存在 `cc-switch-cli-linux-x86_64.tar.gz` 或 `cc-switch-cli-linux-arm64.tar.gz` 资产，压缩包内包含 `install-ccs.sh`、`cc-switch`、`cc-switch-cli` 与 `ccs/csc` 兼容入口。
 - 如 `latest` 暂不可用，可指定版本：`TAG=v3.11.2`（示例）后再运行上面的一行命令。
 - 默认会将下载的 Release 资产缓存到 `~/.cc-switch/.cache/prebuilt/<TAG>/`；如需强制重新下载：`FORCE=1`。
 - 为避免历史脚本导致 `~/.bashrc` 重复写入等问题，本命令会额外拉取仓库分支 `cc-switch-cli` 的最新版 `install-ccs.sh` 覆盖执行（不需要重新编译）。
 - 默认以 CLI 模式部署（无头 server），并自动处理端口占用（必要时自动换端口）。
 - 如需 GUI 模式（会启动 Tauri 界面）：使用 Git 版本并执行 `bash "$HOME/cc-switch-cli/install-ccs.sh" --gui`。
+- macOS/Windows 用户可直接从 Releases 下载对应 GUI 安装包或 CLI 终端包，无需本机编译。
 
 清理缓存（下次会重新下载）：
 
