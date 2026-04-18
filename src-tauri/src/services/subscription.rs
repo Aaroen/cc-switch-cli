@@ -725,6 +725,8 @@ struct GeminiOAuthCredsFile {
     access_token: Option<String>,
     refresh_token: Option<String>,
     expiry_date: Option<i64>, // 毫秒时间戳
+    client_id: Option<String>,
+    client_secret: Option<String>,
 }
 
 /// (access_token, refresh_token, status, message)
@@ -918,23 +920,65 @@ fn parse_gemini_file_json(content: &str) -> GeminiCredentials {
 
 // ── Gemini Token 刷新 ──────────────────────────────────────
 
-/// Gemini OAuth Client 凭据（公开值，来自 Gemini CLI 源码 google-gemini/gemini-cli）
-const GEMINI_OAUTH_CLIENT_ID: &str =
-    "681255809395-oo8ft2oprdrnp9e3aqf6av3hmdib135j.apps.googleusercontent.com";
-const GEMINI_OAUTH_CLIENT_SECRET: &str = "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";
+fn non_empty_env_var(names: &[&str]) -> Option<String> {
+    names.iter().find_map(|name| {
+        std::env::var(name)
+            .ok()
+            .map(|value| value.trim().to_string())
+            .filter(|value| !value.is_empty())
+    })
+}
+
+fn extract_gemini_refresh_client_credentials(
+    creds: &GeminiOAuthCredsFile,
+) -> Option<(String, String)> {
+    let client_id = creds.client_id.as_deref()?.trim();
+    let client_secret = creds.client_secret.as_deref()?.trim();
+
+    if client_id.is_empty() || client_secret.is_empty() {
+        return None;
+    }
+
+    Some((client_id.to_string(), client_secret.to_string()))
+}
+
+fn read_gemini_refresh_client_credentials_from_file() -> Option<(String, String)> {
+    let cred_path = crate::gemini_config::get_gemini_dir().join("oauth_creds.json");
+    let content = std::fs::read_to_string(cred_path).ok()?;
+    let creds = serde_json::from_str::<GeminiOAuthCredsFile>(&content).ok()?;
+    extract_gemini_refresh_client_credentials(&creds)
+}
+
+fn read_gemini_refresh_client_credentials() -> Option<(String, String)> {
+    let client_id =
+        non_empty_env_var(&["CC_SWITCH_GEMINI_OAUTH_CLIENT_ID", "GEMINI_OAUTH_CLIENT_ID"]);
+    let client_secret = non_empty_env_var(&[
+        "CC_SWITCH_GEMINI_OAUTH_CLIENT_SECRET",
+        "GEMINI_OAUTH_CLIENT_SECRET",
+    ]);
+
+    match (client_id, client_secret) {
+        (Some(client_id), Some(client_secret)) => Some((client_id, client_secret)),
+        _ => read_gemini_refresh_client_credentials_from_file(),
+    }
+}
 
 /// 使用 refresh_token 刷新 Gemini access token
 ///
 /// Google OAuth access_token 仅有 ~1h 有效期，需要定期用 refresh_token 刷新。
 /// refresh_token 本身不过期（除非用户撤销授权）。
-async fn refresh_gemini_token(refresh_token: &str) -> Option<String> {
+async fn refresh_gemini_token(
+    refresh_token: &str,
+    client_id: &str,
+    client_secret: &str,
+) -> Option<String> {
     let client = crate::proxy::http_client::get();
 
     let resp = client
         .post("https://oauth2.googleapis.com/token")
         .form(&[
-            ("client_id", GEMINI_OAUTH_CLIENT_ID),
-            ("client_secret", GEMINI_OAUTH_CLIENT_SECRET),
+            ("client_id", client_id),
+            ("client_secret", client_secret),
             ("refresh_token", refresh_token),
             ("grant_type", "refresh_token"),
         ])
@@ -1271,8 +1315,13 @@ pub async fn get_subscription_quota(tool: &str) -> Result<SubscriptionQuota, Str
                 )),
                 CredentialStatus::Expired => {
                     // Gemini access_token 仅 ~1h 有效，尝试用 refresh_token 刷新
-                    if let Some(ref rt) = refresh_token {
-                        if let Some(new_token) = refresh_gemini_token(rt).await {
+                    if let (Some(rt), Some((client_id, client_secret))) = (
+                        refresh_token.as_deref(),
+                        read_gemini_refresh_client_credentials(),
+                    ) {
+                        if let Some(new_token) =
+                            refresh_gemini_token(rt, &client_id, &client_secret).await
+                        {
                             return Ok(query_gemini_quota(&new_token).await);
                         }
                     }
@@ -1306,4 +1355,48 @@ fn now_millis() -> i64 {
         .duration_since(UNIX_EPOCH)
         .unwrap_or_default()
         .as_millis() as i64
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{extract_gemini_refresh_client_credentials, GeminiOAuthCredsFile};
+
+    #[test]
+    fn extract_gemini_refresh_client_credentials_requires_both_fields() {
+        let complete = GeminiOAuthCredsFile {
+            access_token: None,
+            refresh_token: None,
+            expiry_date: None,
+            client_id: Some("cid".to_string()),
+            client_secret: Some("secret".to_string()),
+        };
+        assert_eq!(
+            extract_gemini_refresh_client_credentials(&complete),
+            Some(("cid".to_string(), "secret".to_string()))
+        );
+
+        let missing_secret = GeminiOAuthCredsFile {
+            access_token: None,
+            refresh_token: None,
+            expiry_date: None,
+            client_id: Some("cid".to_string()),
+            client_secret: None,
+        };
+        assert_eq!(
+            extract_gemini_refresh_client_credentials(&missing_secret),
+            None
+        );
+
+        let blank_values = GeminiOAuthCredsFile {
+            access_token: None,
+            refresh_token: None,
+            expiry_date: None,
+            client_id: Some(" ".to_string()),
+            client_secret: Some("secret".to_string()),
+        };
+        assert_eq!(
+            extract_gemini_refresh_client_credentials(&blank_values),
+            None
+        );
+    }
 }
