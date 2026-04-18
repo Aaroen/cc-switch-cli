@@ -45,7 +45,7 @@ bash -lc 'set -euo pipefail; repo="Aaroen/cc-switch-cli"; arch="$(uname -m)"; ca
 说明：
 
 - 该命令依赖 Releases 中存在 `cc-switch-cli-linux-x86_64.tar.gz` 或 `cc-switch-cli-linux-arm64.tar.gz` 资产，压缩包内包含 `install-ccs.sh`、`cc-switch`、`cc-switch-cli` 与 `ccs/csc` 兼容入口。
-- 如 `latest` 暂不可用，可指定版本：`TAG=v3.11.3`（示例）后再运行上面的一行命令。
+- 如 `latest` 暂不可用，可指定版本：`TAG=v3.11.4`（示例）后再运行上面的一行命令。
 - 默认会将下载的 Release 资产缓存到 `~/.cc-switch/.cache/prebuilt/<TAG>/`；如需强制重新下载：`FORCE=1`。
 - 为避免历史脚本导致 `~/.bashrc` 重复写入等问题，本命令会额外拉取仓库分支 `cc-switch-cli` 的最新版 `install-ccs.sh` 覆盖执行（不需要重新编译）。
 - 默认以 CLI 模式部署（无头 server），并自动处理端口占用（必要时自动换端口）。
