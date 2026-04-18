@@ -38,7 +38,15 @@
     "reset": "Reset",
     "actions": "Actions",
     "deleting": "Deleting...",
-    "auto": "Auto"
+    "auto": "Auto",
+    "enabled": "Enabled",
+    "notSet": "Not Set"
+  },
+  "firstRunNotice": {
+    "title": "Welcome to CC Switch",
+    "bodyDefault": "CC Switch lets you switch between multiple Claude Code / Codex / Gemini CLI providers with a single click. If you already had these tools configured, CC Switch has saved your existing setup as a provider named “default” so none of your previous configuration is lost.",
+    "bodyOfficial": "An “Official” preset is also included in the list — click it any time you want to switch back to the official default. CC Switch automatically backs up your current config to “default” before switching, so you can move back and forth freely. That's how CC Switch works 😊",
+    "confirm": "Got it"
   },
   "apiKeyInput": {
     "placeholder": "Enter API Key",
@@ -48,6 +56,15 @@
   "jsonEditor": {
     "mustBeObject": "Configuration must be a JSON object, not an array or other type",
     "invalidJson": "Invalid JSON format"
+  },
+  "commonConfig": {
+    "guideTitle": "What is a Common Config Snippet?",
+    "guidePurpose": "It lets you share non-sensitive settings (plugins, environment variables, etc.) across different providers. These settings won't be lost when you switch providers.",
+    "guideUsage": "How to use: ① Click \"Extract from Editor\" to save the common parts  ② Check \"Write Common Config\" when creating a new provider",
+    "guideReExtract": "If you've newly installed plugins or hooks, re-extract the common config so they sync to other providers.",
+    "guideReassurance": "Don't worry — your original configuration is safely stored in the default provider and won't be lost.",
+    "emptyTitle": "No common config snippet yet",
+    "emptyHint": "Click \"Extract from Editor\" below to extract reusable parts from your current configuration"
   },
   "claudeConfig": {
     "configLabel": "Claude Code settings.json (JSON) *",
@@ -61,8 +78,10 @@
     "extractFailed": "Extract failed: {{error}}",
     "saveFailed": "Save failed: {{error}}",
     "hideAttribution": "Hide AI Attribution",
-    "alwaysThinking": "Extended Thinking",
-    "enableTeammates": "Teammates Mode"
+    "enableTeammates": "Teammates Mode",
+    "enableToolSearch": "Enable Tool Search",
+    "effortHigh": "High Effort Thinking",
+    "disableAutoUpgrade": "Disable Auto-Upgrade"
   },
   "header": {
     "viewOnGithub": "View on GitHub",
@@ -72,18 +91,24 @@
     "switchToChinese": "Switch to Chinese",
     "switchToEnglish": "Switch to English",
     "enterEditMode": "Enter Edit Mode",
-    "exitEditMode": "Exit Edit Mode"
+    "exitEditMode": "Exit Edit Mode",
+    "windowMinimize": "Minimize window",
+    "windowMaximize": "Maximize window",
+    "windowRestore": "Restore window",
+    "windowClose": "Close window"
   },
   "provider": {
     "tabProvider": "Provider",
     "tabUniversal": "Universal",
     "noProviders": "No providers added yet",
-    "noProvidersDescription": "Import your current live config below, or manually add a new provider",
+    "noProvidersDescription": "If you already have a config, click \"Import Current Config\" — all data will be safely saved in a default provider",
+    "noProvidersDescriptionSnippet": "Settings other than API key and endpoint (e.g. plugins) will be saved to a common config snippet for sharing across providers",
     "importCurrent": "Import Current Config",
     "importCurrentDescription": "Import current live config as default provider",
     "currentlyUsing": "Currently Using",
     "enable": "Enable",
     "inUse": "In Use",
+    "blockedByProxy": "Blocked",
     "editProvider": "Edit Provider",
     "editProviderHint": "Configuration will be applied to the current provider immediately after update.",
     "deleteProvider": "Delete Provider",
@@ -169,13 +194,22 @@
     "deleteFailed": "Failed to delete provider: {{error}}",
     "settingsSaved": "Settings saved",
     "settingsSaveFailed": "Failed to save settings: {{error}}",
-    "openAIChatFormatHint": "This provider uses OpenAI Chat format and requires the proxy service to be enabled",
+    "proxyRequiredForSwitch": "This provider {{reason}}, requires the routing service to work properly. Start routing first.",
+    "proxyReasonCopilot": "uses GitHub Copilot as a Claude provider",
+    "proxyReasonOpenAIChat": "uses OpenAI Chat API format",
+    "proxyReasonOpenAIResponses": "uses OpenAI Responses API format",
+    "proxyReasonFullUrl": "has full URL connection mode enabled",
+    "openAIFormatHint": "This provider uses OpenAI-compatible format and requires the routing service to be enabled",
+    "copilotProxyHint": "GitHub Copilot as a Claude provider always requires local routing; routing automatically selects Chat Completions or Responses based on the current model.",
     "openLinkFailed": "Failed to open link",
     "openclawModelsRegistered": "Models have been registered to /model list",
     "openclawDefaultModelSet": "Set as default model",
     "openclawDefaultModelSetFailed": "Failed to set default model",
     "openclawNoModels": "No models configured",
-    "backfillWarning": "Switched successfully, but failed to save changes back to the previous provider"
+    "backfillWarning": "Switched successfully, but failed to save changes back to the previous provider",
+    "windowControlFailed": "Window control failed: {{error}}",
+    "officialBlockedByProxy": "Cannot switch to official provider while local routing is active. Using routing with official APIs may cause account bans.",
+    "proxyOfficialWarning": "Current provider {{name}} is official. Consider switching to a third-party provider before using local routing."
   },
   "confirm": {
     "deleteProvider": "Delete Provider",
@@ -183,8 +217,13 @@
     "removeProvider": "Remove Provider",
     "removeProviderMessage": "Are you sure you want to remove provider \"{{name}}\" from the configuration?\n\nAfter removal, this provider will no longer be active, but the configuration data will be retained in CC Switch. You can re-add it at any time.",
     "proxy": {
-      "title": "Enable Local Proxy",
-      "message": "Local proxy is an advanced feature. Please make sure you understand how it works before enabling.\n\nWe recommend consulting the relevant documentation or your provider for proper configuration.",
+      "title": "Enable Local Routing",
+      "message": "Local routing is an advanced feature. Please make sure you understand how it works before enabling.\n\nWe recommend consulting the relevant documentation or your provider for proper configuration.",
+      "confirm": "I understand, enable"
+    },
+    "failover": {
+      "title": "Enable Failover",
+      "message": "Failover is an advanced feature. Please make sure you understand how it works before enabling.\n\nWe recommend configuring provider priorities in the failover queue first.",
       "confirm": "I understand, enable"
     },
     "usage": {
@@ -196,24 +235,44 @@
       "title": "Model Health Check",
       "message": "Health check tests provider connectivity by sending a direct API request. The following may cause check failures:\n\n• Official providers (uses OAuth login, no standalone API Key)\n• Some relay services (verify requests come from Claude Code CLI)\n• AWS Bedrock (uses IAM signature authentication)\n\nA failed check does not mean the provider is unusable — it only means it cannot be verified via a standalone request. Please refer to actual behavior within the application.",
       "confirm": "I understand, proceed"
+    },
+    "autoSync": {
+      "title": "Enable Auto Sync",
+      "message": "When auto sync is enabled, every database change will be automatically uploaded to the WebDAV server.\n\nThis may result in significant network traffic. Please ensure your network and WebDAV service can handle frequent data transfers.",
+      "confirm": "I understand, enable"
+    },
+    "commonConfig": {
+      "title": "About Common Config",
+      "message": "The \"Common Config Snippet\" lets you share plugins, environment variables, and other settings across different providers — so they won't be lost when you switch.\n\nHow to use:\n① Edit a provider → click \"Edit Common Config\" → \"Extract from Editor\"\n② When creating a new provider, check \"Write Common Config\" (enabled by default)\n\nIf you've newly installed plugins or hooks, re-extract the common config to keep them in sync.",
+      "confirm": "Got it"
     }
   },
   "settings": {
     "title": "Settings",
     "general": "General",
     "tabGeneral": "General",
+    "tabAuth": "Auth",
     "tabAdvanced": "Advanced",
-    "tabProxy": "Proxy",
+    "tabProxy": "Routing",
+    "authCenter": {
+      "title": "OAuth Authentication Center",
+      "description": "Use your other subscriptions in Claude Code — please be mindful of compliance risks.",
+      "beta": "Beta",
+      "copilotDescription": "Manage GitHub Copilot accounts",
+      "codexOauthDescription": "Manage ChatGPT accounts"
+    },
     "advanced": {
       "configDir": {
         "title": "Configuration Directory",
         "description": "Manage storage paths for Claude, Codex and Gemini configurations"
       },
       "proxy": {
-        "title": "Local Proxy",
-        "description": "Control proxy service toggle, view status and port info",
-        "enableFeature": "Show Proxy Toggle on Main Page",
-        "enableFeatureDescription": "When enabled, the proxy and failover toggles will appear at the top of the main page",
+        "title": "Local Routing",
+        "description": "Control routing service toggle, view status and port info",
+        "enableFeature": "Show Routing Toggle on Main Page",
+        "enableFeatureDescription": "When enabled, the routing and failover toggles will appear at the top of the main page",
+        "enableFailoverToggle": "Show Failover Toggle on Main Page",
+        "enableFailoverToggleDescription": "When enabled, the failover toggle will appear independently at the top of the main page",
         "running": "Running",
         "stopped": "Stopped"
       },
@@ -256,6 +315,18 @@
         "thinkingSignatureDescription": "When an Anthropic-type provider returns thinking signature incompatibility or illegal request errors, automatically removes incompatible thinking-related blocks and retries once with the same provider",
         "thinkingBudget": "Thinking Budget Rectification",
         "thinkingBudgetDescription": "When an Anthropic-type provider returns budget_tokens constraint errors (such as at least 1024), automatically normalizes thinking to enabled, sets thinking budget to 32000, and raises max_tokens to 64000 if needed, then retries once"
+      },
+      "optimizer": {
+        "title": "Bedrock Request Optimizer",
+        "description": "Automatically optimize Thinking and Cache configuration before sending requests (only applies to Bedrock providers)",
+        "enabled": "Enable Optimizer",
+        "thinkingOptimizer": "Thinking Optimization",
+        "thinkingOptimizerDescription": "Automatically enable Adaptive Thinking for Opus/Sonnet, and inject Extended Thinking for legacy models",
+        "cacheInjection": "Cache Injection",
+        "cacheInjectionDescription": "Automatically inject cache breakpoints at key positions in requests to reduce duplicate token billing",
+        "cacheTtl": "Cache TTL",
+        "cacheTtl5m": "5 minutes",
+        "cacheTtl1h": "1 hour"
       },
       "logConfig": {
         "title": "Log Management",
@@ -384,7 +455,7 @@
       "saveAndTestSuccess": "Config saved, connection OK",
       "saveAndTestFailed": "Config saved, but connection test failed: {{error}}",
       "noRemoteData": "No sync data found on the remote server",
-      "incompatibleVersion": "Remote data version incompatible (v{{version}}), current supports v2",
+      "incompatibleVersion": "Remote data is incompatible (protocol v{{protocolVersion}}, database {{dbCompatVersion}}). This client supports protocol v2 / db-v6.",
       "unsaved": "Unsaved",
       "saved": "Saved",
       "unsavedChanges": "Please save config first",
@@ -395,7 +466,10 @@
         "title": "Restore from Cloud",
         "deviceName": "Uploaded by",
         "createdAt": "Uploaded at",
+        "path": "Remote path",
+        "dbCompat": "DB compatibility",
         "artifacts": "Contents",
+        "legacyNotice": "A legacy remote path was detected. After restoring, the next upload will write to the new v2/db-v6 path.",
         "warning": "This will overwrite all local data and skill configurations",
         "confirm": "Confirm Restore"
       },
@@ -408,7 +482,10 @@
         "existingData": "Existing cloud data",
         "deviceName": "Uploaded by",
         "createdAt": "Uploaded at",
+        "path": "Remote path",
+        "dbCompat": "DB compatibility",
         "warning": "This will overwrite existing sync data on the remote server",
+        "legacyNotice": "Legacy remote data was detected. This upload will write to the new v2/db-v6 path and will not overwrite the legacy path.",
         "confirm": "Confirm Upload"
       }
     },
@@ -425,6 +502,8 @@
     "autoLaunchFailed": "Failed to set auto-launch",
     "minimizeToTray": "Minimize to tray on close",
     "minimizeToTrayDescription": "When checked, clicking the close button will hide to system tray, otherwise the app will exit directly.",
+    "useAppWindowControls": "Enable app-level window controls",
+    "useAppWindowControlsDescription": "Use built-in minimize, maximize/restore, and close buttons in the app header.",
     "enableClaudePluginIntegration": "Apply to Claude Code extension",
     "enableClaudePluginIntegrationDescription": "When enabled, the VS Code Claude Code extension provider will switch with this app",
     "skipClaudeOnboarding": "Skip Claude Code first-run confirmation",
@@ -436,6 +515,18 @@
       "codexDesc": "OpenAI Codex CLI",
       "geminiDesc": "Google Gemini CLI",
       "opencodeDesc": "OpenCode CLI"
+    },
+    "skillStorage": {
+      "title": "Skill Storage Location",
+      "description": "Choose where CC Switch stores the master copies of your skills",
+      "ccSwitch": "CC Switch",
+      "unified": "~/.agents/skills",
+      "ccSwitchHint": "Skills are stored in ~/.cc-switch/skills/ and synced to each app via symlink or copy.",
+      "unifiedHint": "Skills are stored in ~/.agents/skills/, the Agent Skills open standard. Compatible tools (Claude Code, Codex, Gemini CLI, etc.) discover skills here natively.",
+      "confirmTitle": "Migrate Skill Storage",
+      "confirmMessage": "{{count}} skill(s) will be moved to the new location. Continue?",
+      "migrationSuccess": "Successfully migrated {{count}} skill(s)",
+      "migrationPartial": "Migrated {{migrated}} skill(s), {{errors}} error(s). Check logs for details."
     },
     "skillSync": {
       "title": "Skill Sync Method",
@@ -455,7 +546,8 @@
           "alacritty": "Alacritty",
           "kitty": "Kitty",
           "ghostty": "Ghostty",
-          "wezterm": "WezTerm"
+          "wezterm": "WezTerm",
+          "kaku": "Kaku"
         },
         "windows": {
           "cmd": "Command Prompt",
@@ -530,7 +622,7 @@
     "saving": "Saving...",
     "globalProxy": {
       "label": "Global Proxy",
-      "hint": "Proxy all requests (API, Skills download, etc.). Leave empty for direct connection.",
+      "hint": "Proxy all requests (API, Skills download, etc.). When local routing is enabled, app traffic is also routed through this proxy. Leave empty for direct connection.",
       "username": "Username (optional)",
       "password": "Password (optional)",
       "test": "Test Connection",
@@ -555,7 +647,8 @@
       "pricingLoadFailed": "Failed to load pricing defaults: {{error}}",
       "defaultCostMultiplierRequired": "Default multiplier is required",
       "defaultCostMultiplierInvalid": "Invalid multiplier format"
-    }
+    },
+    "saveFailedGeneric": "Save failed, please try again"
   },
   "apps": {
     "claude": "Claude",
@@ -571,6 +664,16 @@
     "searchSessions": "Search sessions",
     "providerFilterAll": "All",
     "sessionList": "Sessions",
+    "manageBatchTooltip": "Enter batch management",
+    "exitBatchModeTooltip": "Exit batch management",
+    "batchModeHint": "Select sessions to delete",
+    "selectForBatch": "Select session",
+    "selectedCount": "{{count}} selected",
+    "selectAllFiltered": "Select all",
+    "clearFilteredSelection": "Clear selection",
+    "clearSelection": "Clear",
+    "deleteSelected": "Delete",
+    "batchDeleting": "Deleting...",
     "loadingSessions": "Loading sessions...",
     "noSessions": "No sessions found",
     "selectSession": "Select a session to view details",
@@ -591,6 +694,20 @@
     "projectDirCopied": "Directory copied",
     "copySourcePath": "Copy source file",
     "sourcePathCopied": "Source file copied",
+    "delete": "Delete session",
+    "deleting": "Deleting...",
+    "deleteTooltip": "Permanently delete this local session record",
+    "deleteConfirmTitle": "Delete session",
+    "deleteConfirmMessage": "This will permanently delete the local session \"{{title}}\"\nSession ID: {{sessionId}}\n\nThis action cannot be undone.",
+    "deleteConfirmAction": "Delete session",
+    "sessionDeleted": "Session deleted",
+    "deleteFailed": "Failed to delete session: {{error}}",
+    "batchDeleteConfirmTitle": "Delete selected sessions",
+    "batchDeleteConfirmMessage": "This will permanently delete {{count}} selected local sessions.\n\nThis action cannot be undone.",
+    "batchDeleteConfirmAction": "Delete selected",
+    "batchDeleteSuccess": "Deleted {{count}} sessions",
+    "batchDeleteFailed": "{{failed}} sessions could not be deleted",
+    "batchDeleteRequestFailed": "Batch delete failed. Please try again later.",
     "loadingMessages": "Loading transcript...",
     "emptySession": "No messages available",
     "clickToCopyPath": "Click to copy path",
@@ -601,7 +718,16 @@
     "daysAgo": "{{count}} days ago",
     "roleUser": "User",
     "roleSystem": "System",
-    "roleTool": "Tool"
+    "roleTool": "Tool",
+    "resume": "Resume Session",
+    "resumeTooltip": "Resume this session in terminal",
+    "noResumeCommand": "This session cannot be resumed",
+    "copyCommand": "Copy Command",
+    "copyMessage": "Copy Message",
+    "messageCopied": "Message copied",
+    "conversationHistory": "Conversation History",
+    "expandContent": "Expand full content",
+    "collapseContent": "Collapse"
   },
   "console": {
     "providerSwitchReceived": "Received provider switch event:",
@@ -641,7 +767,7 @@
     "aggregatorApiKeyHint": "💡 Only need to fill in API Key, endpoint is preset",
     "thirdPartyApiKeyHint": "💡 Only need to fill in API Key, endpoint is preset",
     "customApiKeyHint": "💡 Custom configuration requires manually filling all necessary fields",
-    "omoHint": "💡 OMO config manages Agent model assignments and writes to oh-my-opencode.jsonc",
+    "omoHint": "💡 OMO config manages Agent model assignments and supports both oh-my-openagent.jsonc and oh-my-opencode.jsonc",
     "officialHint": "💡 Official provider uses browser login, no API Key needed",
     "getApiKey": "Get API Key",
     "partnerPromotion": {
@@ -655,7 +781,17 @@
       "aicodemirror": "AICodeMirror is an official partner of CC Switch. Register using this link to get 20% off!",
       "aicoding": "AI Coding offers an exclusive discount for CC Switch users — 10% off your first top-up!",
       "crazyrouter": "CrazyRouter offers an exclusive bonus for CC Switch users — 30% extra credit on your first top-up!",
-      "sssaicode": "SSAI Code offers an exclusive bonus for CC Switch users — $10 extra credit on every top-up!"
+      "sssaicode": "SSAI Code offers an exclusive bonus for CC Switch users — $10 extra credit on every top-up!",
+      "siliconflow": "SiliconFlow is an official partner of CC Switch",
+      "ucloud": "Compshare offers an exclusive bonus for CC Switch users — register via this link to get ¥5 platform trial credit!",
+      "micu": "Micu is an official partner of CC Switch",
+      "ctok": "Join the CTok community on the official website and subscribe to a plan.",
+      "ddshub": "DDSHub offers a special bonus for CC Switch users — register via this link and get 10% extra credit on your first top-up (contact group admin to claim)!",
+      "lionccapi": "LionCCAPI offers exclusive benefits for CC Switch users. After registration, add WeChat HSQBJ088888888 and mention 'cc-switch' to receive $10 free credits!",
+      "shengsuanyun": "Shengsuanyun offers exclusive benefits for CC Switch users. New users who register via this link get ¥10 free credits and 10% bonus on first top-up!"
+    },
+    "presets": {
+      "ucloud": "Compshare"
     },
     "parameterConfig": "Parameter Config - {{name}} *",
     "mainModel": "Main Model (optional)",
@@ -665,6 +801,7 @@
     "modelHint": "💡 Leave blank to use provider's default model",
     "apiHint": "💡 Fill in Claude API compatible service endpoint, avoid trailing slash",
     "apiHintOAI": "💡 Fill in OpenAI Chat Completions compatible service endpoint, avoid trailing slash",
+    "apiHintGeminiNative": "💡 Prefer a Gemini Native base URL such as https://generativelanguage.googleapis.com or https://generativelanguage.googleapis.com/v1beta; the proxy will append models/*:generateContent automatically",
     "codexApiHint": "💡 Fill in service endpoint compatible with OpenAI Response format",
     "fillSupplierName": "Please fill in provider name",
     "fillConfigContent": "Please fill in configuration content",
@@ -683,8 +820,20 @@
     "anthropicReasoningModel": "Reasoning Model (Thinking)",
     "apiFormat": "API Format",
     "apiFormatHint": "Select the input format for the provider's API",
+    "fullUrlLabel": "Full URL",
+    "fullUrlEnabled": "Full URL Mode",
+    "fullUrlDisabled": "Mark as Full URL",
+    "fullUrlHint": "💡 Enter the full request URL. This mode requires routing to be enabled, and routing will use the URL as-is without appending a path",
+    "fullUrlHintGeminiNative": "💡 In Gemini Native full URL mode, two inputs are supported: 1. official/structured Gemini URLs, which will still be normalized to the requested model and streaming method; 2. opaque custom relay URLs, which will be used mostly as-is with only query parameters appended",
     "apiFormatAnthropic": "Anthropic Messages (Native)",
-    "apiFormatOpenAIChat": "OpenAI Chat Completions (Requires proxy)",
+    "apiFormatOpenAIChat": "OpenAI Chat Completions (Requires routing)",
+    "apiFormatOpenAIResponses": "OpenAI Responses API (Requires routing)",
+    "apiFormatGeminiNative": "Gemini Native generateContent (Requires routing)",
+    "authField": "Auth Field",
+    "authFieldAuthToken": "ANTHROPIC_AUTH_TOKEN (Default)",
+    "authFieldApiKey": "ANTHROPIC_API_KEY",
+    "authFieldHint": "Select the authentication env variable name for the config",
+    "apiHintResponses": "💡 Fill in OpenAI Responses API compatible service endpoint, avoid trailing slash",
     "anthropicDefaultHaikuModel": "Default Haiku Model",
     "anthropicDefaultSonnetModel": "Default Sonnet Model",
     "anthropicDefaultOpusModel": "Default Opus Model",
@@ -692,10 +841,76 @@
     "smallModelPlaceholder": "",
     "haikuModelPlaceholder": "",
     "modelHelper": "Optional: Specify default Claude model to use, leave blank to use system default.",
+    "modelMappingLabel": "Model Mapping",
+    "modelMappingHint": "Usually not needed if the provider natively serves Claude models. Only configure when you need to map requests to different model names.",
+    "advancedOptionsToggle": "Advanced Options",
+    "advancedOptionsHint": "Includes API format, auth field, and model mapping. Defaults work for most use cases.",
     "categoryOfficial": "Official",
     "categoryCnOfficial": "Opensource Official",
     "categoryAggregation": "Aggregation",
-    "categoryThirdParty": "Third Party"
+    "categoryThirdParty": "Third Party",
+    "fetchModels": "Fetch Models",
+    "fetchingModels": "Fetching...",
+    "fetchModelsSuccess": "Found {{count}} models",
+    "fetchModelsFailed": "Failed to fetch models",
+    "fetchModelsEmpty": "No models found",
+    "fetchModelsNeedApiKey": "Please fill in API Key first",
+    "fetchModelsNeedEndpoint": "Please fill in API endpoint first",
+    "fetchModelsNeedConfig": "Please fill in API endpoint and API Key first",
+    "fetchModelsAuthFailed": "API Key is invalid or lacks permission",
+    "fetchModelsNotSupported": "This provider does not support fetching model list",
+    "fetchModelsTimeout": "Request timed out, please check network connection"
+  },
+  "copilot": {
+    "authSection": "GitHub Copilot Authentication",
+    "authStatus": "Authentication Status",
+    "authenticated": "Authenticated as {{username}}",
+    "notAuthenticated": "Not authenticated",
+    "loginWithGitHub": "Login with GitHub",
+    "loginRequired": "Please login to GitHub Copilot first",
+    "waitingForAuth": "Waiting for authorization...",
+    "enterCode": "Please enter the code in your browser:",
+    "logout": "Logout",
+    "authSuccess": "GitHub Copilot authentication successful",
+    "authFailed": "Authentication failed: {{error}}",
+    "authTimeout": "Authentication timed out, please try again",
+    "tokenExpired": "Token expired, please re-authenticate",
+    "accountCount": "{{count}} account(s)",
+    "selectAccount": "Select Account",
+    "selectAccountPlaceholder": "Select a GitHub account",
+    "useDefaultAccount": "Use default account",
+    "loggedInAccounts": "Logged in accounts",
+    "defaultAccount": "Default",
+    "selected": "Selected",
+    "removeAccount": "Remove account",
+    "setAsDefault": "Set as default",
+    "addAnotherAccount": "Add another account",
+    "logoutAll": "Logout all accounts",
+    "retry": "Retry",
+    "copyCode": "Copy code",
+    "migrationFailed": "Legacy auth migration failed: {{error}}",
+    "loadModelsFailed": "Failed to load Copilot models"
+  },
+  "codexOauth": {
+    "authStatus": "Auth status",
+    "notAuthenticated": "Not authenticated",
+    "loginWithChatGPT": "Sign in with ChatGPT",
+    "loginRequired": "Please sign in to ChatGPT first",
+    "waitingForAuth": "Waiting for authorization...",
+    "enterCode": "Enter the code in your browser:",
+    "accountCount": "{{count}} account(s)",
+    "selectAccount": "Select account",
+    "selectAccountPlaceholder": "Choose a ChatGPT account",
+    "useDefaultAccount": "Use default account",
+    "loggedInAccounts": "Logged in accounts",
+    "defaultAccount": "Default",
+    "selected": "Selected",
+    "removeAccount": "Remove account",
+    "setAsDefault": "Set as default",
+    "addAnotherAccount": "Add another account",
+    "logoutAll": "Logout all accounts",
+    "retry": "Retry",
+    "copyCode": "Copy code"
   },
   "endpointTest": {
     "title": "API Endpoint Management",
@@ -720,7 +935,8 @@
     "pleaseAddEndpoint": "Please add an endpoint first",
     "testUnavailable": "Speed test unavailable",
     "noResult": "No result returned",
-    "testFailed": "Speed test failed: {{error}}"
+    "testFailed": "Speed test failed: {{error}}",
+    "empty": "No endpoints"
   },
   "providerAdvanced": {
     "testConfig": "Model Test Config",
@@ -732,11 +948,6 @@
     "testPrompt": "Test Prompt",
     "degradedThreshold": "Degraded Threshold (ms)",
     "maxRetries": "Max Retries",
-    "proxyConfig": "Proxy Config",
-    "useCustomProxy": "Use separate proxy",
-    "proxyConfigDesc": "Configure separate network proxy for this provider. Uses system proxy or global settings when disabled.",
-    "proxyUsername": "Username (optional)",
-    "proxyPassword": "Password (optional)",
     "pricingConfig": "Pricing Config",
     "useCustomPricing": "Use separate config",
     "pricingConfigDesc": "Configure separate pricing parameters for this provider. Uses global defaults when disabled.",
@@ -763,7 +974,13 @@
     "extractFromCurrent": "Extract from Editor",
     "extractNoCommonConfig": "No common config available to extract from editor",
     "extractFailed": "Extract failed: {{error}}",
-    "saveFailed": "Save failed: {{error}}"
+    "saveFailed": "Save failed: {{error}}",
+    "modelNameHint": "Specify the model to use, will be auto-updated in config.toml",
+    "modelName": "Model Name",
+    "modelNamePlaceholder": "e.g., gpt-5-codex",
+    "contextWindow1M": "1M Context Window",
+    "autoCompactLimit": "Auto Compact Limit",
+    "autoCompactLimitHint": "Auto-compacts history when context reaches this token limit"
   },
   "geminiConfig": {
     "envFile": "Environment Variables (.env)",
@@ -801,7 +1018,8 @@
     "modelsRequired": "Please add at least one model",
     "providerKey": "Provider Key",
     "providerKeyPlaceholder": "my-provider",
-    "providerKeyHint": "Unique identifier in config file. Cannot be changed after creation. Use lowercase letters, numbers, and hyphens only.",
+    "providerKeyHint": "Unique identifier in config file. Use lowercase letters, numbers, and hyphens only.",
+    "providerKeyLockedHint": "This provider has already been added to the app config, so its key can no longer be changed.",
     "providerKeyRequired": "Provider key is required",
     "providerKeyDuplicate": "This key is already in use",
     "providerKeyInvalid": "Invalid format. Use lowercase letters, numbers, and hyphens only.",
@@ -814,6 +1032,10 @@
     "extraOptionValuePlaceholder": "600000",
     "noExtraOptions": "No extra options configured",
     "noModelOptions": "Model options, click + to add",
+    "modelExtraFields": "Model Properties",
+    "noModelExtraFields": "Model properties (variants, cost, etc.), click + to add",
+    "modelExtraFieldKeyPlaceholder": "variants",
+    "sdkOptions": "SDK Options",
     "modelOptionKeyPlaceholder": "provider",
     "modelOptionValuePlaceholder": "{\"order\": [\"baseten\"]}"
   },
@@ -829,6 +1051,11 @@
     "today": "24 Hours",
     "last7days": "7 Days",
     "last30days": "30 Days",
+    "presetToday": "Today",
+    "preset1d": "1d",
+    "preset7d": "7d",
+    "preset14d": "14d",
+    "preset30d": "30d",
     "totalRequests": "Total Requests",
     "totalCost": "Total Cost",
     "cost": "Cost",
@@ -858,7 +1085,34 @@
     "unknownProvider": "Unknown Provider",
     "stream": "Stream",
     "nonStream": "Non-stream",
+    "source": "Source",
+    "requestsLabel": "requests",
+    "costLabel": "total cost",
+    "appFilter": {
+      "all": "All",
+      "claude": "Claude Code",
+      "codex": "Codex",
+      "gemini": "Gemini"
+    },
+    "dataSources": "Data Sources",
+    "dataSource": {
+      "proxy": "Routing",
+      "session_log": "Session Log",
+      "codex_db": "Codex DB",
+      "codex_session": "Codex Session",
+      "gemini_session": "Gemini Session"
+    },
+    "sessionSync": {
+      "trigger": "Sync session logs",
+      "import": "Import Sessions",
+      "resync": "Sync",
+      "imported": "Imported {{count}} records from session logs",
+      "upToDate": "Session logs are up to date",
+      "failed": "Session sync failed"
+    },
     "totalRecords": "{{total}} records total",
+    "goToPage": "Go",
+    "pageInputPlaceholder": "Page",
     "modelPricing": "Model Pricing",
     "loadPricingError": "Failed to load pricing data",
     "modelPricingDesc": "Configure token costs for each model",
@@ -893,6 +1147,10 @@
     "searchProviderPlaceholder": "Search provider...",
     "searchModelPlaceholder": "Search model...",
     "timeRange": "Time Range",
+    "customRange": "Calendar Filter",
+    "customRangeHint": "Supports both date and time",
+    "startTime": "Start Time",
+    "endTime": "End Time",
     "input": "Input",
     "output": "Output",
     "cacheWrite": "Creation",
@@ -908,7 +1166,28 @@
     "costBreakdown": "Cost Breakdown",
     "performance": "Performance",
     "latency": "Latency",
-    "errorMessage": "Error Message"
+    "errorMessage": "Error Message",
+    "requests": "Requests",
+    "tokens": "Tokens",
+    "avgCost": "Average Cost",
+    "avgLatency": "Average Latency",
+    "successRate": "Success Rate",
+    "requestId": "Request ID",
+    "never": "Never",
+    "modelId": "Model ID",
+    "modelIdRequired": "Model ID is required",
+    "inputCostPerMillion": "Input Cost (per million tokens, USD)",
+    "outputCostPerMillion": "Output Cost (per million tokens, USD)",
+    "invalidPrice": "Price must be non-negative",
+    "invalidTimeRange": "Please select complete start/end time",
+    "invalidTimeRangeOrder": "Start time cannot be later than end time",
+    "timeRangeTooLarge": "Time range is too large, please narrow it down",
+    "addPricing": "Add Pricing",
+    "editPricing": "Edit Pricing",
+    "pricingAdded": "Pricing added",
+    "pricingUpdated": "Pricing updated",
+    "cacheReadCostPerMillion": "Cache Read Cost (per million tokens, USD)",
+    "cacheCreationCostPerMillion": "Cache Write Cost (per million tokens, USD)"
   },
   "usageScript": {
     "title": "Configure Usage Query",
@@ -920,6 +1199,14 @@
     "templateCustom": "Custom",
     "templateGeneral": "General",
     "templateNewAPI": "NewAPI",
+    "templateCopilot": "GitHub Copilot",
+    "templateTokenPlan": "Token Plan",
+    "templateBalance": "Official",
+    "copilotAutoAuth": "Auto OAuth authentication, no manual credentials needed",
+    "tokenPlanHint": "Automatically uses the provider's API Key and Base URL to query Token Plan quota",
+    "balanceHint": "Automatically uses the provider's API Key to query account balance",
+    "resetDate": "Reset date",
+    "premiumRequests": "Premium Requests",
     "credentialsConfig": "Credentials",
     "credentialsHint": "Leave empty to use provider config",
     "optional": "optional",
@@ -1228,9 +1515,11 @@
     }
   },
   "openclaw": {
+    "backupCreated": "Backup created: {{path}}",
     "providerKey": "Provider Key",
     "providerKeyPlaceholder": "my-provider",
-    "providerKeyHint": "Unique identifier in config file. Cannot be changed after creation. Use lowercase letters, numbers, and hyphens only.",
+    "providerKeyHint": "Unique identifier in config file. Use lowercase letters, numbers, and hyphens only.",
+    "providerKeyLockedHint": "This provider has already been added to the app config, so its key can no longer be changed.",
     "providerKeyRequired": "Provider key is required",
     "providerKeyDuplicate": "This key is already in use",
     "providerKeyInvalid": "Invalid format. Use lowercase letters, numbers, and hyphens only.",
@@ -1251,6 +1540,7 @@
     "reasoning": "Reasoning Mode",
     "reasoningOn": "Enabled",
     "reasoningOff": "Disabled",
+    "inputTypes": "Input Types",
     "inputCost": "Input Cost ($/M tokens)",
     "outputCost": "Output Cost ($/M tokens)",
     "advancedOptions": "Advanced Options",
@@ -1258,9 +1548,15 @@
     "cacheWriteCost": "Cache Write Cost ($/M tokens)",
     "cacheCostHint": "Cache costs are used to calculate Prompt Caching costs. Leave empty if not using caching.",
     "modelsHint": "Configure the models supported by this provider. Model ID is used for API calls, Display Name for the interface.",
+    "userAgent": "Send User-Agent",
+    "userAgentHint": "Some providers require a browser User-Agent header to work properly.",
     "env": {
       "title": "Environment Variables",
       "description": "Manage environment variables in openclaw.json (API keys, custom variables, etc.)",
+      "editorHint": "Edit the full env section as JSON. Nested objects such as env.vars and env.shellEnv are supported.",
+      "objectRequired": "OpenClaw env must be a JSON object.",
+      "invalidJson": "OpenClaw env must be valid JSON.",
+      "empty": "OpenClaw env cannot be empty. Use {} for an empty object.",
       "keyPlaceholder": "Variable name",
       "valuePlaceholder": "Value",
       "add": "Add Variable",
@@ -1273,12 +1569,14 @@
       "title": "Tool Permissions",
       "description": "Manage tool permissions in openclaw.json (allow/deny lists)",
       "profile": "Permission Profile",
-      "profiles": {
-        "default": "Default",
-        "strict": "Strict",
-        "permissive": "Permissive",
-        "custom": "Custom"
-      },
+      "profileMinimal": "Minimal",
+      "profileCoding": "Coding",
+      "profileMessaging": "Messaging",
+      "profileFull": "Full",
+      "profileUnset": "Not set",
+      "unsupportedProfileTitle": "Unsupported tools profile detected",
+      "unsupportedProfileDescription": "The current tools.profile value '{{value}}' is not in the supported OpenClaw list. It will be preserved until you choose a new value.",
+      "unsupportedProfileLabel": "unsupported",
       "allowList": "Allow List",
       "denyList": "Deny List",
       "patternPlaceholder": "Tool name or pattern",
@@ -1305,10 +1603,22 @@
       "timeout": "Timeout (seconds)",
       "contextTokens": "Context Tokens",
       "maxConcurrent": "Max Concurrent",
+      "legacyTimeoutTitle": "Legacy timeout detected",
+      "legacyTimeoutDescription": "This config still uses agents.defaults.timeout. Saving here will migrate it to timeoutSeconds.",
       "saveSuccess": "Agents config saved",
       "saveFailed": "Failed to save agents config",
       "loadFailed": "Failed to load agents config"
-    }
+    },
+    "health": {
+      "title": "OpenClaw config warnings detected",
+      "invalidToolsProfile": "tools.profile contains an unsupported value. OpenClaw currently expects minimal, coding, messaging, or full.",
+      "legacyTimeout": "agents.defaults.timeout is deprecated. Save the Agents panel to migrate it to timeoutSeconds.",
+      "stringifiedEnvVars": "env.vars should be an object, but the current value looks stringified or malformed.",
+      "stringifiedShellEnv": "env.shellEnv should be an object, but the current value looks stringified or malformed.",
+      "parseFailed": "openclaw.json could not be parsed as valid JSON5. Fix the file before editing it here."
+    },
+    "primaryModel": "Primary Model",
+    "fallbackModel": "Fallback Model"
   },
   "env": {
     "warning": {
@@ -1373,6 +1683,18 @@
     "installFailed": "Failed to install",
     "uninstallSuccess": "Skill {{name}} uninstalled",
     "uninstallFailed": "Failed to uninstall",
+    "update": "Update",
+    "updating": "Updating...",
+    "updateAvailable": "Update",
+    "updateSuccess": "Skill {{name}} updated to latest version",
+    "updateFailed": "Failed to update",
+    "checkUpdates": "Check Updates",
+    "checkingUpdates": "Checking...",
+    "noUpdates": "All skills are up to date",
+    "updatesFound": "{{count}} skill(s) have updates available",
+    "updateAll": "Update All ({{count}})",
+    "updatingAll": "Updating...",
+    "updateAllSuccess": "Successfully updated {{count}} skill(s)",
     "error": {
       "skillNotFound": "Skill not found: {{directory}}",
       "missingRepoInfo": "Missing repository info (owner or name)",
@@ -1426,6 +1748,19 @@
     },
     "search": "Search Skills",
     "searchPlaceholder": "Search skill name or repo...",
+    "searchSource": {
+      "repos": "Repos",
+      "skillssh": "skills.sh"
+    },
+    "skillssh": {
+      "searchPlaceholder": "Search skills.sh (min 2 chars)...",
+      "installs": "{{count}} installs",
+      "loadMore": "Load More",
+      "loading": "Searching skills.sh...",
+      "noResults": "No skills found for \"{{query}}\"",
+      "error": "Failed to search skills.sh",
+      "poweredBy": "Powered by skills.sh"
+    },
     "filter": {
       "placeholder": "Filter by status",
       "all": "All",
@@ -1445,9 +1780,30 @@
     "noUnmanagedFound": "No skills to import found. All skills are already managed by CC Switch.",
     "foundIn": "Found in",
     "local": "Local",
-    "uninstallConfirm": "Are you sure you want to uninstall \"{{name}}\"? This will remove the skill from all apps.",
+    "uninstallConfirm": "Are you sure you want to uninstall \"{{name}}\"? This will remove the skill from all apps and create a local backup first.",
     "uninstallInMainPanel": "Please uninstall skills from the main panel",
     "notFound": "Skill not found",
+    "backup": {
+      "location": "Backup location: {{path}}"
+    },
+    "restoreFromBackup": {
+      "button": "Restore Backup",
+      "title": "Restore From Backup",
+      "description": "Choose a Skills backup to restore its files locally and add it back to the current list.",
+      "empty": "No Skills backups available to restore",
+      "createdAt": "Backed up at",
+      "path": "Backup path",
+      "restore": "Restore",
+      "restoring": "Restoring...",
+      "delete": "Delete",
+      "deleting": "Deleting...",
+      "deleteSuccess": "Deleted backup for {{name}}",
+      "deleteFailed": "Failed to delete skill backup",
+      "deleteConfirmTitle": "Delete Backup",
+      "deleteConfirmMessage": "Are you sure you want to delete the backup for \"{{name}}\"? This action cannot be undone.",
+      "success": "Skill {{name}} restored from backup",
+      "failed": "Failed to restore from backup"
+    },
     "apps": {
       "claude": "Claude",
       "codex": "Codex",
@@ -1528,7 +1884,14 @@
       "skillsPath": "Skills Path",
       "hint": "This will add the Skill repository to the list.",
       "hintDetail": "After adding, you can install specific Skills from the Skills management page."
-    }
+    },
+    "usageScript": "Usage Query",
+    "usageScriptEnabled": "Enabled",
+    "usageScriptDisabled": "Disabled",
+    "usageApiKey": "Usage API Key",
+    "usageBaseUrl": "Usage Query URL",
+    "usageAutoInterval": "Auto Query",
+    "usageAutoIntervalValue": "Every {{minutes}} minutes"
   },
   "iconPicker": {
     "search": "Search Icons",
@@ -1547,7 +1910,8 @@
     "selectIcon": "Select Icon",
     "preview": "Preview",
     "clickToChange": "Click to change icon",
-    "clickToSelect": "Click to select icon"
+    "clickToSelect": "Click to select icon",
+    "color": "Icon Color"
   },
   "migration": {
     "success": "Configuration migrated successfully",
@@ -1588,9 +1952,9 @@
       "addressCopied": "Address copied",
       "currentProvider": "Current Provider:",
       "waitingFirstRequest": "Current Provider: Waiting for first request...",
-      "stoppedTitle": "Proxy Service Stopped",
+      "stoppedTitle": "Routing Service Stopped",
       "stoppedDescription": "Use the toggle above to start the service",
-      "openSettings": "Configure Proxy Service",
+      "openSettings": "Configure Routing Service",
       "stats": {
         "activeConnections": "Active Connections",
         "totalRequests": "Total Requests",
@@ -1599,14 +1963,14 @@
       }
     },
     "settings": {
-      "title": "Proxy Service Settings",
-      "description": "Configure local proxy server listening address, port and runtime parameters. Changes take effect immediately after saving.",
+      "title": "Routing Service Settings",
+      "description": "Configure local routing server listening address, port and runtime parameters. Changes take effect immediately after saving.",
       "alert": {
-        "autoApply": "Changes will be automatically synced to the running proxy service without manual restart."
+        "autoApply": "Changes will be automatically synced to the running routing service without manual restart."
       },
       "basic": {
         "title": "Basic Settings",
-        "description": "Configure proxy service listening address and port."
+        "description": "Configure routing service listening address and port."
       },
       "advanced": {
         "title": "Advanced Parameters",
@@ -1620,12 +1984,12 @@
         "listenAddress": {
           "label": "Listen Address",
           "placeholder": "127.0.0.1",
-          "description": "IP address the proxy server listens on (recommended: 127.0.0.1)"
+          "description": "IP address the routing server listens on (recommended: 127.0.0.1)"
         },
         "listenPort": {
           "label": "Listen Port",
           "placeholder": "15721",
-          "description": "Port number the proxy server listens on (1024 ~ 65535)"
+          "description": "Port number the routing server listens on (1024 ~ 65535)"
         },
         "maxRetries": {
           "label": "Max Retries",
@@ -1639,7 +2003,7 @@
         },
         "enableLogging": {
           "label": "Enable Logging",
-          "description": "Log all proxy requests for troubleshooting"
+          "description": "Log all routing requests for troubleshooting"
         },
         "streamingFirstByteTimeout": {
           "label": "Streaming First Byte Timeout (sec)",
@@ -1670,24 +2034,29 @@
         "save": "Save Configuration"
       },
       "toast": {
-        "saved": "Proxy configuration saved",
+        "saved": "Routing configuration saved",
         "saveFailed": "Save failed: {{error}}"
       },
       "invalidPort": "Invalid port, please enter a number between 1024-65535",
       "invalidAddress": "Invalid address, please enter a valid IP address (e.g. 127.0.0.1) or localhost",
-      "configSaved": "Proxy configuration saved",
+      "configSaved": "Routing configuration saved",
       "configSaveFailed": "Failed to save configuration",
-      "restartRequired": "Restart proxy service for address or port changes to take effect"
+      "restartRequired": "Restart routing service for address or port changes to take effect"
     },
     "switchFailed": "Switch failed: {{error}}",
     "takeover": {
-      "hint": "Select apps to take over — once enabled, requests from that app will be routed through the local proxy",
-      "enabled": "{{app}} takeover enabled",
-      "disabled": "{{app}} takeover disabled",
-      "failed": "Failed to toggle takeover"
+      "hint": "Select apps to route — once enabled, requests from that app will go through local routing",
+      "enabled": "{{app}} routing enabled",
+      "disabled": "{{app}} routing disabled",
+      "failed": "Failed to toggle routing",
+      "tooltip": {
+        "active": "{{appLabel}} is routing - {{address}}:{{port}}\nSwitch provider for hot switching",
+        "broken": "{{appLabel}} is routing, but routing service is not running",
+        "inactive": "Route {{appLabel}}'s requests through local routing"
+      }
     },
     "failover": {
-      "proxyRequired": "Proxy service must be started to configure failover",
+      "proxyRequired": "Routing service must be started to configure failover",
       "autoSwitch": "Auto Failover",
       "autoSwitchDescription": "When enabled, switches to queue P1 immediately and automatically tries the next provider in the queue on failures"
     },
@@ -1734,8 +2103,28 @@
       "successThresholdLabel": "Recovery Success Threshold",
       "successThresholdExplain": "In half-open state, close circuit breaker after this many successes, making provider available again",
       "errorRateLabel": "Error Rate Threshold",
-      "errorRateExplain": "Open circuit breaker when error rate exceeds this value, even if failure threshold not reached"
+      "errorRateExplain": "Open circuit breaker when error rate exceeds this value, even if failure threshold not reached",
+      "maxRetries": "Max Retries",
+      "timeoutSettings": "Timeout Settings",
+      "streamingFirstByte": "Streaming First Byte Timeout",
+      "streamingIdle": "Streaming Idle Timeout",
+      "nonStreaming": "Non-Streaming Timeout",
+      "maxRetriesHint": "Number of retries on request failure (0-10)",
+      "streamingFirstByteHint": "Max time to wait for first data chunk, range 1-120s, default 60s",
+      "streamingIdleHint": "Max interval between data chunks, range 60-600s, 0 to disable (prevents mid-stream stalls)",
+      "nonStreamingHint": "Total timeout for non-streaming requests, range 60-1200s, default 600s (10 min)"
     },
+    "logging": {
+      "enabled": "Logging enabled",
+      "disabled": "Logging disabled",
+      "failed": "Failed to toggle logging"
+    },
+    "server": {
+      "started": "Routing service started - {{address}}:{{port}}",
+      "startFailed": "Failed to start routing service: {{detail}}"
+    },
+    "stoppedWithRestore": "Routing service stopped, all routing configs restored",
+    "stopWithRestoreFailed": "Stop failed: {{detail}}",
     "weightRoundRobin": {
       "title": "Weighted Round Robin",
       "description": "Distribute requests by provider weight while preserving same-request failover fallback.",
@@ -1767,11 +2156,27 @@
     "timeout": "Timeout (seconds)",
     "maxRetries": "Max Retries",
     "degradedThreshold": "Degraded Threshold (ms)",
-    "testPrompt": "Test Prompt"
+    "testPrompt": "Test Prompt",
+    "operational": "{{providerName}} is operational ({{responseTimeMs}}ms)",
+    "degraded": "{{providerName}} is slow ({{responseTimeMs}}ms)",
+    "failed": "{{providerName}} check failed: {{message}}",
+    "rejected": "{{providerName}} check rejected: {{message}}",
+    "error": "{{providerName}} check error: {{error}}",
+    "modelNotFound": "{{providerName}} test model {{model}} does not exist or has been deprecated",
+    "modelNotFoundHint": "This model may have been retired by the provider. Update the default test model in \"Model Test Config\".",
+    "httpHint": {
+      "400": "Provider rejected request format. Health check probe may differ from actual usage.",
+      "401": "API key may be invalid, or provider uses OAuth auth. Check failure doesn't mean it's unusable.",
+      "402": "Account quota or billing issue.",
+      "403": "Provider blocked this request. Some verify client identity; may work fine in actual use.",
+      "404": "Endpoint not found. Check base URL and API path.",
+      "429": "Too many requests. Try again later.",
+      "5xx": "Provider internal error. Likely temporary."
+    }
   },
   "proxyConfig": {
-    "proxyEnabled": "Proxy Enabled",
-    "appTakeover": "Proxy Enabled",
+    "proxyEnabled": "Routing Master Switch",
+    "appTakeover": "Routing Enabled",
     "perAppConfig": "Per-App Config",
     "circuitBreaker": "Circuit Breaker",
     "circuitBreakerSettings": "Circuit Breaker Settings",
@@ -1789,11 +2194,28 @@
     "failureThreshold": "Failure Threshold",
     "successThreshold": "Success Threshold",
     "timeoutSeconds": "Timeout (seconds)",
-    "errorRateThreshold": "Error Rate Threshold",
-    "minRequests": "Min Requests",
+    "errorRateThreshold": "Error Rate Threshold (%)",
+    "minRequests": "Minimum Requests",
     "validationFailed": "The following fields are out of valid range: {{fields}}",
-    "configSaved": "Circuit breaker config saved",
-    "saveFailed": "Failed to save"
+    "configSaved": "Circuit breaker configuration saved",
+    "saveFailed": "Save failed",
+    "loading": "Loading...",
+    "title": "Circuit Breaker Configuration",
+    "description": "Adjust circuit breaker parameters to control fault detection and recovery behavior",
+    "failureThresholdHint": "How many consecutive failures trigger the circuit breaker",
+    "timeoutSecondsHint": "How long to wait before attempting recovery (half-open state)",
+    "successThresholdHint": "How many successes in half-open state to close the circuit breaker",
+    "errorRateThresholdHint": "Open circuit breaker when error rate exceeds this value",
+    "minRequestsHint": "Minimum requests before calculating error rate",
+    "saveConfig": "Save Configuration",
+    "instructionsTitle": "Configuration Instructions",
+    "instructions": {
+      "failureThreshold": "Circuit breaker opens when consecutive failures reach this count",
+      "timeout": "After circuit breaker opens, wait this time before attempting half-open",
+      "successThreshold": "In half-open state, close circuit breaker when successes reach this count",
+      "errorRate": "Circuit breaker opens when error rate exceeds this value",
+      "minRequests": "Error rate is only calculated after request count reaches this value"
+    }
   },
   "universalProvider": {
     "title": "Universal Provider",
@@ -1909,6 +2331,7 @@
     "enabledModelsCount": "{{count}} configured models available",
     "source": "from:",
     "otherFieldsJson": "Other Fields (JSON)",
+    "slimOtherFieldsHint": "Use this area for top-level OMO Slim config such as council, fallback, multiplexer, disabled_mcps, and todoContinuation.",
     "searchOrType": "Search or type custom value...",
     "noMatches": "No matches",
     "jsonMustBeObject": "{{field}} must be a JSON object",
@@ -1985,7 +2408,8 @@
       "librarian": "Librarian",
       "explorer": "Explorer",
       "designer": "Designer",
-      "fixer": "Fixer"
+      "fixer": "Fixer",
+      "council": "Council"
     },
     "slimAgentTooltip": {
       "orchestrator": "Writes executable code, orchestrates multi-agent workflow, summons experts",
@@ -1993,7 +2417,8 @@
       "librarian": "Documentation lookup, GitHub code search (read-only)",
       "explorer": "Regex search, AST pattern matching, file discovery (read-only)",
       "designer": "Modern responsive design, CSS/Tailwind expertise",
-      "fixer": "Code implementation, refactoring, testing, verification"
+      "fixer": "Code implementation, refactoring, testing, verification",
+      "council": "Multi-model consensus agent. Runs multiple read-only councillors in parallel, then lets the master synthesize the final answer."
     }
   },
   "openclawConfig": {
@@ -2024,5 +2449,24 @@
     },
     "suggestedDefaults": "Apply Suggested Defaults",
     "suggestedDefaultsHint": "Use this preset's recommended default model configuration"
+  },
+  "subscription": {
+    "title": "Subscription Quota",
+    "fiveHour": "5-Hour",
+    "sevenDay": "7-Day",
+    "sevenDayOpus": "7-Day (Opus)",
+    "sevenDaySonnet": "7-Day (Sonnet)",
+    "geminiPro": "Pro",
+    "geminiFlash": "Flash",
+    "geminiFlashLite": "Flash Lite",
+    "weeklyLimit": "Weekly",
+    "copilotPremium": "Premium",
+    "utilization": "{{value}}%",
+    "resetsIn": "Resets in {{time}}",
+    "extraUsage": "Extra Usage",
+    "expired": "Session expired",
+    "expiredHint": "Run the {{tool}} command to refresh your login",
+    "queryFailed": "Query failed",
+    "refresh": "Refresh"
   }
 }

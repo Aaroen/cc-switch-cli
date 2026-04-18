@@ -174,6 +174,12 @@ pub struct InstalledSkill {
     pub apps: SkillApps,
     /// 安装时间（Unix 时间戳）
     pub installed_at: i64,
+    /// 内容哈希（SHA-256，用于更新检测）
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub content_hash: Option<String>,
+    /// 最近更新时间（Unix 时间戳，0 = 从未更新）
+    #[serde(default)]
+    pub updated_at: i64,
 }
 
 /// 未管理的 Skill（在应用目录中发现但未被 CC Switch 管理）
@@ -883,6 +889,7 @@ mod tests {
         dir: TempDir,
         original_home: Option<String>,
         original_userprofile: Option<String>,
+        original_test_home: Option<String>,
     }
 
     impl TempHome {
@@ -890,14 +897,17 @@ mod tests {
             let dir = TempDir::new().expect("failed to create temp home");
             let original_home = env::var("HOME").ok();
             let original_userprofile = env::var("USERPROFILE").ok();
+            let original_test_home = env::var("CC_SWITCH_TEST_HOME").ok();
 
             env::set_var("HOME", dir.path());
             env::set_var("USERPROFILE", dir.path());
+            env::set_var("CC_SWITCH_TEST_HOME", dir.path());
 
             Self {
                 dir,
                 original_home,
                 original_userprofile,
+                original_test_home,
             }
         }
     }
@@ -912,6 +922,11 @@ mod tests {
             match &self.original_userprofile {
                 Some(value) => env::set_var("USERPROFILE", value),
                 None => env::remove_var("USERPROFILE"),
+            }
+
+            match &self.original_test_home {
+                Some(value) => env::set_var("CC_SWITCH_TEST_HOME", value),
+                None => env::remove_var("CC_SWITCH_TEST_HOME"),
             }
         }
     }

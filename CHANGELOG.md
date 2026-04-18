@@ -5,7 +5,336 @@ All notable changes to CC Switch will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [3.13.0] - 2026-04-10
+
+Development since v3.12.3 focuses on quota visibility, provider workflow upgrades, stronger proxy compatibility, and lower-overhead tray / session workflows.
+
+### Added
+
+- **Lightweight Mode**: Added a tray-only mode that destroys the main window and keeps CC Switch running from the system tray, with the window recreated when users reopen it.
+- **Provider Model Auto-Fetch**: Added OpenAI-compatible `/v1/models` discovery for Claude, Codex, Gemini, OpenCode, and OpenClaw provider forms, including grouped dropdown selection and failure-specific error messages.
+- **Quota & Balance Visibility**: Added inline quota or balance display for official Claude / Codex / Gemini providers, GitHub Copilot premium interactions, Codex OAuth providers, Token Plan providers (Kimi / Zhipu GLM / MiniMax), and official balance queries for DeepSeek, StepFun, SiliconFlow, OpenRouter, and Novita AI. Copilot / ChatGPT OAuth and CLI subscription quota now only auto-poll for the currently active provider, preventing unnecessary API calls and misleading displays on non-current cards.
+- **Skills Discovery & Batch Updates**: Added SHA-256 based skill update detection, per-skill and batch update actions, a storage-location toggle between CC Switch and `~/.agents/skills`, and public `skills.sh` search integration.
+- **Session Workflow Upgrades**: Added batch delete in Session Manager, a directory picker before launching Claude terminal restore commands, usage import from Claude / Codex / Gemini session logs without requiring proxy interception, and per-app usage filtering for Claude / Codex / Gemini dashboards.
+- **Codex OAuth Reverse Proxy**: Added ChatGPT Plus / Pro based Codex OAuth reverse proxy support for Claude provider cards, including managed OAuth login and inline subscription quota display.
+- **OpenCode / OpenClaw Stream Check Coverage**: Added OpenCode npm package mapping plus support for OpenClaw `openai-completions` and the remaining OpenClaw protocol variants in Stream Check.
+- **Full URL Endpoint Mode**: Added a provider option that treats `base_url` as a complete upstream endpoint so proxy forwarding and stream checks can work with vendors that require nonstandard URL layouts.
+- **OpenCode StepFun Step Plan Preset**: Added a StepFun Step Plan provider preset for OpenCode.
+- **Copilot Interaction Optimizer**: Added request classification and routing logic to reduce unnecessary GitHub Copilot premium interaction consumption.
+- **First-Run Welcome Dialog**: Added a one-time welcome dialog on fresh installs explaining how existing configuration is preserved as a default provider and how the bundled official preset enables one-click revert. Upgrade users are excluded.
+- **Official Provider Seeding**: Added automatic seeding of Claude Official, OpenAI Official, and Google Official provider entries on startup, giving every user a one-click path back to the official endpoint.
+- **OpenCode / OpenClaw Auto-Import**: Added automatic startup import of live OpenCode and OpenClaw provider configurations, matching the auto-import behavior already present for Claude, Codex, and Gemini.
+- **Common Config Editor Guidance**: Added an informational guide and empty-state prompt to the Common Config snippet editor modal for Claude, Codex, and Gemini, with i18n support.
+- **Common Config First-Run Notice**: Added a one-time informational dialog explaining Common Config Snippets when users first open the provider add/edit form.
+- **Claude Session Titles**: Added meaningful title extraction for Claude sessions using a priority chain: custom-title metadata, first real user message, then directory basename fallback.
+- **Session Search Highlighting**: Added keyword highlighting in session titles and messages during Session Manager search.
+- **URL-Based Provider Icons**: Added a dual rendering mode to the icon system supporting Vite URL imports for large SVGs and raster images (PNG, JPG, WebP), keeping small SVGs inlined.
+- **Kaku Terminal Support**: Added Kaku as a selectable terminal for session launch on macOS, reusing the WezTerm-compatible launch path.
+- **OMO Slim Council Support**: Restored first-class council support as a built-in oh-my-opencode-slim agent with updated metadata and UI copy.
+- **TheRouter Provider Preset**: Added TheRouter provider presets across Claude, Codex, Gemini, OpenCode, and OpenClaw.
+- **DDSHub Provider Preset**: Added DDSHub as a third-party partner provider for Claude with icon and partner promotion text.
+- **LionCCAPI Provider Preset**: Added LionCCAPI as a third-party partner provider across all five apps with anthropic-messages protocol for OpenCode and OpenClaw.
+- **Shengsuanyun Provider Preset**: Added Shengsuanyun (胜算云) as an aggregator partner provider across all five apps with URL-based icon and localized display name.
+- **PIPELLM Provider Preset**: Added PIPELLM provider preset across Claude, Codex, OpenCode, and OpenClaw with full model definitions and icon.
+- **E-FlowCode Provider Preset**: Added E-FlowCode provider preset across all five apps with per-app protocol configuration.
+
+### Changed
+
+- **Tray Menu Organization**: Reworked the tray menu into per-app submenus to prevent overflow and make background provider switching scale better with larger provider lists.
+- **Proxy Forwarding Stack**: Refactored proxy forwarding onto a Hyper-based client with transparent header forwarding, improved endpoint rewriting, and better support for dynamic upstream endpoints.
+- **OAuth Auth Center UI Polish**: Tightened the Auth Center copy, layout, and icon presentation so the Codex OAuth login flow feels cleaner and less cluttered.
+- **Provider Key Lifecycle & Live Sync**: Reworked additive provider create / rename / duplicate flows so live config writes, cleanup, and rollback stay consistent across OpenCode / OpenClaw and takeover scenarios.
+- **Codex OAuth Defaults**: Updated the Codex OAuth preset to the GPT-5.4 model family.
+
+### Fixed
+
+- **Copilot Authentication & Proxy Compatibility**: Fixed GitHub Copilot authentication regressions, corrected enterprise / dynamic endpoint handling, repaired clipboard verification-code copying on macOS and Linux, and fixed Responses routing when Copilot-backed Claude providers target OpenAI models.
+- **Streaming Parser Compatibility**: Fixed SSE parsing to accept fields with optional spaces, improving compatibility with non-strict streaming implementations.
+- **UTF-8 Stream Chunk Boundaries**: Fixed intermittent garbled output (U+FFFD replacement characters) in Claude Code when multi-byte UTF-8 sequences such as Chinese characters or emoji were split across TCP stream chunks via the Copilot reverse proxy, by preserving incomplete trailing bytes across chunks in all four SSE streaming paths instead of lossy decoding.
+- **Fragmented System Prompt Normalization**: Fixed strict OpenAI-compatible chat backends (Nvidia, Qwen-style) rejecting requests when converted Claude payloads contained multiple system messages, by merging system content into a single leading system message during the Anthropic → OpenAI chat transformation.
+- **Provider Switch State Corruption**: Serialized per-app provider switches to prevent concurrent failover or hot-switch operations from leaving `is_current`, settings state, and live backup state out of sync.
+- **Claude Takeover Live Config Drift**: Fixed provider edits while Claude takeover is active so live settings remain aligned with the latest provider state without breaking takeover restore behavior.
+- **WebDAV Password Retention & Validation**: Fixed the WebDAV password field so saved credentials remain visible after refresh and treated `MKCOL 405` responses correctly during connection validation.
+- **Provider Card Action States**: Fixed additive-mode highlight behavior, aligned usage display layout across provider cards, replaced hard proxy-switch blocking with a warning path, and disabled unsupported test / usage actions for Copilot and Codex OAuth cards.
+- **Usage Accuracy & Pricing**: Fixed MiniMax quota math and 0%→100% progression, corrected CNY→USD pricing plus missing model definitions, improved Gemini session-log syncing, and resolved session-based usage entries being shown as unknown providers.
+- **Usage Editor & Skills UI Regressions**: Fixed usage query fields being reset while editing extractor code, corrected broken `skills.sh` links and empty descriptions, and fixed auto-query defaults plus number-input clearing in usage configuration.
+- **Chinese Skills Terminology**: Unified Skills-related labels across settings panels in the `zh` locale so storage and sync options use consistent wording.
+- **Environment & Preset Compatibility**: Added Bun global bin detection in CLI scan, adapted to the oh-my-openagent rename with backward compatibility, corrected the OpenCode `kimi-for-coding` preset, gated Gemini keychain parsing to macOS, and fixed an OpenClaw serializer panic on empty collections.
+- **Linux UI Unresponsive on Startup**: Fixed a bug where the window UI (including native title bar buttons) couldn't receive clicks on Linux until the user manually maximized and restored the window. Root causes: (1) Tauri webview did not acquire keyboard focus after `show()` on Linux, so the first click was consumed by X11/Wayland click-to-activate (Tauri #10746, wry #637); (2) GTK surface's input region failed to renegotiate on the `visible:false → show()` path under some WebKitGTK/compositor combinations, leaving the entire window unresponsive. Mitigations: set `WEBKIT_DISABLE_COMPOSITING_MODE=1` at startup, and added a new `linux_fix::nudge_main_window` helper that performs `set_focus` + a ±1px no-op resize ~200ms after show, equivalent to a visually invisible "maximize-and-restore". Wired into all window-re-show paths (normal startup, deeplink, single_instance, tray `show_main`, lightweight exit).
+- **Linux Drag Region on Header**: Removed `data-tauri-drag-region` from the top header bar on Linux to avoid triggering `gtk_window_begin_move_drag` paths affected by Tauri #13440 under Wayland. macOS drag behavior is preserved.
+- **OpenCode / OpenClaw Stream Check Edge Cases**: Fixed custom-header passthrough, OpenClaw custom auth-header detection, Bedrock error messaging, and OpenCode default `baseURL` fallback handling in Stream Check.
+- **Duplicate Toast on Provider Switch**: Fixed double toast notifications (proxy-required warning followed by switch-success) when switching to Copilot, ChatGPT, or OpenAI-format providers with the proxy not running.
+- **Session Search Accuracy & Chinese Support**: Fixed session search result truncation across providers and switched FlexSearch tokenizer to full mode for proper Chinese substring matching.
+- **Adaptive Thinking Reasoning Effort**: Fixed `resolve_reasoning_effort()` mapping adaptive thinking to `xhigh` instead of incorrectly using `high` in OpenAI format conversions.
+- **Thinking Model Fallback Display**: Fixed the Claude provider form showing an empty Thinking model field after saving only a main model by applying read-only fallback to ANTHROPIC_MODEL.
+- **Auth Tab Localization**: Fixed missing i18n translation keys for the settings auth tab label across all locale bundles.
+- **Schema Migration Guard**: Fixed database migrations failing when skills or model_pricing tables did not exist by adding table-existence checks before ALTER and UPDATE operations.
+
+### Docs
+
+- **User Manual Refresh**: Updated the EN / ZH / JA manuals for tray submenus, lightweight mode, provider model fetching, session management, workspace files, WebDAV v2 behavior, OpenCode / OpenClaw activation, and other provider workflow improvements.
+- **Community & Contribution Docs**: Added `CONTRIBUTING.md`, `SECURITY.md`, `CODE_OF_CONDUCT.md`, bilingual issue / PR templates, Dependabot config, and CI quality checks.
+- **Release Notes Risk Notice**: Added a Copilot reverse proxy risk notice and anchored highlight links in the v3.12.3 release notes across all three languages.
+- **Sponsor Partners**: Added Shengsuanyun, LionCC, and DDS as sponsor partners in README across all languages.
+
+---
+
+## [3.12.3] - 2026-03-24
+
+Major release adding GitHub Copilot reverse proxy support, macOS code signing & Apple notarization, intelligent reasoning effort mapping for o-series models, skill backup/restore lifecycle, proxy gzip compression, and critical fixes for WebDAV password safety, tool message parsing, and dark mode.
+
+**Stats**: 36 commits | 107 files changed | +9,124 insertions | -802 deletions
+
+### Added
+
+- **GitHub Copilot Reverse Proxy**: Full GitHub Copilot integration as a Claude Code provider via OAuth Device Code flow; includes multi-account management, automatic token refresh, Anthropic ↔ OpenAI format conversion, real-time model list fetching, and usage statistics (#930)
+- **Copilot Auth Center**: New Auth Center panel in Settings for managing GitHub accounts globally, with per-provider account binding via `meta.authBinding`
+- **Tool Search Toggle**: Added `ENABLE_TOOL_SEARCH` env var support for Claude 2.1.76+; exposed as a checkbox in the provider Common Config editor (#930)
+- **Reasoning Effort Mapping**: Two-tier `resolve_reasoning_effort()` for OpenAI o-series and GPT-5+ models — explicit `output_config.effort` takes priority, falling back to thinking `budget_tokens` thresholds (<4 000→low, 4 000–16 000→medium, ≥16 000→high); covers both Chat Completions and Responses API paths with 17 unit tests
+- **OpenCode SQLite Backend**: Added SQLite session storage support for OpenCode alongside existing JSON backend; dual-backend scan with SQLite priority on ID conflicts, atomic session deletion, and path validation (#1401)
+- **Skill Auto-Backup**: Skill files are automatically backed up to `~/.cc-switch/skill-backups/` before uninstall, with metadata preserved in `meta.json`; old backups pruned to keep at most 20
+- **Skill Backup Restore & Delete**: Added list/restore/delete commands for skill backups; restore copies files back to SSOT, saves the DB record, and syncs to the current app with rollback on failure
+- **macOS Code Signing & Notarization**: CI now imports an Apple Developer ID certificate, signs the universal binary, submits for Apple notarization, and staples the ticket to both `.app` and `.dmg`; a hard-fail verification step (`codesign --verify` + `spctl -a` + `stapler validate`) gates the release for both artifacts
+- **Codex 1M Context Window Toggle**: One-click checkbox in Codex config editor to set `model_context_window = 1000000` with auto-populated `model_auto_compact_token_limit = 900000`; unchecking removes both fields
+- **Disable Auto-Upgrade Toggle**: Added `DISABLE_AUTOUPDATER` env var checkbox in the Claude Common Config editor to prevent Claude Code from auto-upgrading
+
+### Changed
+
+- **Skills Cache Strategy**: Replaced `invalidateQueries` with direct `setQueryData` updates for skill install/uninstall/import operations; added `staleTime: Infinity` with `keepPreviousData` to eliminate loading flicker (#1573)
+- **Proxy Gzip Compression**: Non-streaming proxy requests now auto-negotiate gzip compression instead of forcing `identity`; streaming requests conservatively keep `identity` to avoid SSE decompression errors
+- **o1/o3 Model Compatibility**: Chat Completions proxy forwarding now correctly uses `max_completion_tokens` instead of `max_tokens` for OpenAI o-series models such as o1/o3/o4-mini (#1451)
+- **OpenCode Model Variants**: Placed OpenCode model variants at top level instead of inside options for better discoverability (#1317)
+- **Skills Import Flow**: Replaced implicit filesystem-based app inference with explicit `ImportSkillSelection` to prevent incorrect multi-app activation; added reconciliation to remove disabled/orphaned symlinks and MCP servers from live config
+- **Claude 4.6 Context Window**: Updated Claude Opus 4.6 and Sonnet 4.6 context window from 200K to 1M across OpenClaw and OpenCode presets (GA release)
+- **MiniMax Model Upgrade**: Updated MiniMax presets from M2.5 to M2.7 across Claude, OpenClaw, and OpenCode configurations with updated partner descriptions in all three locales
+- **Xiaomi MiMo Model Upgrade**: Updated MiMo presets from mimo-v2-flash to mimo-v2-pro across all supported applications
+- **AddProviderDialog Simplification**: Removed redundant OAuth tab, reducing dialog from 3 tabs to 2 (app-specific + universal)
+- **Provider Form Advanced Options Collapse**: Model mapping, API format, and other advanced fields in the Claude provider form now auto-collapse when empty; auto-expands when any value is set or when a preset fills them in
+
+### Fixed
+
+- **WebDAV Password Silent Clear**: Fixed WebDAV password being silently wiped when ProviderList or UsageScriptModal saved settings by stripping `webdavSync` from frontend payloads and adding backend backfill logic in `merge_settings_for_save()` to preserve existing passwords
+- **Tool Message Parsing**: Fixed tool_use/tool_result message classification across Claude (tool_result content blocks), Codex (function_call/function_call_output payloads), and Gemini (array content + toolCalls extraction) session providers (#1401)
+- **Dark Mode Selector**: Changed Tailwind `darkMode` from `["selector", "class"]` to `["selector", ".dark"]` to ensure correct dark mode activation (#1596)
+- **Copilot Request Fingerprint**: Unified Copilot request fingerprint headers across all API call sites to prevent User-Agent leakage and stream check mismatches
+- **o-series Responses API Tokens**: Kept Responses API on the correct `max_output_tokens` field for o-series models instead of incorrectly injecting `max_completion_tokens`
+- **Provider Form Double Submit**: Prevented duplicate submissions on rapid button clicks in provider add/edit forms (#1352)
+- **Ghostty Session Restore**: Fixed Claude session restore in Ghostty terminal (#1506)
+- **Skill ZIP Import Extension**: Added `.skill` file extension support in ZIP import dialog (#1240, #1455)
+- **Skill ZIP Install Target App**: ZIP skill installs now use the currently active app instead of always defaulting to Claude
+- **OpenClaw Active Card Highlight**: Fixed active OpenClaw provider card not being highlighted (#1419)
+- **Responsive Layout with TOC**: Improved responsive design when TOC title exists (#1491)
+- **Import Skills Dialog White Screen**: Added missing TooltipProvider in ImportSkillsDialog to prevent runtime crash when opening the dialog
+- **Panel Bottom Blank Area**: Replaced hardcoded `h-[calc(100vh-8rem)]` with `flex-1 min-h-0` across all content panels to eliminate bottom gap caused by mismatched offset values
+
+### Docs
+
+- **Pricing Model ID Normalization**: Added documentation section explaining model ID normalization rules (prefix stripping, suffix trimming, `@`→`-` replacement) in EN/ZH/JA user manuals (#1591)
+- **macOS Signed & Notarized**: Removed all `xattr` workaround instructions and "unidentified developer" warnings from README, README_ZH, installation guides (EN/ZH/JA), and FAQ pages (EN/ZH/JA); replaced with "signed and notarized by Apple" messaging
+
+---
+
+## [3.12.2] - 2026-03-12
+
+Post-v3.12.1 work focuses on Common Config safety during proxy takeover and more reliable Codex TOML editing.
+
+**Stats**: 5 commits | 22 files changed | +1,716 insertions | -288 deletions
+
+### Added
+
+- **Empty State Guidance**: Improved first-run experience with detailed import instructions and a conditional Common Config snippet hint for Claude/Codex/Gemini providers
+
+### Changed
+
+- **Proxy Takeover Restore Flow**: Proxy takeover hot-switch and provider sync now refresh the restore backup instead of overwriting live config files, rebuilding effective provider settings with Common Config applied so rollback preserves the real user configuration
+- **Codex TOML Editing Engine**: Refactored Codex `config.toml` updates onto shared section-aware TOML helpers in Rust and TypeScript, covering `base_url` and `model` field edits across provider forms and takeover cleanup
+- **Common Config Initialization Lifecycle**: Startup now auto-extracts Common Config snippets from clean live configs before takeover restoration, tracks explicit "snippet cleared" state, and persists a one-time legacy migration flag to avoid repeated backfills
+
+### Fixed
+
+- **Common Config Loss During Takeover**: Fixed cases where proxy takeover could drop Common Config changes, overwrite live configs during sync, or produce incomplete restore snapshots when switching providers
+- **Codex Restore Snapshot Preservation**: Fixed Codex takeover restore backups so existing `mcp_servers` blocks survive provider hot-switches instead of being discarded; changed MCP backup preservation from wholesale table replacement to per-server-id merge so provider/common-config MCP updates win on conflict while live-only servers are retained
+- **Cleared Snippet Resurrection**: Fixed startup auto-extraction recreating Common Config snippets that users had intentionally cleared
+- **Codex `base_url` Misplacement**: Fixed Codex `base_url` extraction and editing to target the active `[model_providers.<name>]` section instead of appending to the file tail or confusing `mcp_servers.*.base_url` entries for provider endpoints
+
+---
+
+## [3.12.1] - 2026-03-12
+
+### Patch Release
+
+Stability-focused patch release fixing the Common Config modal infinite reopen loop, a WebDAV sync foreign key constraint failure, several i18n interpolation issues, and a Windows toolbar compact mode bug. Also adds **StepFun** provider presets, **OpenClaw input type selection** and **authHeader** support, upgrades Gemini to **3.1-pro**, and welcomes four new sponsor partners.
+
+**Stats**: 19 commits | 56 files changed | +1,429 insertions | -396 deletions
+
+### Added
+
+#### Provider Presets
+
+- **StepFun**: Added StepFun (阶跃星辰) provider presets including the step-3.5-flash model across supported applications (#1369, thanks @hengm3467)
+
+#### OpenClaw Enhancements
+
+- **Input Type Selection**: Added input type selection dropdown for model Advanced Options in OpenClaw configuration form (#1368, thanks @liuxxxu)
+- **authHeader Field**: Added optional `authHeader` boolean to OpenClawProviderConfig for vendor-specific auth header support (e.g. Longcat), and refactored form state to reuse the shared type
+
+#### Sponsor Partners
+
+- **Micu API**: Added Micu API as sponsor partner with affiliate links
+- **XCodeAPI**: Added XCodeAPI as sponsor partner
+- **SiliconFlow**: Added SiliconFlow (硅基流动) as sponsor partner with affiliate links
+- **CTok**: Added CTok as sponsor partner
+
+### Changed
+
+- **UCloud → Compshare**: Renamed UCloud provider to Compshare (优云智算) with full i18n support across all three locales (EN/ZH/JA)
+- **Compshare Links**: Updated Compshare sponsor registration links to coding-plan page
+- **Gemini Model Upgrade**: Upgraded default Gemini model from 2.5-pro to 3.1-pro in provider presets
+
+### Fixed
+
+#### Common Config & UI
+
+- **Common Config Modal Loop**: Fixed an infinite reopen loop in the Common Config modal and added draft editing support to prevent data loss during edits
+- **Toolbar Compact Mode (Windows)**: Fixed toolbar compact mode not triggering on Windows due to left-side overflow (#1375, thanks @zuoliangyu)
+- **Session Search Index**: Fixed session search index not syncing with query data, causing stale list display after session deletion
+
+#### Sync & Data
+
+- **WebDAV Provider Health FK**: Fixed foreign key constraint failure when restoring `provider_health` table during WebDAV sync
+
+#### Provider & Preset
+
+- **Longcat authHeader**: Added missing `authHeader: true` to Longcat provider preset (#1377, thanks @wavever)
+- **OpenClaw Tool Permissions**: Aligned OpenClaw tool permission profiles with upstream schema (#1355, thanks @bigsongeth)
+- **X-Code API URL**: Corrected X-Code API URL from `www.x-code.cn` to `x-code.cc`
+
+#### i18n & Localization
+
+- **Stream Check Toast**: Fixed stream check toast i18n interpolation keys not matching translation placeholders
+- **Proxy Startup Toast**: Fixed proxy startup toast not interpolating address and port values (#1399, thanks @Mason-mengze)
+- **OpenCode API Format Label**: Renamed OpenCode API format label from "OpenAI" to "OpenAI Responses" for accuracy
+
+---
+
+## [3.12.0] - 2026-03-09
+
+### Feature Release
+
+This release restores the **Model Health Check (Stream Check)** UI, adds **OpenAI Responses API** format conversion, introduces the **Bedrock Optimizer** for thinking + cache injection, expands provider presets (Ucloud, Micu, X-Code API, Novita, Bailian For Coding), overhauls **OpenClaw config panels** with a JSON5 round-trip write engine, enhances **WebDAV sync** with dual-layer versioning, and delivers a comprehensive **i18n audit** fixing 69 missing keys alongside 20+ bug fixes.
+
+**Stats**: 56 commits | 221 files changed | +20,582 insertions | -8,026 deletions
+
+### Added
+
+#### Stream Check (Model Health Check)
+
+- **Restore Stream Check UI**: Brought back the model health check (Stream Check) panel for testing provider endpoint availability with live streaming validation
+- **First-Run Confirmation**: Added a confirmation dialog on first use of Stream Check to inform users about the feature's purpose and network requests
+- **OpenAI Chat Format Support**: Stream Check now supports `openai_chat` api_format, enabling health checks for providers using OpenAI-compatible endpoints
+
+#### OpenAI Responses API
+
+- **Responses API Format Conversion**: New `api_format = "openai_responses"` option enabling Anthropic Messages ↔ OpenAI Responses API bidirectional conversion for providers that implement the Responses API
+- **Responses API Deduplication**: Deduplicated and improved the Responses API conversion logic, consolidating shared transformation code
+
+#### Bedrock Optimizer
+
+- **Bedrock Request Optimizer**: PRE-SEND optimizer that injects thinking parameters and cache control blocks into AWS Bedrock requests, enabling extended thinking and prompt caching on Bedrock endpoints (#1301)
+
+#### OpenClaw Enhancements
+
+- **JSON5 Round-Trip Write Engine**: Overhauled OpenClaw config panels with a JSON5 round-trip write engine that preserves comments, formatting, and ordering when saving configuration changes
+- **Config Panel Improvements**: Redesigned EnvPanel as a full JSON editor, added `tools.profile` selection to ToolsPanel, introduced OpenClawHealthBanner for config validation warnings, and added legacy timeout migration support in Agents Defaults
+- **Agent Model Dropdown**: Replaced text inputs with dropdown selects for OpenClaw agent model configuration, offering a curated list of available models
+- **User-Agent Toggle**: Added a User-Agent header toggle for OpenClaw, defaulting to off to avoid potential compatibility issues with certain providers
+
+#### Provider Presets
+
+- **Ucloud**: Added Ucloud partner provider preset for Claude, Codex, and OpenClaw with endpointCandidates, unified apiKeyUrl, refreshed model defaults, and OpenClaw `templateValues` / `suggestedDefaults`
+- **Micu**: Added Micu partner provider preset for Claude, Codex, OpenClaw, and OpenCode with OpenClaw `templateValues` / `suggestedDefaults`
+- **X-Code API**: Added X-Code API partner provider preset for Claude, Codex, and OpenCode with endpointCandidates
+- **Novita**: Added Novita provider presets and icon across all supported apps (#1192)
+- **Bailian For Coding**: Added Bailian For Coding preset configuration (#1263)
+- **SiliconFlow Partner Badge**: Added partner badge designation for SiliconFlow provider presets
+- **Model Role Badges**: Added model role badges (e.g., Opus, Sonnet) to provider presets and reordered presets to prioritize Opus models
+
+#### WebDAV Sync
+
+- **Dual-Layer Versioning**: Added protocol v2 + db-v6 dual-layer versioning to WebDAV sync, enabling backward-compatible sync format evolution and automatic migration detection
+- **Auto-Sync Confirmation**: Added a confirmation dialog when toggling WebDAV auto-sync on/off to prevent accidental changes
+
+#### Usage & Data
+
+- **Daily Rollups & Auto-Vacuum**: Added usage daily rollups for aggregated statistics, incremental auto-vacuum for storage management, and sync-aware backup that coordinates with WebDAV sync cycles
+- **UsageFooter Extra Fields**: Added extra field display in UsageFooter component for normal mode, showing additional usage metadata (#1137)
+
+#### Session Management
+
+- **Session Deletion**: Added session deletion with per-provider cleanup and path safety validation, allowing users to remove individual conversation sessions
+
+#### UI & Config
+
+- **Auth Field Selector**: Restored Claude provider auth field selector supporting both AUTH_TOKEN and API_KEY authentication modes
+- **Failover Toggle**: Moved failover toggle to display independently on the main page with a confirmation dialog for enabling/disabling
+- **Common Config Auto-Extract**: Auto-extract Common Config Snippets from live configuration files on first run, seeding initial common config without manual setup
+- **New Provider Page Improvements**: Improved the new provider page with API endpoint and model name fields (#1155)
+
+### Changed
+
+#### Architecture
+
+- **Common Config Runtime Overlay**: Common Config is now applied as a runtime overlay during provider switching instead of being materialized (merged) into each provider's stored config. This preserves the original provider config in the database and applies common settings dynamically at write time
+- **First-Run Auto-Extract**: On first run, Common Config Snippets are automatically extracted from the current live configuration files, eliminating the need for manual initial setup
+
+### Fixed
+
+#### Proxy & Streaming
+
+- **OpenAI Streaming Conversion**: Fixed OpenAI ChatCompletion → Anthropic Messages streaming conversion that could produce malformed events under certain response structures
+- **Codex /responses/compact Route**: Added support for Codex `/responses/compact` route in proxy forwarding (#1194)
+- **Codex Common Config TOML Merge**: Fixed Codex Common Config to use structural TOML merge/subset instead of raw string comparison, correctly handling key ordering and formatting differences
+- **Proxy Forwarder Failure Logs**: Improved proxy forwarder failure logging with more descriptive error messages
+
+#### Provider & Preset
+
+- **X-Code Rename**: Renamed "X-Code" provider to "X-Code API" for consistency with the official branding
+- **SSSAiCode Missing /v1**: Added missing `/v1` path to SSSAiCode default endpoint for Codex and OpenCode
+- **AICoding URL Fix**: Removed `www` prefix from aicoding.sh provider URLs to match the correct domain
+- **New Provider Page Input Handling**: Fixed the new provider page so API endpoint / model fields handle line-break deletion correctly and added the missing `codexConfig.modelNameHint` i18n key for zh/en/ja
+
+#### Platform
+
+- **Cache Hit Token Statistics**: Fixed missing token statistics for cache hits in streaming responses (#1244)
+- **Minimize-to-Tray Auto Exit**: Fixed issue where the application would automatically exit after being minimized to the system tray for a period of time (#1245)
+
+#### i18n & Localization
+
+- **Comprehensive i18n Audit**: Added 69 missing i18n keys and fixed hardcoded Chinese strings across the application, improving localization coverage for all three languages (zh/en/ja)
+- **Model Test Panel i18n**: Corrected i18n key paths for model test panel title and description
+- **JSON5 Slash Escaping**: Normalized JSON5 slash escaping and added i18n support for OpenClaw panel labels
+
+#### UI
+
+- **Skills Count Display**: Fixed skills count not displaying correctly when adding new skills (#1295)
+- **Endpoint Speed Test**: Removed HTTP status code display from endpoint speed test results to reduce visual noise
+- **Outline Button Text Tone**: Aligned outline button text color tone with usage refresh control for visual consistency (#1222)
+
+### Performance
+
+- **OpenClaw Config Write Skip**: Skip backup and atomic write when OpenClaw configuration content is unchanged, avoiding unnecessary I/O operations
+
+### Documentation
+
+- **User Manual i18n**: Restructured user manual for internationalization and added complete EN/JA translations alongside the existing ZH documentation
+- **User Manual OpenClaw**: Added OpenClaw coverage and completed settings documentation for the user manual
+- **UCloud CompShare Sponsor**: Added UCloud CompShare as a sponsor partner
+- **Docs Directory Reorganization**: Reorganized docs directory structure, added user manual links to all three README files, removed cross-language links from user manual sections, and synced README features across EN/ZH/JA
+
+### Maintenance
+
+- **Periodic Maintenance Timer**: Consolidated periodic maintenance timers into a unified scheduler, combining vacuum and rollup operations into a single timer
+- **OpenClaw Save Toast**: Removed backup path display from OpenClaw save toasts for cleaner notification messages
 
 ---
 

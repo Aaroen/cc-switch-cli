@@ -375,7 +375,12 @@ fn build_client(proxy_url: Option<&str>) -> Result<Client, String> {
         .tcp_keepalive(Duration::from_secs(60))
         // 统一关闭 reqwest 的“自动读取环境代理”，避免与 Clash/系统代理叠加导致不可预期行为。
         // 如果需要继承环境代理，会在 init() 阶段显式读取并注入。
-        .no_proxy();
+        .no_proxy()
+        // 禁用 reqwest 自动解压：防止 reqwest 覆盖客户端原始 accept-encoding header。
+        // 响应解压由 response_processor 根据 content-encoding 手动处理。
+        .no_gzip()
+        .no_brotli()
+        .no_deflate();
 
     // 有代理地址则使用代理，否则直连
     if let Some(url) = proxy_url {
@@ -559,7 +564,7 @@ pub fn mask_url(url: &str) -> String {
 }
 
 /// 根据供应商单独代理配置构建代理 URL
-fn build_proxy_url_from_config(config: &ProviderProxyConfig) -> Option<String> {
+pub fn build_proxy_url_from_config(config: &ProviderProxyConfig) -> Option<String> {
     let proxy_type = config.proxy_type.as_deref().unwrap_or("http");
     let host = config.proxy_host.as_deref()?;
     let port = config.proxy_port?;
@@ -600,7 +605,6 @@ pub fn get_for_provider(proxy_config: Option<&ProviderProxyConfig>) -> Client {
     }
     get()
 }
-
 #[cfg(test)]
 mod tests {
     use super::*;

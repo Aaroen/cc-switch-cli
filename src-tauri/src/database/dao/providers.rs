@@ -305,8 +305,9 @@ impl Database {
                     icon_color = ?9,
                     meta = ?10,
                     is_current = ?11,
-                    in_failover_queue = ?12
-                WHERE id = ?13 AND app_type = ?14",
+                    in_failover_queue = ?12,
+                    weight = ?13
+                WHERE id = ?14 AND app_type = ?15",
                 params![
                     provider.name,
                     serde_json::to_string(&provider.settings_config).map_err(|e| {
@@ -324,6 +325,7 @@ impl Database {
                     )))?,
                     is_current,
                     in_failover_queue,
+                    provider.weight,
                     provider.id,
                     app_type,
                 ],
@@ -333,8 +335,8 @@ impl Database {
             tx.execute(
                 "INSERT INTO providers (
                     id, app_type, name, settings_config, website_url, category,
-                    created_at, sort_index, notes, icon, icon_color, meta, is_current, in_failover_queue
-                ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14)",
+                    created_at, sort_index, notes, icon, icon_color, meta, is_current, in_failover_queue, weight
+                ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15)",
                 params![
                     provider.id,
                     app_type,
@@ -352,6 +354,7 @@ impl Database {
                         .map_err(|e| AppError::Database(format!("Failed to serialize meta: {e}")))?,
                     is_current,
                     in_failover_queue,
+                    provider.weight,
                 ],
             )
             .map_err(|e| AppError::Database(e.to_string()))?;
@@ -468,11 +471,12 @@ impl Database {
 
         let rows_affected = conn
             .execute(
-                "UPDATE providers SET meta = ?1 WHERE id = ?2 AND app_type = ?3",
+                "UPDATE providers SET meta = ?1, weight = ?2 WHERE id = ?3 AND app_type = ?4",
                 params![
                     serde_json::to_string(&meta).map_err(|e| AppError::Database(format!(
                         "Failed to serialize meta: {e}"
                     )))?,
+                    weight,
                     provider_id,
                     app_type
                 ],
@@ -694,5 +698,191 @@ impl Database {
             in_failover_queue: false,
             weight: 1,
         }))
+    }
+
+    /// 判断 providers 表是否为空（全 app_type 一起算）。
+    ///
+    /// 用于区分"全新安装"和"升级用户"：在启动流程 import/seed 之前调用。
+    /// 使用 `EXISTS` 短路查询，比 `COUNT(*)` 在将来表变大时更高效。
+    pub fn is_providers_empty(&self) -> Result<bool, AppError> {
+        let conn = lock_conn!(self.conn);
+        let exists: bool = conn
+            .query_row("SELECT EXISTS(SELECT 1 FROM providers)", [], |row| {
+                row.get(0)
+            })
+            .map_err(|e| AppError::Database(e.to_string()))?;
+        Ok(!exists)
+    }
+
+    /// 仅获取指定 app 下所有 provider 的 id 集合。
+    ///
+    /// 比 `get_all_providers` 轻量得多：只读 id 列、无 endpoint 子查询。
+    /// 用于只需要做存在性检查的场景（如 additive 模式的 live 同步去重）。
+    pub fn get_provider_ids(&self, app_type: &str) -> Result<HashSet<String>, AppError> {
+        let conn = lock_conn!(self.conn);
+        let mut stmt = conn
+            .prepare("SELECT id FROM providers WHERE app_type = ?1")
+            .map_err(|e| AppError::Database(e.to_string()))?;
+        let rows = stmt
+            .query_map(params![app_type], |row| row.get::<_, String>(0))
+            .map_err(|e| AppError::Database(e.to_string()))?;
+        let mut ids = HashSet::new();
+        for row in rows {
+            ids.insert(row.map_err(|e| AppError::Database(e.to_string()))?);
+        }
+        Ok(ids)
+    }
+
+    /// 判断指定 app 下是否存在非官方种子的供应商。
+    ///
+    /// 比 `get_all_providers` 轻量得多：只读 id 列、无 endpoint 子查询、首条命中即返回。
+    /// 用于 `import_default_config` 决定是否跳过 live 导入。
+    pub fn has_non_official_seed_provider(&self, app_type: &str) -> Result<bool, AppError> {
+        use crate::database::dao::providers_seed::is_official_seed_id;
+        let conn = lock_conn!(self.conn);
+        let mut stmt = conn
+            .prepare("SELECT id FROM providers WHERE app_type = ?1")
+            .map_err(|e| AppError::Database(e.to_string()))?;
+        let mut rows = stmt
+            .query(params![app_type])
+            .map_err(|e| AppError::Database(e.to_string()))?;
+        while let Some(row) = rows.next().map_err(|e| AppError::Database(e.to_string()))? {
+            let id: String = row.get(0).map_err(|e| AppError::Database(e.to_string()))?;
+            if !is_official_seed_id(&id) {
+                return Ok(true);
+            }
+        }
+        Ok(false)
+    }
+
+    /// 计算指定 app 下一个可用的 sort_index（追加到末尾）。
+    fn next_sort_index_for_app(&self, app_type: &str) -> Result<usize, AppError> {
+        let conn = lock_conn!(self.conn);
+        let max: Option<i64> = conn
+            .query_row(
+                "SELECT MAX(sort_index) FROM providers WHERE app_type = ?1",
+                params![app_type],
+                |row| row.get(0),
+            )
+            .map_err(|e| AppError::Database(e.to_string()))?;
+        Ok(max.map(|v| (v + 1) as usize).unwrap_or(0))
+    }
+
+    /// 启动时调用：补齐缺失的官方预设供应商（Claude / Codex / Gemini）。
+    ///
+    /// 使用 settings flag `official_providers_seeded` 保证每个数据库只执行一次：
+    /// - 全新用户：seed 三条官方预设
+    /// - 老用户升级：同样会触发一次（flag 不存在），追加到末尾，不影响已有排序
+    /// - 用户删除 seed 后：不再重建（flag 已为 true），尊重用户意图
+    ///
+    /// 与 `Database::save_provider` 的 UPSERT 语义配合，即使被意外重复调用
+    /// 也不会覆盖用户当前激活的供应商（is_current 字段会被保留）。
+    pub fn init_default_official_providers(&self) -> Result<usize, AppError> {
+        use crate::database::dao::providers_seed::OFFICIAL_SEEDS;
+
+        if self
+            .get_bool_flag("official_providers_seeded")
+            .unwrap_or(false)
+        {
+            return Ok(0);
+        }
+
+        let mut inserted = 0_usize;
+        let now_ms = chrono::Utc::now().timestamp_millis();
+
+        for seed in OFFICIAL_SEEDS {
+            let app_type_str = seed.app_type.as_str();
+
+            // 若该 id 已存在（极端情况：用户曾手动用过同 id），跳过
+            if self.get_provider_by_id(seed.id, app_type_str)?.is_some() {
+                continue;
+            }
+
+            let next_sort_index = self.next_sort_index_for_app(app_type_str)?;
+
+            let settings_config: serde_json::Value =
+                serde_json::from_str(seed.settings_config_json).map_err(|e| {
+                    AppError::Database(format!("Seed JSON parse failed for {}: {e}", seed.id))
+                })?;
+
+            let mut provider = Provider::with_id(
+                seed.id.to_string(),
+                seed.name.to_string(),
+                settings_config,
+                Some(seed.website_url.to_string()),
+            );
+            provider.category = Some("official".to_string());
+            provider.icon = Some(seed.icon.to_string());
+            provider.icon_color = Some(seed.icon_color.to_string());
+            provider.sort_index = Some(next_sort_index);
+            provider.created_at = Some(now_ms);
+
+            self.save_provider(app_type_str, &provider)?;
+            inserted += 1;
+            log::info!(
+                "✓ Seeded official provider: {} ({})",
+                seed.name,
+                app_type_str
+            );
+        }
+
+        // 即使 inserted=0（例如用户手动创建过同 id）也设置 flag 防止反复检查
+        self.set_setting("official_providers_seeded", "true")?;
+
+        Ok(inserted)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::database::Database;
+    use crate::provider::Provider;
+    use serde_json::json;
+
+    #[test]
+    fn update_provider_weight_persists_default_weight_without_falling_back_to_legacy_value() {
+        let db = Database::memory().expect("init in-memory db");
+
+        let mut provider = Provider::with_id(
+            "provider-1".to_string(),
+            "Provider 1".to_string(),
+            json!({ "env": { "OPENAI_API_KEY": "test-key" } }),
+            None,
+        );
+        provider.weight = 20;
+
+        db.save_provider("codex", &provider)
+            .expect("save provider with legacy weight");
+
+        db.update_provider_weight("codex", "provider-1", 1)
+            .expect("update provider weight to default");
+
+        let saved = db
+            .get_provider_by_id("provider-1", "codex")
+            .expect("query provider")
+            .expect("provider should exist");
+        assert_eq!(saved.weight, 1, "effective weight should be the updated value");
+        assert_eq!(
+            saved.meta.as_ref().and_then(|meta| meta.routing_weight),
+            None,
+            "default weight should be omitted from meta to keep storage compact"
+        );
+
+        let conn = db.conn.lock().expect("lock db connection");
+        let raw: (u32, String) = conn
+            .query_row(
+                "SELECT weight, meta FROM providers WHERE id = ?1 AND app_type = ?2",
+                params!["provider-1", "codex"],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .expect("query raw provider row");
+        assert_eq!(raw.0, 1, "legacy weight column should stay synchronized");
+
+        let raw_meta: ProviderMeta = serde_json::from_str(&raw.1).expect("parse stored meta");
+        assert_eq!(
+            raw_meta.routing_weight, None,
+            "default weight should not be redundantly stored in meta"
+        );
     }
 }

@@ -9,6 +9,10 @@ import {
   Plus,
   Settings,
   ArrowLeft,
+  Minus,
+  Maximize2,
+  Minimize2,
+  X,
   Book,
   Wrench,
   RefreshCw,
@@ -22,6 +26,7 @@ import {
   Shield,
   Cpu,
 } from "lucide-react";
+import { getCurrentWindow } from "@tauri-apps/api/window";
 import type { Provider, VisibleApps } from "@/types";
 import type { EnvConflict } from "@/types/env";
 import { useProvidersQuery, useSettingsQuery } from "@/lib/query";
@@ -33,14 +38,19 @@ import {
 } from "@/lib/api";
 import { checkAllEnvConflicts, checkEnvConflicts } from "@/lib/api/env";
 import { useProviderActions } from "@/hooks/useProviderActions";
-import { openclawKeys } from "@/hooks/useOpenClaw";
+import { openclawKeys, useOpenClawHealth } from "@/hooks/useOpenClaw";
 import { useProxyStatus } from "@/hooks/useProxyStatus";
 import { useAutoCompact } from "@/hooks/useAutoCompact";
 import { useLastValidValue } from "@/hooks/useLastValidValue";
 import { extractErrorMessage } from "@/utils/errorUtils";
 import { isTextEditableTarget } from "@/utils/domUtils";
 import { cn } from "@/lib/utils";
-import { isWindows, isLinux } from "@/lib/platform";
+import {
+  isWindows,
+  isLinux,
+  DRAG_REGION_ATTR,
+  DRAG_REGION_STYLE,
+} from "@/lib/platform";
 import { AppSwitcher } from "@/components/AppSwitcher";
 import { ProviderList } from "@/components/providers/ProviderList";
 import { AddProviderDialog } from "@/components/providers/AddProviderDialog";
@@ -57,6 +67,7 @@ import PromptPanel from "@/components/prompts/PromptPanel";
 import { SkillsPage } from "@/components/skills/SkillsPage";
 import UnifiedSkillsPanel from "@/components/skills/UnifiedSkillsPanel";
 import { DeepLinkImportDialog } from "@/components/DeepLinkImportDialog";
+import { FirstRunNoticeDialog } from "@/components/FirstRunNoticeDialog";
 import { AgentsPanel } from "@/components/agents/AgentsPanel";
 import { UniversalProviderPanel } from "@/components/universal";
 import { McpIcon } from "@/components/BrandIcons";
@@ -70,6 +81,7 @@ import WorkspaceFilesPanel from "@/components/workspace/WorkspaceFilesPanel";
 import EnvPanel from "@/components/openclaw/EnvPanel";
 import ToolsPanel from "@/components/openclaw/ToolsPanel";
 import AgentsDefaultsPanel from "@/components/openclaw/AgentsDefaultsPanel";
+import OpenClawHealthBanner from "@/components/openclaw/OpenClawHealthBanner";
 
 type View =
   | "providers"
@@ -92,9 +104,8 @@ interface WebDavSyncStatusUpdatedPayload {
   error?: string;
 }
 
-const DRAG_BAR_HEIGHT = isWindows() || isLinux() ? 0 : 28; // px
+const DEFAULT_DRAG_BAR_HEIGHT = isWindows() || isLinux() ? 0 : 28; // px
 const HEADER_HEIGHT = 64; // px
-const CONTENT_TOP_OFFSET = DRAG_BAR_HEIGHT + HEADER_HEIGHT;
 
 const STORAGE_KEY = "cc-switch-last-app";
 const VALID_APPS: AppId[] = [
@@ -146,12 +157,17 @@ function App() {
   const [currentView, setCurrentView] = useState<View>(getInitialView);
   const [settingsDefaultTab, setSettingsDefaultTab] = useState("general");
   const [isAddOpen, setIsAddOpen] = useState(false);
+  const [isWindowMaximized, setIsWindowMaximized] = useState(false);
 
   useEffect(() => {
     localStorage.setItem(VIEW_STORAGE_KEY, currentView);
   }, [currentView]);
 
   const { data: settingsData } = useSettingsQuery();
+  const useAppWindowControls =
+    isLinux() && (settingsData?.useAppWindowControls ?? false);
+  const dragBarHeight = useAppWindowControls ? 32 : DEFAULT_DRAG_BAR_HEIGHT;
+  const contentTopOffset = dragBarHeight + HEADER_HEIGHT;
   const visibleApps: VisibleApps = settingsData?.visibleApps ?? {
     claude: true,
     codex: true,
@@ -229,6 +245,16 @@ function App() {
   });
   const providers = useMemo(() => data?.providers ?? {}, [data]);
   const currentProviderId = data?.currentProviderId ?? "";
+  const isOpenClawView =
+    activeApp === "openclaw" &&
+    (currentView === "providers" ||
+      currentView === "workspace" ||
+      currentView === "sessions" ||
+      currentView === "openclawEnv" ||
+      currentView === "openclawTools" ||
+      currentView === "openclawAgents");
+  const { data: openclawHealthWarnings = [] } =
+    useOpenClawHealth(isOpenClawView);
   const hasSkillsSupport = true;
   const hasSessionSupport =
     activeApp === "claude" ||
@@ -244,7 +270,11 @@ function App() {
     deleteProvider,
     saveUsageScript,
     setAsDefaultModel,
-  } = useProviderActions(activeApp);
+  } = useProviderActions(
+    activeApp,
+    isProxyRunning,
+    isProxyRunning && isCurrentAppTakeoverActive,
+  );
 
   const disableOmoMutation = useDisableCurrentOmo();
   const handleDisableOmo = () => {
@@ -374,6 +404,77 @@ function App() {
       unsubscribe?.();
     };
   }, [queryClient, t]);
+
+  // Listen for proxy-official-warning: warn when takeover is enabled with an official provider
+  useEffect(() => {
+    let unsubscribe: (() => void) | undefined;
+
+    const setup = async () => {
+      unsubscribe = await listen("proxy-official-warning", (event) => {
+        const { providerName } = event.payload as {
+          appType: string;
+          providerName: string;
+        };
+        toast.warning(
+          t("notifications.proxyOfficialWarning", {
+            name: providerName,
+            defaultValue: `当前供应商 ${providerName} 是官方供应商，建议切换到第三方供应商后再使用代理接管`,
+          }),
+          { duration: 8000 },
+        );
+      });
+    };
+
+    void setup();
+    return () => {
+      unsubscribe?.();
+    };
+  }, [t]);
+
+  useEffect(() => {
+    let active = true;
+    let unlistenResize: (() => void) | undefined;
+
+    const setupWindowStateSync = async () => {
+      try {
+        const currentWindow = getCurrentWindow();
+        const syncWindowMaximizedState = async () => {
+          const maximized = await currentWindow.isMaximized();
+          if (active) {
+            setIsWindowMaximized(maximized);
+          }
+        };
+
+        await syncWindowMaximizedState();
+        unlistenResize = await currentWindow.onResized(() => {
+          void syncWindowMaximizedState();
+        });
+      } catch (error) {
+        console.error("[App] Failed to sync window maximized state", error);
+      }
+    };
+
+    void setupWindowStateSync();
+    return () => {
+      active = false;
+      unlistenResize?.();
+    };
+  }, []);
+
+  useEffect(() => {
+    // settingsData 未加载时跳过，避免用 fallback false 覆盖 Rust 侧已设好的装饰状态
+    if (!settingsData) return;
+
+    const syncWindowDecorations = async () => {
+      try {
+        await getCurrentWindow().setDecorations(!useAppWindowControls);
+      } catch (error) {
+        console.error("[App] Failed to update window decorations", error);
+      }
+    };
+
+    void syncWindowDecorations();
+  }, [useAppWindowControls, settingsData]);
 
   useEffect(() => {
     const checkEnvOnStartup = async () => {
@@ -522,8 +623,14 @@ function App() {
     }
   };
 
-  const handleEditProvider = async (provider: Provider) => {
-    await updateProvider(provider);
+  const handleEditProvider = async ({
+    provider,
+    originalId,
+  }: {
+    provider: Provider;
+    originalId?: string;
+  }) => {
+    await updateProvider(provider, originalId);
     setEditingProvider(null);
   };
 
@@ -544,6 +651,9 @@ function App() {
         await queryClient.invalidateQueries({
           queryKey: openclawKeys.liveProviderIds,
         });
+        await queryClient.invalidateQueries({
+          queryKey: openclawKeys.health,
+        });
       }
       toast.success(
         t("notifications.removeFromConfigSuccess", {
@@ -557,7 +667,7 @@ function App() {
     setConfirmAction(null);
   };
 
-  const generateUniqueOpencodeKey = (
+  const generateUniqueProviderCopyKey = (
     originalKey: string,
     existingKeys: string[],
   ): string => {
@@ -580,6 +690,7 @@ function App() {
 
     const duplicatedProvider: Omit<Provider, "id" | "createdAt"> & {
       providerKey?: string;
+      addToLive?: boolean;
     } = {
       name: `${provider.name} copy`,
       settingsConfig: JSON.parse(JSON.stringify(provider.settingsConfig)), // 深拷贝
@@ -593,12 +704,40 @@ function App() {
       iconColor: provider.iconColor,
     };
 
-    if (activeApp === "opencode") {
-      const existingKeys = Object.keys(providers);
-      duplicatedProvider.providerKey = generateUniqueOpencodeKey(
+    if (activeApp === "opencode" || activeApp === "openclaw") {
+      let liveProviderIds: string[] = [];
+      try {
+        liveProviderIds =
+          activeApp === "opencode"
+            ? await queryClient.ensureQueryData({
+                queryKey: ["opencodeLiveProviderIds"],
+                queryFn: () => providersApi.getOpenCodeLiveProviderIds(),
+              })
+            : await queryClient.ensureQueryData({
+                queryKey: openclawKeys.liveProviderIds,
+                queryFn: () => providersApi.getOpenClawLiveProviderIds(),
+              });
+      } catch (error) {
+        console.error(
+          "[App] Failed to load live provider IDs for duplication",
+          error,
+        );
+        const errorMessage = extractErrorMessage(error);
+        toast.error(
+          t("provider.duplicateLiveIdsLoadFailed", {
+            defaultValue: "读取配置中的供应商标识失败，请先修复配置后再试",
+          }) + (errorMessage ? `: ${errorMessage}` : ""),
+        );
+        return;
+      }
+      const existingKeys = Array.from(
+        new Set([...Object.keys(providers), ...liveProviderIds]),
+      );
+      duplicatedProvider.providerKey = generateUniqueProviderCopyKey(
         provider.id,
         existingKeys,
       );
+      duplicatedProvider.addToLive = false;
     }
 
     if (provider.sortIndex !== undefined) {
@@ -634,7 +773,14 @@ function App() {
 
   const handleOpenTerminal = async (provider: Provider) => {
     try {
-      await providersApi.openTerminal(provider.id, activeApp);
+      const selectedDir = await settingsApi.pickDirectory();
+      if (!selectedDir) {
+        return;
+      }
+
+      await providersApi.openTerminal(provider.id, activeApp, {
+        cwd: selectedDir,
+      });
       toast.success(
         t("provider.terminalOpened", {
           defaultValue: "终端已打开",
@@ -672,6 +818,44 @@ function App() {
     }
   };
 
+  const notifyWindowControlError = (error: unknown) => {
+    toast.error(
+      t("notifications.windowControlFailed", {
+        defaultValue: "窗口控制失败：{{error}}",
+        error: extractErrorMessage(error),
+      }),
+    );
+  };
+
+  const handleWindowMinimize = async () => {
+    try {
+      await getCurrentWindow().minimize();
+    } catch (error) {
+      console.error("[App] Failed to minimize window", error);
+      notifyWindowControlError(error);
+    }
+  };
+
+  const handleWindowToggleMaximize = async () => {
+    try {
+      const currentWindow = getCurrentWindow();
+      await currentWindow.toggleMaximize();
+      setIsWindowMaximized(await currentWindow.isMaximized());
+    } catch (error) {
+      console.error("[App] Failed to toggle maximize", error);
+      notifyWindowControlError(error);
+    }
+  };
+
+  const handleWindowClose = async () => {
+    try {
+      await getCurrentWindow().close();
+    } catch (error) {
+      console.error("[App] Failed to close window", error);
+      notifyWindowControlError(error);
+    }
+  };
+
   const renderContent = () => {
     const content = (() => {
       switch (currentView) {
@@ -698,17 +882,14 @@ function App() {
             <UnifiedSkillsPanel
               ref={unifiedSkillsPanelRef}
               onOpenDiscovery={() => setCurrentView("skillsDiscovery")}
+              currentApp={activeApp === "openclaw" ? "claude" : activeApp}
             />
           );
         case "skillsDiscovery":
           return (
             <SkillsPage
               ref={skillsPageRef}
-              initialApp={
-                activeApp === "opencode" || activeApp === "openclaw"
-                  ? "claude"
-                  : activeApp
-              }
+              initialApp={activeApp === "openclaw" ? "claude" : activeApp}
             />
           );
         case "mcp":
@@ -741,7 +922,7 @@ function App() {
           return <AgentsDefaultsPanel />;
         default:
           return (
-            <div className="px-6 flex flex-col h-[calc(100vh-8rem)] overflow-hidden">
+            <div className="px-6 flex flex-col flex-1 min-h-0 overflow-hidden">
               <div className="flex-1 overflow-y-auto overflow-x-hidden pb-12 px-1">
                 <AnimatePresence mode="wait">
                   <motion.div
@@ -821,13 +1002,58 @@ function App() {
   return (
     <div
       className="flex flex-col h-screen overflow-hidden bg-background text-foreground selection:bg-primary/30"
-      style={{ overflowX: "hidden", paddingTop: CONTENT_TOP_OFFSET }}
+      style={{ overflowX: "hidden", paddingTop: contentTopOffset }}
     >
-      <div
-        className="fixed top-0 left-0 right-0 z-[60]"
-        data-tauri-drag-region
-        style={{ WebkitAppRegion: "drag", height: DRAG_BAR_HEIGHT } as any}
-      />
+      {(dragBarHeight > 0 || useAppWindowControls) && (
+        <div
+          className="fixed top-0 left-0 right-0 z-[70] flex items-center justify-end px-2"
+          data-tauri-drag-region
+          style={{ WebkitAppRegion: "drag", height: dragBarHeight } as any}
+        >
+          {useAppWindowControls && (
+            <div
+              className="flex items-center gap-1"
+              style={{ WebkitAppRegion: "no-drag" } as any}
+            >
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => void handleWindowMinimize()}
+                title={t("header.windowMinimize")}
+                className="h-7 w-7"
+              >
+                <Minus className="w-4 h-4" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => void handleWindowToggleMaximize()}
+                title={
+                  isWindowMaximized
+                    ? t("header.windowRestore")
+                    : t("header.windowMaximize")
+                }
+                className="h-7 w-7"
+              >
+                {isWindowMaximized ? (
+                  <Minimize2 className="w-4 h-4" />
+                ) : (
+                  <Maximize2 className="w-4 h-4" />
+                )}
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => void handleWindowClose()}
+                title={t("header.windowClose")}
+                className="h-7 w-7 hover:bg-red-500/15 hover:text-red-500"
+              >
+                <X className="w-4 h-4" />
+              </Button>
+            </div>
+          )}
+        </div>
+      )}
       {showEnvBanner && envConflicts.length > 0 && (
         <EnvWarningBanner
           conflicts={envConflicts}
@@ -855,19 +1081,19 @@ function App() {
 
       <header
         className="fixed z-50 w-full transition-all duration-300 bg-background/80 backdrop-blur-md"
-        data-tauri-drag-region
+        {...DRAG_REGION_ATTR}
         style={
           {
-            WebkitAppRegion: "drag",
-            top: DRAG_BAR_HEIGHT,
+            ...DRAG_REGION_STYLE,
+            top: dragBarHeight,
             height: HEADER_HEIGHT,
           } as any
         }
       >
         <div
           className="flex h-full items-center justify-between gap-2 px-6"
-          data-tauri-drag-region
-          style={{ WebkitAppRegion: "drag" } as any}
+          {...DRAG_REGION_ATTR}
+          style={{ ...DRAG_REGION_STYLE } as any}
         >
           <div
             className="flex items-center gap-1"
@@ -967,31 +1193,25 @@ function App() {
           <div className="flex flex-1 min-w-0 items-center justify-end gap-1.5">
             {currentView === "providers" &&
               activeApp !== "opencode" &&
-              activeApp !== "openclaw" &&
-              settingsData?.enableLocalProxy && (
+              activeApp !== "openclaw" && (
                 <div
                   className="flex shrink-0 items-center gap-1.5"
                   style={{ WebkitAppRegion: "no-drag" } as any}
                 >
-                  <ProxyToggle activeApp={activeApp} />
-                  <div
-                    className={cn(
-                      "transition-all duration-300 ease-in-out overflow-hidden",
-                      isCurrentAppTakeoverActive
-                        ? "opacity-100 max-w-[100px] scale-100"
-                        : "opacity-0 max-w-0 scale-75 pointer-events-none",
-                    )}
-                  >
+                  {settingsData?.enableLocalProxy && (
+                    <ProxyToggle activeApp={activeApp} />
+                  )}
+                  {settingsData?.enableFailoverToggle && (
                     <FailoverToggle activeApp={activeApp} />
-                  </div>
+                  )}
                 </div>
               )}
             <div
               ref={toolbarRef}
-              className="flex flex-1 min-w-0 overflow-x-hidden justify-end items-center"
+              className="flex flex-1 min-w-0 overflow-x-hidden items-center py-4 pr-2"
             >
               <div
-                className="flex shrink-0 items-center gap-1.5"
+                className="flex shrink-0 items-center gap-1.5 ml-auto"
                 style={{ WebkitAppRegion: "no-drag" } as any}
               >
                 {currentView === "prompts" && (
@@ -1029,6 +1249,17 @@ function App() {
                 )}
                 {currentView === "skills" && (
                   <>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() =>
+                        unifiedSkillsPanelRef.current?.openRestoreFromBackup()
+                      }
+                      className="hover:bg-black/5 dark:hover:bg-white/5"
+                    >
+                      <History className="w-4 h-4 mr-2" />
+                      {t("skills.restoreFromBackup.button")}
+                    </Button>
                     <Button
                       variant="ghost"
                       size="sm"
@@ -1225,6 +1456,9 @@ function App() {
       </header>
 
       <main className="flex-1 min-h-0 flex flex-col overflow-y-auto animate-fade-in">
+        {isOpenClawView && openclawHealthWarnings.length > 0 && (
+          <OpenClawHealthBanner warnings={openclawHealthWarnings} />
+        )}
         {renderContent()}
       </main>
 
@@ -1286,6 +1520,7 @@ function App() {
       />
 
       <DeepLinkImportDialog />
+      <FirstRunNoticeDialog />
     </div>
   );
 }

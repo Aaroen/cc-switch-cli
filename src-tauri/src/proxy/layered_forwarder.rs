@@ -5,6 +5,7 @@
 use super::{
     body_filter::filter_private_params_with_whitelist,
     file_logger::get_file_logger,             // 【新增】文件日志器
+    hyper_client::ProxyResponse,
     forwarder::{ForwardError, ForwardResult}, // 【重用】直接使用forwarder定义的类型
     model_mapper,
     provider_router::ProviderRouter,
@@ -327,8 +328,9 @@ impl LayeredForwarder {
                 );
 
                 Ok(ForwardResult {
-                    response,
+                    response: ProxyResponse::Reqwest(response),
                     provider: provider.clone(),
+                    claude_api_format: None,
                 })
             }
             Err(error) => {
@@ -466,7 +468,9 @@ impl LayeredForwarder {
 
         // 13. 添加认证头
         if let Some(auth) = adapter.extract_auth(provider) {
-            request = adapter.add_auth_headers(request, &auth);
+            for (name, value) in adapter.get_auth_headers(&auth) {
+                request = request.header(name, value);
+            }
         }
 
         // 14. anthropic-version 统一处理（仅 Claude）

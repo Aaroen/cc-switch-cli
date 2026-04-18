@@ -7,7 +7,7 @@
 - CLI 全功能控制
 - GUI 中对轮询/故障转移的可视化配置入口
 
-命令入口以 `ccs` 为主；同时继续保留 `csc` 与 `cc-switch` 的兼容调用。
+命令入口以 `ccs` 为主。
 
 上游项目的原始 README 已保留为：`README_UPSTREAM.md`。
 
@@ -22,7 +22,8 @@ bash -lc 'set -euo pipefail; repo="Aaroen/cc-switch-cli"; arch="$(uname -m)"; ca
 说明：
 
 - 该命令依赖 Releases 中存在 `cc-switch-cli-linux-x86_64.tar.gz` 或 `cc-switch-cli-linux-arm64.tar.gz` 资产，压缩包内包含 `install-ccs.sh`、`cc-switch`、`cc-switch-cli` 与 `ccs/csc` 兼容入口。
-- 如 `latest` 暂不可用，可指定版本：`TAG=v3.11.4`（示例）后再运行上面的一行命令。
+- Linux CLI 发布包中，`ccs`、`csc` 与 `cc-switch` 均指向专用 `cc-switch-cli` 二进制；GUI 主程序不再承担 CLI 分流。
+- 如 `latest` 暂不可用，可指定版本：`TAG=v3.13.0`（示例）后再运行上面的一行命令。
 - 默认会将下载的 Release 资产缓存到 `~/.cc-switch/.cache/prebuilt/<TAG>/`；如需强制重新下载：`FORCE=1`。
 - 为避免历史脚本导致 `~/.bashrc` 重复写入等问题，本命令会额外拉取仓库分支 `cc-switch-cli` 的最新版 `install-ccs.sh` 覆盖执行（不需要重新编译）。
 - 默认以 CLI 模式部署（无头 server），并自动处理端口占用（必要时自动换端口）。
@@ -103,6 +104,72 @@ GUI 配置入口：
 
 - `设置 -> 代理 -> 自动故障转移 -> 权重轮询`
 - 每个应用（`claude/codex/gemini`）均可独立开关，并按供应商逐项设置权重
+
+## 供应商导入导出
+
+现有 CLI 已提供正式可用的导入导出接口，可用于备份、迁移与跨设备同步。
+
+```bash
+# 导出某个 app 的全部供应商
+ccs provider export --app codex --output codex-providers.json
+
+# 仅导出单个供应商，并对密钥做脱敏
+ccs provider export --app claude --id <PROVIDER_ID> --output claude-provider.json --redact
+
+# 导入供应商；如 ID 冲突则覆盖
+ccs provider import --app codex --input codex-providers.json --overwrite
+
+# 导入时重新生成 ID，并将导出文件中的 current 一并设置回来
+ccs provider import --app claude --input claude-provider.json --new-ids --set-current
+```
+
+## 代理与故障转移
+
+CLI 无头模式的核心链路是 `server`、`config lb` 与 `failover` 三组命令。
+
+```bash
+# 启动/停止/查看无头代理服务
+ccs server start --host 127.0.0.1 --port 15721
+ccs server status
+ccs server stop
+
+# 查看故障转移队列
+ccs failover queue --app claude
+
+# 添加/移除备用供应商
+ccs failover add --app claude --id <PROVIDER_ID>
+ccs failover remove --app claude --id <PROVIDER_ID>
+
+# 启用/禁用自动故障转移
+ccs failover toggle --app claude --enabled true
+ccs failover toggle --app claude --enabled false
+```
+
+对应 GUI 入口：
+
+- `设置 -> 代理服务`
+- `设置 -> 自动故障转移`
+- 供应商卡片上的故障转移开关与状态标记
+
+## 配置目录
+
+默认数据目录为 `~/.cc-switch/`，其中常用文件如下：
+
+```text
+~/.cc-switch/
+├── cc-switch.db
+├── settings.json
+├── logs/
+└── skills/
+```
+
+不同 CLI 的 live 配置目录仍保持各自原生路径：
+
+- Claude: `~/.claude/`
+- Codex: `~/.codex/`
+- Gemini: `~/.gemini/`
+- OpenCode: `~/.opencode/`
+- OpenClaw: `~/.openclaw/`
 
 ## 启动与验证
 
