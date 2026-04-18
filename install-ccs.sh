@@ -1206,16 +1206,13 @@ elif [ -f "src-tauri/target/release/cc-switch" ]; then
 fi
 
 if [ -n "$SOURCE_BIN" ] && [ -f "$SOURCE_BIN" ]; then
-    # 删除旧的二进制文件（直接覆盖，不备份）
-    rm -f "$INSTALL_DIR/cc-switch" 2>/dev/null || true
-    rm -f "$INSTALL_DIR/csc" 2>/dev/null || true
+    # 直接覆盖安装，避免显式删除已有文件
+    install -m 755 "$SOURCE_BIN" "$INSTALL_DIR/cc-switch"
 
-    # 复制新的二进制文件
-    cp "$SOURCE_BIN" "$INSTALL_DIR/cc-switch"
-    chmod +x "$INSTALL_DIR/cc-switch"
-
-    # 创建 csc 软链接（简写命令）
-    ln -sf "$INSTALL_DIR/cc-switch" "$INSTALL_DIR/csc"
+    # 创建 ccs 软链接（主命令入口）
+    ln -sfn "$INSTALL_DIR/cc-switch" "$INSTALL_DIR/ccs"
+    # 保留 csc 作为历史兼容别名
+    ln -sfn "$INSTALL_DIR/cc-switch" "$INSTALL_DIR/csc"
 else
     step_error $CURRENT_STEP $TOTAL_STEPS "安装失败"
     echo -e "${RED}未找到可安装的二进制文件${NC}"
@@ -1481,7 +1478,7 @@ sleep 2
 # 使用 CLI 命令启用权重轮询（配置存储在数据库中）
 WEIGHT_RR_ENABLED=0
 for app in claude codex gemini; do
-    if "$INSTALL_DIR/csc" config lb --app "$app" --enabled true > /dev/null 2>&1; then
+    if "$INSTALL_DIR/ccs" config lb --app "$app" --enabled true > /dev/null 2>&1; then
         WEIGHT_RR_ENABLED=$((WEIGHT_RR_ENABLED + 1))
     fi
 done
@@ -1493,9 +1490,9 @@ else
 fi
 
 # 提示：如需禁用权重轮询，可使用以下命令：
-# csc config lb --app claude --enabled false
-# csc config lb --app codex --enabled false
-# csc config lb --app gemini --enabled false
+# ccs config lb --app claude --enabled false
+# ccs config lb --app codex --enabled false
+# ccs config lb --app gemini --enabled false
 
 # ============================================================================
 # 步骤 12: 验证部署状态
@@ -1572,6 +1569,11 @@ fi
 # 常用命令提示
 echo -e "${BLUE}   查看使用方法${NC}"
 echo -e "   运行: ${YELLOW}head -60 ~/.cc-switch/docs/CLI-快速参考.md${NC}"
+echo ""
+
+echo -e "${BLUE}   超参数示例${NC}"
+echo -e "   查看: ${YELLOW}ccs provider hp show --app opencode --id <PROVIDER_ID> --path agents.sisyphus${NC}"
+echo -e "   设置: ${YELLOW}ccs provider hp set --app opencode --id <PROVIDER_ID> --path agents.sisyphus.temperature --json '0.5'${NC}"
 echo ""
 
 echo -e "${GREEN}部署完成！感谢使用 CC-Switch！${NC}"

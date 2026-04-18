@@ -5,7 +5,7 @@
 use super::output;
 use crate::{app_config::AppType, database::Database, provider::Provider};
 use serde::{Deserialize, Serialize};
-use serde_json::json;
+use serde_json::{json, Map, Value};
 use std::collections::HashMap;
 use std::io::Read;
 use std::str::FromStr;
@@ -76,6 +76,198 @@ fn deep_merge_json(dst: &mut serde_json::Value, src: serde_json::Value) {
         (dst_any, src_any) => {
             *dst_any = src_any;
         }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum JsonPathSegment {
+    Key(String),
+    Index(usize),
+}
+
+fn parse_json_path(path: &str) -> Result<Vec<JsonPathSegment>, String> {
+    let trimmed = path.trim();
+    if trimmed.is_empty() {
+        return Err("JSON 路径不能为空".to_string());
+    }
+
+    trimmed
+        .split('.')
+        .map(|segment| {
+            let segment = segment.trim();
+            if segment.is_empty() {
+                return Err(format!("JSON 路径无效: {}", path));
+            }
+
+            if segment.chars().all(|ch| ch.is_ascii_digit()) {
+                segment
+                    .parse::<usize>()
+                    .map(JsonPathSegment::Index)
+                    .map_err(|_| format!("JSON 路径数组索引无效: {}", segment))
+            } else {
+                Ok(JsonPathSegment::Key(segment.to_string()))
+            }
+        })
+        .collect()
+}
+
+fn json_container_for(next: &JsonPathSegment) -> Value {
+    match next {
+        JsonPathSegment::Key(_) => Value::Object(Map::new()),
+        JsonPathSegment::Index(_) => Value::Array(Vec::new()),
+    }
+}
+
+fn get_json_path_value<'a>(
+    current: &'a Value,
+    segments: &[JsonPathSegment],
+    full_path: &str,
+) -> Result<&'a Value, String> {
+    if segments.is_empty() {
+        return Ok(current);
+    }
+
+    match &segments[0] {
+        JsonPathSegment::Key(key) => match current {
+            Value::Object(map) => map
+                .get(key)
+                .ok_or_else(|| format!("未找到超参数路径: {}", full_path))
+                .and_then(|next| get_json_path_value(next, &segments[1..], full_path)),
+            _ => Err(format!(
+                "超参数路径 '{}' 在键 '{}' 之前命中了非对象节点",
+                full_path, key
+            )),
+        },
+        JsonPathSegment::Index(index) => match current {
+            Value::Array(items) => items
+                .get(*index)
+                .ok_or_else(|| format!("未找到超参数路径: {}", full_path))
+                .and_then(|next| get_json_path_value(next, &segments[1..], full_path)),
+            _ => Err(format!(
+                "超参数路径 '{}' 在索引 '{}' 之前命中了非数组节点",
+                full_path, index
+            )),
+        },
+    }
+}
+
+fn set_json_path_value(
+    current: &mut Value,
+    segments: &[JsonPathSegment],
+    new_value: Value,
+    full_path: &str,
+) -> Result<(), String> {
+    if segments.is_empty() {
+        *current = new_value;
+        return Ok(());
+    }
+
+    match &segments[0] {
+        JsonPathSegment::Key(key) => {
+            if current.is_null() {
+                *current = Value::Object(Map::new());
+            }
+
+            match current {
+                Value::Object(map) => {
+                    if segments.len() == 1 {
+                        map.insert(key.clone(), new_value);
+                        Ok(())
+                    } else {
+                        let next = map
+                            .entry(key.clone())
+                            .or_insert_with(|| json_container_for(&segments[1]));
+                        if next.is_null() {
+                            *next = json_container_for(&segments[1]);
+                        }
+                        set_json_path_value(next, &segments[1..], new_value, full_path)
+                    }
+                }
+                _ => Err(format!(
+                    "超参数路径 '{}' 在键 '{}' 之前命中了非对象节点",
+                    full_path, key
+                )),
+            }
+        }
+        JsonPathSegment::Index(index) => {
+            if current.is_null() {
+                *current = Value::Array(Vec::new());
+            }
+
+            match current {
+                Value::Array(items) => {
+                    while items.len() <= *index {
+                        items.push(Value::Null);
+                    }
+
+                    if segments.len() == 1 {
+                        items[*index] = new_value;
+                        Ok(())
+                    } else {
+                        if items[*index].is_null() {
+                            items[*index] = json_container_for(&segments[1]);
+                        }
+                        set_json_path_value(
+                            &mut items[*index],
+                            &segments[1..],
+                            new_value,
+                            full_path,
+                        )
+                    }
+                }
+                _ => Err(format!(
+                    "超参数路径 '{}' 在索引 '{}' 之前命中了非数组节点",
+                    full_path, index
+                )),
+            }
+        }
+    }
+}
+
+fn remove_json_path_value(
+    current: &mut Value,
+    segments: &[JsonPathSegment],
+    full_path: &str,
+) -> Result<Value, String> {
+    if segments.is_empty() {
+        return Err("JSON 路径不能为空".to_string());
+    }
+
+    match &segments[0] {
+        JsonPathSegment::Key(key) => match current {
+            Value::Object(map) => {
+                if segments.len() == 1 {
+                    map.remove(key)
+                        .ok_or_else(|| format!("未找到超参数路径: {}", full_path))
+                } else {
+                    let next = map
+                        .get_mut(key)
+                        .ok_or_else(|| format!("未找到超参数路径: {}", full_path))?;
+                    remove_json_path_value(next, &segments[1..], full_path)
+                }
+            }
+            _ => Err(format!(
+                "超参数路径 '{}' 在键 '{}' 之前命中了非对象节点",
+                full_path, key
+            )),
+        },
+        JsonPathSegment::Index(index) => match current {
+            Value::Array(items) => {
+                if *index >= items.len() {
+                    return Err(format!("未找到超参数路径: {}", full_path));
+                }
+
+                if segments.len() == 1 {
+                    Ok(items.remove(*index))
+                } else {
+                    remove_json_path_value(&mut items[*index], &segments[1..], full_path)
+                }
+            }
+            _ => Err(format!(
+                "超参数路径 '{}' 在索引 '{}' 之前命中了非数组节点",
+                full_path, index
+            )),
+        },
     }
 }
 
@@ -283,7 +475,7 @@ pub async fn provider_add(
         .map_err(|e| e.to_string())?;
 
     output::success(&format!("供应商 '{}' 已添加 (ID: {})", name, id));
-    output::hint("提示: 使用 'cc-switch provider switch' 切换到此供应商");
+    output::hint("提示: 使用 'ccs provider switch' 切换到此供应商");
 
     Ok(())
 }
@@ -434,6 +626,109 @@ pub async fn provider_set_env(app: &str, id: &str, key: &str, value: &str) -> Re
         "供应商 '{}' env 已设置: {} = {}",
         provider.name, key, value
     ));
+
+    Ok(())
+}
+
+pub async fn provider_hyperparams_show(
+    app: &str,
+    id: &str,
+    path: Option<&str>,
+) -> Result<(), String> {
+    let db = get_database()?;
+    let app_type = parse_app_type(app)?;
+
+    let provider = db
+        .get_provider_by_id(id, app_type.as_str())
+        .map_err(|e| e.to_string())?
+        .ok_or_else(|| format!("供应商不存在: {}", id))?;
+
+    output::section(&format!("供应商超参数: {}", provider.name));
+    output::key_value(vec![
+        ("应用", app.to_string()),
+        ("供应商ID", provider.id.clone()),
+        (
+            "路径",
+            path.map(str::to_string)
+                .unwrap_or_else(|| "settings_config".to_string()),
+        ),
+    ]);
+
+    println!();
+
+    if let Some(path) = path {
+        let segments = parse_json_path(path)?;
+        let value = get_json_path_value(&provider.settings_config, &segments, path)?;
+        output::json(value);
+    } else {
+        output::json(&provider.settings_config);
+    }
+
+    Ok(())
+}
+
+pub async fn provider_hyperparams_set(
+    app: &str,
+    id: &str,
+    path: &str,
+    json_value: Option<&str>,
+    string_value: Option<&str>,
+) -> Result<(), String> {
+    let db = get_database()?;
+    let app_type = parse_app_type(app)?;
+
+    let mut provider = db
+        .get_provider_by_id(id, app_type.as_str())
+        .map_err(|e| e.to_string())?
+        .ok_or_else(|| format!("供应商不存在: {}", id))?;
+
+    let segments = parse_json_path(path)?;
+    let new_value = match (json_value, string_value) {
+        (Some(raw), None) => {
+            serde_json::from_str(raw).map_err(|e| format!("超参数 JSON 解析失败: {}", e))?
+        }
+        (None, Some(raw)) => Value::String(raw.to_string()),
+        _ => {
+            return Err("请使用 --json 或 --value 之一设置超参数".to_string());
+        }
+    };
+
+    set_json_path_value(&mut provider.settings_config, &segments, new_value, path)?;
+
+    db.save_provider(app_type.as_str(), &provider)
+        .map_err(|e| e.to_string())?;
+
+    let saved_value = get_json_path_value(&provider.settings_config, &segments, path)?;
+
+    output::success(&format!(
+        "供应商 '{}' 超参数已更新: {}",
+        provider.name, path
+    ));
+    output::json(saved_value);
+
+    Ok(())
+}
+
+pub async fn provider_hyperparams_remove(app: &str, id: &str, path: &str) -> Result<(), String> {
+    let db = get_database()?;
+    let app_type = parse_app_type(app)?;
+
+    let mut provider = db
+        .get_provider_by_id(id, app_type.as_str())
+        .map_err(|e| e.to_string())?
+        .ok_or_else(|| format!("供应商不存在: {}", id))?;
+
+    let segments = parse_json_path(path)?;
+    let removed = remove_json_path_value(&mut provider.settings_config, &segments, path)?;
+
+    db.save_provider(app_type.as_str(), &provider)
+        .map_err(|e| e.to_string())?;
+
+    output::success(&format!(
+        "供应商 '{}' 超参数已删除: {}",
+        provider.name, path
+    ));
+    output::json(&removed);
 
     Ok(())
 }
@@ -1131,7 +1426,7 @@ pub async fn config_loadbalance(app: &str, enabled: Option<bool>) -> Result<(), 
 
         if enable {
             output::info("权重轮询模式：按供应商权重分配请求");
-            output::hint("使用 'csc provider weight' 设置供应商权重");
+            output::hint("使用 'ccs provider weight' 设置供应商权重");
         }
     } else {
         // 显示当前状态
@@ -1180,7 +1475,7 @@ pub async fn config_loadbalance(app: &str, enabled: Option<bool>) -> Result<(), 
         }
 
         output::hint(&format!(
-            "使用 'csc config lb --app {} --enabled true' 启用权重轮询",
+            "使用 'ccs config lb --app {} --enabled true' 启用权重轮询",
             app
         ));
     }
@@ -1207,7 +1502,7 @@ pub async fn failover_queue(app: &str) -> Result<(), String> {
 
     if queue.is_empty() {
         output::warning(&format!("{} 没有供应商在故障转移队列中", app));
-        output::hint("使用 'cc-switch failover add' 添加供应商到队列");
+        output::hint("使用 'ccs failover add' 添加供应商到队列");
         return Ok(());
     }
 
@@ -1459,4 +1754,83 @@ fn format_timestamp(ts: Option<i64>) -> String {
             .unwrap_or_else(|| "无效时间".to_string())
     })
     .unwrap_or_else(|| "未知".to_string())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{
+        get_json_path_value, parse_json_path, remove_json_path_value, set_json_path_value,
+        JsonPathSegment,
+    };
+    use serde_json::json;
+
+    #[test]
+    fn parse_json_path_supports_keys_and_indices() {
+        let parsed = parse_json_path("agents.sisyphus.tools.0.name").expect("path should parse");
+        assert_eq!(
+            parsed,
+            vec![
+                JsonPathSegment::Key("agents".to_string()),
+                JsonPathSegment::Key("sisyphus".to_string()),
+                JsonPathSegment::Key("tools".to_string()),
+                JsonPathSegment::Index(0),
+                JsonPathSegment::Key("name".to_string()),
+            ]
+        );
+    }
+
+    #[test]
+    fn set_and_get_json_path_value_creates_missing_objects() {
+        let mut value = json!({});
+        let path = parse_json_path("agents.sisyphus.temperature").expect("path should parse");
+
+        set_json_path_value(&mut value, &path, json!(0.5), "agents.sisyphus.temperature")
+            .expect("path should be set");
+
+        let actual = get_json_path_value(&value, &path, "agents.sisyphus.temperature")
+            .expect("path should exist");
+        assert_eq!(actual, &json!(0.5));
+        assert_eq!(value["agents"]["sisyphus"]["temperature"], json!(0.5));
+    }
+
+    #[test]
+    fn set_json_path_value_supports_arrays() {
+        let mut value = json!({});
+        let path = parse_json_path("agents.sisyphus.tools.1.name").expect("path should parse");
+
+        set_json_path_value(
+            &mut value,
+            &path,
+            json!("shell"),
+            "agents.sisyphus.tools.1.name",
+        )
+        .expect("array path should be set");
+
+        assert_eq!(
+            value["agents"]["sisyphus"]["tools"][1]["name"],
+            json!("shell")
+        );
+    }
+
+    #[test]
+    fn remove_json_path_value_removes_nested_value() {
+        let mut value = json!({
+            "agents": {
+                "sisyphus": {
+                    "permission": {
+                        "bash": "ask"
+                    }
+                }
+            }
+        });
+        let path = parse_json_path("agents.sisyphus.permission.bash").expect("path should parse");
+
+        let removed = remove_json_path_value(&mut value, &path, "agents.sisyphus.permission.bash")
+            .expect("path should be removed");
+
+        assert_eq!(removed, json!("ask"));
+        assert!(value["agents"]["sisyphus"]["permission"]
+            .get("bash")
+            .is_none());
+    }
 }

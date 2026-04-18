@@ -350,10 +350,10 @@ async fn start_headless_server_daemon(host: String, port: u16) -> Result<(), Str
                 server_status().await?;
             } else {
                 crate::cli::output::warning(
-                    "已监听端口，但尚未检测到 PID 文件（稍后可用 'csc status' 再确认）",
+                    "已监听端口，但尚未检测到 PID 文件（稍后可用 'ccs status' 再确认）",
                 );
             }
-            crate::cli::output::hint("使用 'csc server stop' 停止服务");
+            crate::cli::output::hint("使用 'ccs server stop' 停止服务");
             return Ok(());
         }
 

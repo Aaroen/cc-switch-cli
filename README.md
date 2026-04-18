@@ -7,6 +7,8 @@
 - CLI 全功能控制
 - GUI 中对轮询/故障转移的可视化配置入口
 
+命令入口以 `ccs` 为主；同时继续保留 `csc` 与 `cc-switch` 的兼容调用。
+
 上游项目的原始 README 已保留为：`README_UPSTREAM.md`。
 
 ## 一键部署
@@ -58,18 +60,55 @@ rm -rf ~/.cc-switch/.cache/prebuilt
 
 ```bash
 # 查看某个 app 的负载均衡/权重轮询状态与供应商权重表
-csc config lb --app claude
+ccs config lb --app claude
 
 # 启用/禁用权重轮询
-csc config lb --app claude --enabled true
-csc config lb --app claude --enabled false
+ccs config lb --app claude --enabled true
+ccs config lb --app claude --enabled false
 
 # 列出供应商并获取 ID
-csc provider list --app claude
+ccs provider list --app claude
 
 # 设置供应商权重（0-100）
-csc provider weight --app claude --id <PROVIDER_ID> --weight 1
+ccs provider weight --app claude --id <PROVIDER_ID> --weight 1
 ```
+
+## 超参数（Hyperparams）
+
+`ccs provider hyperparams`（别名：`ccs provider hp`）用于直接读写供应商 `settings_config` 中的任意 JSON 路径，适合 OMO/OpenCode 的 Agent/Category 高级参数，也适用于其他 app 的细粒度配置修正。
+
+典型路径示例：
+
+- `agents.sisyphus.temperature`
+- `agents.sisyphus.permission`
+- `categories.quick.prompt_append`
+- `options.headers.Authorization`
+
+常用命令：
+
+```bash
+# 查看整个 settings_config
+ccs provider hp show --app opencode --id <PROVIDER_ID>
+
+# 查看单一路径
+ccs provider hp show --app opencode --id <PROVIDER_ID> --path agents.sisyphus
+
+# 设置数值 / 布尔 / 对象等 JSON 值
+ccs provider hp set --app opencode --id <PROVIDER_ID> --path agents.sisyphus.temperature --json '0.5'
+ccs provider hp set --app opencode --id <PROVIDER_ID> --path agents.sisyphus.permission --json '{"edit":"allow","bash":"ask"}'
+
+# 设置纯字符串
+ccs provider hp set --app opencode --id <PROVIDER_ID> --path categories.quick.prompt_append --value "Always answer in Chinese"
+
+# 删除路径
+ccs provider hp remove --app opencode --id <PROVIDER_ID> --path categories.quick.prompt_append
+```
+
+说明：
+
+- 路径分隔符使用 `.`。
+- 数组索引可直接写数字段，例如 `tools.0.name`。
+- 该命令只修改供应商的 `settings_config`，不会影响您保留的权重轮询、故障转移和无头运行机制。
 
 GUI 配置入口：
 
@@ -87,5 +126,5 @@ source ~/.bashrc  # 或 source ~/.zshrc
 然后可用以下命令确认服务状态：
 
 ```bash
-csc server status
+ccs server status
 ```

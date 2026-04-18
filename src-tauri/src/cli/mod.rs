@@ -12,7 +12,8 @@ use clap::{Parser, Subcommand};
 pub use entry::{has_cli_args, run_from_env};
 
 #[derive(Parser)]
-#[command(name = "cc-switch")]
+#[command(name = "ccs")]
+#[command(bin_name = "ccs")]
 #[command(about = "Claude Code / Codex / Gemini CLI 统一管理工具", long_about = None)]
 #[command(version)]
 pub struct Cli {
@@ -240,6 +241,10 @@ pub enum ProviderCommands {
         value: String,
     },
 
+    /// 管理供应商超参数（settings_config 任意 JSON 路径）
+    #[command(subcommand, alias = "hp", alias = "param", alias = "params")]
+    Hyperparams(HyperparamsCommands),
+
     /// 查看供应商详情
     #[command(alias = "info")]
     Show {
@@ -342,6 +347,65 @@ pub enum ProviderCommands {
         /// 同时更新备注（可选）
         #[arg(long)]
         notes: Option<String>,
+    },
+}
+
+#[derive(Subcommand)]
+pub enum HyperparamsCommands {
+    /// 查看超参数（可指定单一路径）
+    #[command(alias = "get")]
+    Show {
+        /// 应用类型（claude/codex/gemini/opencode/openclaw）
+        #[arg(short, long)]
+        app: String,
+
+        /// 供应商ID
+        #[arg(short, long)]
+        id: String,
+
+        /// JSON 路径（如 agents.sisyphus.temperature）
+        #[arg(long)]
+        path: Option<String>,
+    },
+
+    /// 设置超参数（支持 JSON 值或纯字符串）
+    #[command(alias = "set")]
+    Set {
+        /// 应用类型（claude/codex/gemini/opencode/openclaw）
+        #[arg(short, long)]
+        app: String,
+
+        /// 供应商ID
+        #[arg(short, long)]
+        id: String,
+
+        /// JSON 路径（如 agents.sisyphus.temperature）
+        #[arg(long)]
+        path: String,
+
+        /// JSON 值（如 0.5、true、{"edit":"allow"}）
+        #[arg(long, required_unless_present = "value", conflicts_with = "value")]
+        json: Option<String>,
+
+        /// 纯字符串值（等价于 JSON 字符串）
+        #[arg(long, required_unless_present = "json", conflicts_with = "json")]
+        value: Option<String>,
+    },
+
+    /// 删除超参数
+    #[command(alias = "rm", alias = "del", alias = "unset")]
+    Remove {
+        /// 应用类型（claude/codex/gemini/opencode/openclaw）
+        #[arg(short, long)]
+        app: String,
+
+        /// 供应商ID
+        #[arg(short, long)]
+        id: String,
+
+        /// JSON 路径（如 agents.sisyphus.temperature）
+        #[arg(long)]
+        path: String,
     },
 }
 

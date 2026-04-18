@@ -1,8 +1,8 @@
 use clap::Parser;
 
 use super::{
-    commands, output, server, Cli, Commands, ConfigCommands, FailoverCommands, McpCommands,
-    PromptCommands, ProviderCommands, ServerCommands, SkillCommands, StatsCommands,
+    commands, output, server, Cli, Commands, ConfigCommands, FailoverCommands, HyperparamsCommands,
+    McpCommands, PromptCommands, ProviderCommands, ServerCommands, SkillCommands, StatsCommands,
 };
 
 pub fn has_cli_args() -> bool {
@@ -114,6 +114,30 @@ async fn run_cli(cli: Cli) -> Result<(), String> {
                 key,
                 value,
             } => commands::provider_set_env(&app, &id, &key, &value).await,
+            ProviderCommands::Hyperparams(cmd) => match cmd {
+                HyperparamsCommands::Show { app, id, path } => {
+                    commands::provider_hyperparams_show(&app, &id, path.as_deref()).await
+                }
+                HyperparamsCommands::Set {
+                    app,
+                    id,
+                    path,
+                    json,
+                    value,
+                } => {
+                    commands::provider_hyperparams_set(
+                        &app,
+                        &id,
+                        &path,
+                        json.as_deref(),
+                        value.as_deref(),
+                    )
+                    .await
+                }
+                HyperparamsCommands::Remove { app, id, path } => {
+                    commands::provider_hyperparams_remove(&app, &id, &path).await
+                }
+            },
             ProviderCommands::Show { app, id } => commands::provider_show(&app, &id).await,
             ProviderCommands::Test { app, id } => commands::provider_test(&app, &id).await,
             ProviderCommands::Export {
