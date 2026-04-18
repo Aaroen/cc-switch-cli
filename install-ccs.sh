@@ -1196,28 +1196,84 @@ step_running $CURRENT_STEP $TOTAL_STEPS "安装到系统路径"
 mkdir -p "$INSTALL_DIR"
 
 # 查找编译后的二进制文件（源码编译或 --prebuilt）
-SOURCE_BIN=""
+SOURCE_GUI_BIN=""
+SOURCE_CLI_BIN=""
+
 if [ -n "${ARG_PREBUILT_BIN:-}" ]; then
-    SOURCE_BIN="$ARG_PREBUILT_BIN"
-elif [ -n "${CARGO_TARGET_DIR:-}" ] && [ -f "$CARGO_TARGET_DIR/release/cc-switch" ]; then
-    SOURCE_BIN="$CARGO_TARGET_DIR/release/cc-switch"
-elif [ -f "src-tauri/target/release/cc-switch" ]; then
-    SOURCE_BIN="src-tauri/target/release/cc-switch"
+    PREBUILT_DIR="$(dirname "$ARG_PREBUILT_BIN")"
+    PREBUILT_BASE="$(basename "$ARG_PREBUILT_BIN")"
+
+    case "$PREBUILT_BASE" in
+        cc-switch)
+            SOURCE_GUI_BIN="$ARG_PREBUILT_BIN"
+            ;;
+        cc-switch-cli)
+            SOURCE_CLI_BIN="$ARG_PREBUILT_BIN"
+            ;;
+    esac
+
+    if [ -z "$SOURCE_GUI_BIN" ] && [ -f "$PREBUILT_DIR/cc-switch" ]; then
+        SOURCE_GUI_BIN="$PREBUILT_DIR/cc-switch"
+    fi
+    if [ -z "$SOURCE_CLI_BIN" ] && [ -f "$PREBUILT_DIR/cc-switch-cli" ]; then
+        SOURCE_CLI_BIN="$PREBUILT_DIR/cc-switch-cli"
+    fi
+elif [ -n "${CARGO_TARGET_DIR:-}" ]; then
+    [ -f "$CARGO_TARGET_DIR/release/cc-switch" ] && SOURCE_GUI_BIN="$CARGO_TARGET_DIR/release/cc-switch"
+    [ -f "$CARGO_TARGET_DIR/release/cc-switch-cli" ] && SOURCE_CLI_BIN="$CARGO_TARGET_DIR/release/cc-switch-cli"
+else
+    [ -f "src-tauri/target/release/cc-switch" ] && SOURCE_GUI_BIN="src-tauri/target/release/cc-switch"
+    [ -f "src-tauri/target/release/cc-switch-cli" ] && SOURCE_CLI_BIN="src-tauri/target/release/cc-switch-cli"
 fi
 
-if [ -n "$SOURCE_BIN" ] && [ -f "$SOURCE_BIN" ]; then
-    # 直接覆盖安装，避免显式删除已有文件
-    install -m 755 "$SOURCE_BIN" "$INSTALL_DIR/cc-switch"
+CLI_LAUNCHER="$INSTALL_DIR/cc-switch"
 
-    # 创建 ccs 软链接（主命令入口）
-    ln -sfn "$INSTALL_DIR/cc-switch" "$INSTALL_DIR/ccs"
-    # 保留 csc 作为历史兼容别名
-    ln -sfn "$INSTALL_DIR/cc-switch" "$INSTALL_DIR/csc"
+if [ "$CLI_MODE" = "true" ]; then
+    ACTIVE_CLI_BIN="$SOURCE_CLI_BIN"
+    if [ -z "$ACTIVE_CLI_BIN" ] && [ -n "$SOURCE_GUI_BIN" ]; then
+        ACTIVE_CLI_BIN="$SOURCE_GUI_BIN"
+    fi
+
+    if [ -z "$ACTIVE_CLI_BIN" ] || [ ! -f "$ACTIVE_CLI_BIN" ]; then
+        step_error $CURRENT_STEP $TOTAL_STEPS "安装失败"
+        echo -e "${RED}未找到可安装的 CLI 二进制文件${NC}"
+        echo -e "${YELLOW}提示：请先编译 cc-switch-cli，或使用 --prebuilt 指向包含 cc-switch-cli 的目录${NC}"
+        exit 1
+    fi
+
+    install -m 755 "$ACTIVE_CLI_BIN" "$INSTALL_DIR/cc-switch-cli"
+    install -m 755 "$ACTIVE_CLI_BIN" "$INSTALL_DIR/cc-switch"
+    ln -sfn "$INSTALL_DIR/cc-switch-cli" "$INSTALL_DIR/ccs"
+    ln -sfn "$INSTALL_DIR/cc-switch-cli" "$INSTALL_DIR/csc"
+    CLI_LAUNCHER="$INSTALL_DIR/cc-switch-cli"
+
+    if [ -n "$SOURCE_GUI_BIN" ] && [ "$SOURCE_GUI_BIN" != "$ACTIVE_CLI_BIN" ] && [ -f "$SOURCE_GUI_BIN" ]; then
+        install -m 755 "$SOURCE_GUI_BIN" "$INSTALL_DIR/cc-switch-gui"
+    fi
 else
-    step_error $CURRENT_STEP $TOTAL_STEPS "安装失败"
-    echo -e "${RED}未找到可安装的二进制文件${NC}"
-    echo -e "${YELLOW}提示：请先编译，或使用 --prebuilt 指定预构建二进制${NC}"
-    exit 1
+    ACTIVE_GUI_BIN="$SOURCE_GUI_BIN"
+    if [ -z "$ACTIVE_GUI_BIN" ] && [ -n "$SOURCE_CLI_BIN" ]; then
+        ACTIVE_GUI_BIN="$SOURCE_CLI_BIN"
+    fi
+
+    if [ -z "$ACTIVE_GUI_BIN" ] || [ ! -f "$ACTIVE_GUI_BIN" ]; then
+        step_error $CURRENT_STEP $TOTAL_STEPS "安装失败"
+        echo -e "${RED}未找到可安装的 GUI 二进制文件${NC}"
+        echo -e "${YELLOW}提示：请先编译 cc-switch，或使用 --prebuilt 指向包含 cc-switch 的目录${NC}"
+        exit 1
+    fi
+
+    install -m 755 "$ACTIVE_GUI_BIN" "$INSTALL_DIR/cc-switch"
+
+    if [ -n "$SOURCE_CLI_BIN" ] && [ "$SOURCE_CLI_BIN" != "$ACTIVE_GUI_BIN" ] && [ -f "$SOURCE_CLI_BIN" ]; then
+        install -m 755 "$SOURCE_CLI_BIN" "$INSTALL_DIR/cc-switch-cli"
+        ln -sfn "$INSTALL_DIR/cc-switch-cli" "$INSTALL_DIR/ccs"
+        ln -sfn "$INSTALL_DIR/cc-switch-cli" "$INSTALL_DIR/csc"
+        CLI_LAUNCHER="$INSTALL_DIR/cc-switch-cli"
+    else
+        ln -sfn "$INSTALL_DIR/cc-switch" "$INSTALL_DIR/ccs"
+        ln -sfn "$INSTALL_DIR/cc-switch" "$INSTALL_DIR/csc"
+    fi
 fi
 
 # 添加到 PATH（兼容 bash/zsh 以及 login shell 场景）
@@ -1366,7 +1422,7 @@ if [ "$CLI_MODE" = "true" ]; then
 
     while [ $PORT_RETRY -le $MAX_PORT_RETRY ]; do
         # CLI 模式：自动启动无头服务器
-        nohup "$INSTALL_DIR/cc-switch" server start --host 127.0.0.1 --port "$PROXY_PORT" >> "$LOG_DIR/server.log" 2>&1 &
+        nohup "$CLI_LAUNCHER" server start --host 127.0.0.1 --port "$PROXY_PORT" >> "$LOG_DIR/server.log" 2>&1 &
 
         # 等待服务启动（最多10秒）
         WAIT_TIME=0
@@ -1442,7 +1498,7 @@ if [ "$CLI_MODE" = "true" ]; then
         echo ""
         echo -e "${YELLOW}建议尝试:${NC}"
         echo "  1. 检查端口 $PROXY_PORT 是否被占用: lsof -i :$PROXY_PORT"
-        echo "  2. 手动启动: $INSTALL_DIR/cc-switch server start --port $PROXY_PORT"
+        echo "  2. 手动启动: $CLI_LAUNCHER server start --port $PROXY_PORT"
         echo "  3. 查看详细日志: tail -f $LOG_DIR/server.log"
         exit 1
     fi

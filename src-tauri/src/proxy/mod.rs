@@ -3,18 +3,22 @@
 //! 提供本地HTTP代理服务，支持多Provider故障转移和请求透传
 
 pub mod body_filter;
+pub mod cache_injector;
 pub mod circuit_breaker;
+pub mod copilot_optimizer;
 pub mod error;
 pub mod error_mapper;
 pub mod extensions; // 【新增】扩展模块
 pub(crate) mod failover_switch;
 pub mod file_logger; // 【新增】文件日志模块
 mod forwarder;
+pub mod gemini_url;
 pub mod handler_config;
 pub mod handler_context;
 mod handlers;
 mod health;
 pub mod http_client;
+pub mod hyper_client;
 pub mod layered_forwarder; // 【新增】分层转发器
 pub mod load_balancer; // 【新增】负载均衡器
 pub mod log_codes;
@@ -25,7 +29,10 @@ pub mod response_handler;
 pub mod response_processor;
 pub(crate) mod server;
 pub mod session;
+pub(crate) mod sse;
+pub(crate) mod switch_lock;
 pub mod thinking_budget_rectifier;
+pub mod thinking_optimizer;
 pub mod thinking_rectifier;
 pub(crate) mod types;
 pub mod usage;

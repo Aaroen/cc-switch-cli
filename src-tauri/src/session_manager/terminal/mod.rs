@@ -20,6 +20,7 @@ pub fn launch_terminal(
         "ghostty" => launch_ghostty(command, cwd),
         "kitty" => launch_kitty(command, cwd),
         "wezterm" => launch_wezterm(command, cwd),
+        "kaku" => launch_kaku(command, cwd),
         "alacritty" => launch_alacritty(command, cwd),
         "custom" => launch_custom(command, cwd, custom_config),
         _ => Err(format!("Unsupported terminal target: {target}")),
@@ -77,39 +78,10 @@ end tell"#
 }
 
 fn launch_ghostty(command: &str, cwd: Option<&str>) -> Result<(), String> {
-    // Ghostty usage: open -na Ghostty --args +work-dir=... -e shell -c command
-
-    // Using `open` to launch.
-    let mut args = vec!["-na", "Ghostty", "--args"];
-
-    // Ghostty uses --working-directory for working directory (or +work-dir, but --working-directory is standard in newer versions/compat)
-    // Note: The user's error output didn't show the working dir arg failure, so we assume flag is okay or we stick to compatible ones.
-    // Documentation says --working-directory is supported in CLI.
-    let work_dir_arg = if let Some(dir) = cwd {
-        format!("--working-directory={dir}")
-    } else {
-        "".to_string()
-    };
-
-    if !work_dir_arg.is_empty() {
-        args.push(&work_dir_arg);
-    }
-
-    // Command execution
-    args.push("-e");
-
-    // We pass the command and its arguments separately.
-    // The previous issue was passing the entire "cmd args" string as a single argument to -e,
-    // which led Ghostty to look for a binary named "cmd args".
-    // Splitting by whitespace allows Ghostty to see ["cmd", "args"].
-    // Note: This assumes simple commands without quoted arguments containing spaces.
-    let full_command = build_shell_command(command, None);
-    for part in full_command.split_whitespace() {
-        args.push(part);
-    }
+    let args = build_ghostty_args(command, cwd);
 
     let status = Command::new("open")
-        .args(&args)
+        .args(args.iter().map(String::as_str))
         .status()
         .map_err(|e| format!("Failed to launch Ghostty: {e}"))?;
 
@@ -118,6 +90,40 @@ fn launch_ghostty(command: &str, cwd: Option<&str>) -> Result<(), String> {
     } else {
         Err("Failed to launch Ghostty. Make sure it is installed.".to_string())
     }
+}
+
+fn build_ghostty_args(command: &str, cwd: Option<&str>) -> Vec<String> {
+    let input = ghostty_raw_input(command);
+
+    let mut args = vec![
+        "-na".to_string(),
+        "Ghostty".to_string(),
+        "--args".to_string(),
+        "--quit-after-last-window-closed=true".to_string(),
+    ];
+
+    if let Some(dir) = cwd {
+        if !dir.trim().is_empty() {
+            args.push(format!("--working-directory={dir}"));
+        }
+    }
+
+    args.push(format!("--input={input}"));
+    args
+}
+
+fn ghostty_raw_input(command: &str) -> String {
+    let mut escaped = String::from("raw:");
+    for ch in command.chars() {
+        match ch {
+            '\\' => escaped.push_str("\\\\"),
+            '\n' => escaped.push_str("\\n"),
+            '\r' => escaped.push_str("\\r"),
+            _ => escaped.push(ch),
+        }
+    }
+    escaped.push_str("\\n");
+    escaped
 }
 
 fn launch_kitty(command: &str, cwd: Option<&str>) -> Result<(), String> {
@@ -148,25 +154,10 @@ fn launch_kitty(command: &str, cwd: Option<&str>) -> Result<(), String> {
 fn launch_wezterm(command: &str, cwd: Option<&str>) -> Result<(), String> {
     // wezterm start --cwd ... -- command
     // To invoke via `open`, we use `open -na "WezTerm" --args start ...`
-
-    let full_command = build_shell_command(command, None);
-
-    let mut args = vec!["-na", "WezTerm", "--args", "start"];
-
-    if let Some(dir) = cwd {
-        args.push("--cwd");
-        args.push(dir);
-    }
-
-    // Invoke shell to run the command string (to handle pipes, etc)
-    let shell = std::env::var("SHELL").unwrap_or_else(|_| "/bin/zsh".to_string());
-    args.push("--");
-    args.push(&shell);
-    args.push("-c");
-    args.push(&full_command);
+    let args = build_wezterm_compatible_args("WezTerm", command, cwd);
 
     let status = Command::new("open")
-        .args(&args)
+        .args(args.iter().map(String::as_str))
         .status()
         .map_err(|e| format!("Failed to launch WezTerm: {e}"))?;
 
@@ -175,6 +166,54 @@ fn launch_wezterm(command: &str, cwd: Option<&str>) -> Result<(), String> {
     } else {
         Err("Failed to launch WezTerm.".to_string())
     }
+}
+
+fn launch_kaku(command: &str, cwd: Option<&str>) -> Result<(), String> {
+    // Kaku is a WezTerm-derived terminal and keeps a compatible `start` entrypoint.
+    let args = build_wezterm_compatible_args("Kaku", command, cwd);
+
+    let status = Command::new("open")
+        .args(args.iter().map(String::as_str))
+        .status()
+        .map_err(|e| format!("Failed to launch Kaku: {e}"))?;
+
+    if status.success() {
+        Ok(())
+    } else {
+        Err("Failed to launch Kaku.".to_string())
+    }
+}
+
+fn build_wezterm_compatible_args(app_name: &str, command: &str, cwd: Option<&str>) -> Vec<String> {
+    let shell = std::env::var("SHELL").unwrap_or_else(|_| "/bin/zsh".to_string());
+    build_wezterm_compatible_args_with_shell(app_name, command, cwd, &shell)
+}
+
+fn build_wezterm_compatible_args_with_shell(
+    app_name: &str,
+    command: &str,
+    cwd: Option<&str>,
+    shell: &str,
+) -> Vec<String> {
+    let full_command = build_shell_command(command, None);
+    let mut args = vec![
+        "-na".to_string(),
+        app_name.to_string(),
+        "--args".to_string(),
+        "start".to_string(),
+    ];
+
+    if let Some(dir) = cwd {
+        args.push("--cwd".to_string());
+        args.push(dir.to_string());
+    }
+
+    // Invoke shell to run the command string (to handle pipes, etc)
+    args.push("--".to_string());
+    args.push(shell.to_string());
+    args.push("-c".to_string());
+    args.push(full_command);
+    args
 }
 
 fn launch_alacritty(command: &str, cwd: Option<&str>) -> Result<(), String> {
@@ -254,4 +293,76 @@ fn shell_escape(value: &str) -> String {
 
 fn escape_osascript(value: &str) -> String {
     value.replace('\\', "\\\\").replace('"', "\\\"")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn ghostty_uses_shell_mode_for_resume_commands() {
+        let args = build_ghostty_args("claude --resume abc-123", Some("/tmp/project dir"));
+
+        assert_eq!(
+            args,
+            vec![
+                "-na",
+                "Ghostty",
+                "--args",
+                "--quit-after-last-window-closed=true",
+                "--working-directory=/tmp/project dir",
+                "--input=raw:claude --resume abc-123\\n",
+            ]
+        );
+    }
+
+    #[test]
+    fn ghostty_keeps_command_without_cwd_prefix_when_not_provided() {
+        let args = build_ghostty_args("claude --resume abc-123", None);
+
+        assert_eq!(
+            args,
+            vec![
+                "-na",
+                "Ghostty",
+                "--args",
+                "--quit-after-last-window-closed=true",
+                "--input=raw:claude --resume abc-123\\n",
+            ]
+        );
+    }
+
+    #[test]
+    fn ghostty_escapes_newlines_and_backslashes_in_input() {
+        assert_eq!(
+            ghostty_raw_input("echo foo\\\\bar\npwd"),
+            "raw:echo foo\\\\\\\\bar\\npwd\\n"
+        );
+    }
+
+    #[test]
+    fn wezterm_compatible_terminals_use_start_and_cwd_arguments() {
+        let args = build_wezterm_compatible_args_with_shell(
+            "Kaku",
+            "claude --resume abc-123",
+            Some("/tmp/project dir"),
+            "/bin/zsh",
+        );
+
+        assert_eq!(
+            args,
+            vec![
+                "-na".to_string(),
+                "Kaku".to_string(),
+                "--args".to_string(),
+                "start".to_string(),
+                "--cwd".to_string(),
+                "/tmp/project dir".to_string(),
+                "--".to_string(),
+                "/bin/zsh".to_string(),
+                "-c".to_string(),
+                "claude --resume abc-123".to_string(),
+            ]
+        );
+    }
 }

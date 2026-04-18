@@ -93,12 +93,26 @@ export const iconMetadata: Record<string, IconMetadata> = {
     keywords: [],
     defaultColor: "currentColor",
   },
+  ctok: {
+    name: "ctok",
+    displayName: "CTok",
+    category: "ai-provider",
+    keywords: ["ctok", "ai", "programming"],
+    defaultColor: "#3B82F6",
+  },
   cubence: {
     name: "cubence",
     displayName: "Cubence",
     category: "ai-provider",
     keywords: ["cubence", "api", "relay"],
     defaultColor: "#4B5563",
+  },
+  dds: {
+    name: "dds",
+    displayName: "DDS",
+    category: "other",
+    keywords: [],
+    defaultColor: "currentColor",
   },
   deepseek: {
     name: "deepseek",
@@ -345,6 +359,34 @@ export const iconMetadata: Record<string, IconMetadata> = {
     keywords: ["openrouter", "router", "aggregator"],
     defaultColor: "#6566F1",
   },
+  pipellm: {
+    name: "pipellm",
+    displayName: "PIPELLM",
+    category: "ai-provider",
+    keywords: ["pipellm", "pipe"],
+    defaultColor: "currentColor",
+  },
+  eflowcode: {
+    name: "eflowcode",
+    displayName: "E-FlowCode",
+    category: "ai-provider",
+    keywords: ["eflowcode", "e-flowcode", "flow"],
+    defaultColor: "currentColor",
+  },
+  shengsuanyun: {
+    name: "shengsuanyun",
+    displayName: "Shengsuanyun",
+    category: "ai-provider",
+    keywords: ["shengsuanyun", "shengsuanyun"],
+    defaultColor: "currentColor",
+  },
+  lioncc: {
+    name: "lioncc",
+    displayName: "LionCC",
+    category: "ai-provider",
+    keywords: ["lioncc", "lion"],
+    defaultColor: "#F9DA3C",
+  },
   longcat: {
     name: "longcat",
     displayName: "LongCat",
@@ -386,6 +428,13 @@ export const iconMetadata: Record<string, IconMetadata> = {
     category: "ai-provider",
     keywords: ["nvidia", "nim", "gpu"],
     defaultColor: "#74B71B",
+  },
+  stepfun: {
+    name: "stepfun",
+    displayName: "StepFun",
+    category: "ai-provider",
+    keywords: ["stepfun", "step", "jieyue", "阶跃星辰"],
+    defaultColor: "#005AFF",
   },
 };
 
