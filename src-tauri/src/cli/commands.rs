@@ -777,12 +777,6 @@ pub async fn provider_show(app: &str, id: &str) -> Result<(), String> {
     Ok(())
 }
 
-pub async fn provider_test(_app: &str, _id: &str) -> Result<(), String> {
-    output::info("功能开发中...");
-    // TODO: 实现供应商连接测试
-    Ok(())
-}
-
 pub async fn provider_export(
     app: &str,
     output_path: &str,
@@ -1313,18 +1307,6 @@ pub async fn config_set(key: &str, value: &str, app: Option<String>) -> Result<(
     Ok(())
 }
 
-pub async fn config_export(_output_path: &str) -> Result<(), String> {
-    output::info("导出配置功能开发中...");
-    // TODO: 实现配置导出
-    Ok(())
-}
-
-pub async fn config_import(_input_path: &str) -> Result<(), String> {
-    output::info("导入配置功能开发中...");
-    // TODO: 实现配置导入
-    Ok(())
-}
-
 pub async fn config_proxy(app: Option<String>) -> Result<(), String> {
     let db = get_database()?;
 
@@ -1609,127 +1591,6 @@ pub async fn failover_toggle(app: &str, enabled: bool) -> Result<(), String> {
         if enabled { "启用" } else { "禁用" }
     ));
 
-    Ok(())
-}
-
-pub async fn failover_circuit_breaker(_app: &str, _id: Option<String>) -> Result<(), String> {
-    output::info("熔断器状态查看功能开发中...");
-    // TODO: 实现熔断器状态查看
-    Ok(())
-}
-
-pub async fn failover_reset(_app: &str, _id: &str) -> Result<(), String> {
-    output::info("熔断器重置功能开发中...");
-    // TODO: 实现熔断器重置
-    Ok(())
-}
-
-// ============================================================================
-// Stats 命令实现
-// ============================================================================
-
-pub async fn stats_summary(_days: u32, _app: Option<String>) -> Result<(), String> {
-    output::info("统计摘要功能开发中...");
-    // TODO: 实现统计摘要
-    Ok(())
-}
-
-pub async fn stats_provider(_app: &str, _id: Option<String>, _days: u32) -> Result<(), String> {
-    output::info("供应商统计功能开发中...");
-    // TODO: 实现供应商统计
-    Ok(())
-}
-
-pub async fn stats_model(_days: u32) -> Result<(), String> {
-    output::info("模型统计功能开发中...");
-    // TODO: 实现模型统计
-    Ok(())
-}
-
-pub async fn stats_logs(
-    _limit: u32,
-    _app: Option<String>,
-    _provider: Option<String>,
-) -> Result<(), String> {
-    output::info("请求日志功能开发中...");
-    // TODO: 实现请求日志
-    Ok(())
-}
-
-// ============================================================================
-// MCP 命令实现（简化版）
-// ============================================================================
-
-pub async fn mcp_list(_app: Option<String>) -> Result<(), String> {
-    output::info("MCP服务器列表功能开发中...");
-    Ok(())
-}
-
-pub async fn mcp_add(
-    _name: &str,
-    _command: &str,
-    _args: Vec<String>,
-    _enabled: Vec<String>,
-) -> Result<(), String> {
-    output::info("MCP服务器添加功能开发中...");
-    Ok(())
-}
-
-pub async fn mcp_remove(_name: &str) -> Result<(), String> {
-    output::info("MCP服务器删除功能开发中...");
-    Ok(())
-}
-
-pub async fn mcp_toggle(_name: &str, _app: &str, _enabled: bool) -> Result<(), String> {
-    output::info("MCP服务器切换功能开发中...");
-    Ok(())
-}
-
-// ============================================================================
-// Prompt 命令实现（简化版）
-// ============================================================================
-
-pub async fn prompt_list(_app: Option<String>) -> Result<(), String> {
-    output::info("提示词列表功能开发中...");
-    Ok(())
-}
-
-pub async fn prompt_add(_name: &str, _content: &str, _app: &str) -> Result<(), String> {
-    output::info("提示词添加功能开发中...");
-    Ok(())
-}
-
-pub async fn prompt_remove(_name: &str, _app: &str) -> Result<(), String> {
-    output::info("提示词删除功能开发中...");
-    Ok(())
-}
-
-pub async fn prompt_show(_name: &str, _app: &str) -> Result<(), String> {
-    output::info("提示词查看功能开发中...");
-    Ok(())
-}
-
-// ============================================================================
-// Skill 命令实现（简化版）
-// ============================================================================
-
-pub async fn skill_list(_app: Option<String>) -> Result<(), String> {
-    output::info("技能列表功能开发中...");
-    Ok(())
-}
-
-pub async fn skill_install(_id: &str, _apps: Vec<String>) -> Result<(), String> {
-    output::info("技能安装功能开发中...");
-    Ok(())
-}
-
-pub async fn skill_uninstall(_id: &str, _app: Option<String>) -> Result<(), String> {
-    output::info("技能卸载功能开发中...");
-    Ok(())
-}
-
-pub async fn skill_discover() -> Result<(), String> {
-    output::info("技能发现功能开发中...");
     Ok(())
 }
 

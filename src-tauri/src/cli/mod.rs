@@ -67,25 +67,9 @@ pub enum Commands {
     #[command(subcommand, alias = "cfg")]
     Config(ConfigCommands),
 
-    /// 故障转移管理（队列管理/熔断器）
+    /// 故障转移管理（队列管理）
     #[command(subcommand, alias = "fo")]
     Failover(FailoverCommands),
-
-    /// 统计信息（用量/请求日志）
-    #[command(subcommand, alias = "st")]
-    Stats(StatsCommands),
-
-    /// MCP服务器管理
-    #[command(subcommand, alias = "m")]
-    Mcp(McpCommands),
-
-    /// 提示词管理
-    #[command(subcommand, alias = "pr")]
-    Prompt(PromptCommands),
-
-    /// 技能管理
-    #[command(subcommand, alias = "sk")]
-    Skill(SkillCommands),
 }
 
 #[derive(Subcommand)]
@@ -248,18 +232,6 @@ pub enum ProviderCommands {
     /// 查看供应商详情
     #[command(alias = "info")]
     Show {
-        /// 应用类型
-        #[arg(short, long)]
-        app: String,
-
-        /// 供应商ID
-        #[arg(short, long)]
-        id: String,
-    },
-
-    /// 测试供应商连接
-    #[command(alias = "test")]
-    Test {
         /// 应用类型
         #[arg(short, long)]
         app: String,
@@ -433,20 +405,6 @@ pub enum ConfigCommands {
         app: Option<String>,
     },
 
-    /// 导出配置到文件
-    Export {
-        /// 输出文件路径
-        #[arg(short, long)]
-        output: String,
-    },
-
-    /// 从文件导入配置
-    Import {
-        /// 输入文件路径
-        #[arg(short, long)]
-        input: String,
-    },
-
     /// 查看代理配置
     Proxy {
         /// 应用类型（可选）
@@ -508,210 +466,4 @@ pub enum FailoverCommands {
         #[arg(short, long)]
         enabled: bool,
     },
-
-    /// 查看熔断器状态
-    CircuitBreaker {
-        /// 应用类型
-        #[arg(short, long)]
-        app: String,
-
-        /// 供应商ID（可选）
-        #[arg(short, long)]
-        id: Option<String>,
-    },
-
-    /// 重置熔断器
-    Reset {
-        /// 应用类型
-        #[arg(short, long)]
-        app: String,
-
-        /// 供应商ID
-        #[arg(short, long)]
-        id: String,
-    },
-}
-
-#[derive(Subcommand)]
-pub enum StatsCommands {
-    /// 查看用量摘要
-    Summary {
-        /// 时间范围（天数）
-        #[arg(short, long, default_value = "7")]
-        days: u32,
-
-        /// 应用类型（可选）
-        #[arg(short, long)]
-        app: Option<String>,
-    },
-
-    /// 查看供应商统计
-    Provider {
-        /// 应用类型
-        #[arg(short, long)]
-        app: String,
-
-        /// 供应商ID（可选）
-        #[arg(short, long)]
-        id: Option<String>,
-
-        /// 时间范围（天数）
-        #[arg(short, long, default_value = "7")]
-        days: u32,
-    },
-
-    /// 查看模型统计
-    Model {
-        /// 时间范围（天数）
-        #[arg(short, long, default_value = "7")]
-        days: u32,
-    },
-
-    /// 查看请求日志
-    Logs {
-        /// 限制条数
-        #[arg(short, long, default_value = "50")]
-        limit: u32,
-
-        /// 应用类型（可选）
-        #[arg(short, long)]
-        app: Option<String>,
-
-        /// 供应商ID（可选）
-        #[arg(short = 'p', long)]
-        provider: Option<String>,
-    },
-}
-
-#[derive(Subcommand)]
-pub enum McpCommands {
-    /// 列出所有MCP服务器
-    List {
-        /// 应用类型（可选）
-        #[arg(short, long)]
-        app: Option<String>,
-    },
-
-    /// 添加MCP服务器
-    Add {
-        /// 服务器名称
-        #[arg(short, long)]
-        name: String,
-
-        /// 命令
-        #[arg(short, long)]
-        command: String,
-
-        /// 参数（多个）
-        #[arg(short = 'r', long)]
-        args: Vec<String>,
-
-        /// 启用的应用（多个，如：claude,codex）
-        #[arg(short = 'e', long)]
-        enabled: Vec<String>,
-    },
-
-    /// 删除MCP服务器
-    Remove {
-        /// 服务器名称
-        #[arg(short, long)]
-        name: String,
-    },
-
-    /// 启用/禁用MCP服务器
-    Toggle {
-        /// 服务器名称
-        #[arg(short, long)]
-        name: String,
-
-        /// 应用类型
-        #[arg(short, long)]
-        app: String,
-
-        /// 启用状态
-        #[arg(short, long)]
-        enabled: bool,
-    },
-}
-
-#[derive(Subcommand)]
-pub enum PromptCommands {
-    /// 列出所有提示词
-    List {
-        /// 应用类型（可选）
-        #[arg(short, long)]
-        app: Option<String>,
-    },
-
-    /// 添加提示词
-    Add {
-        /// 提示词名称
-        #[arg(short, long)]
-        name: String,
-
-        /// 提示词内容
-        #[arg(short, long)]
-        content: String,
-
-        /// 应用类型
-        #[arg(short, long)]
-        app: String,
-    },
-
-    /// 删除提示词
-    Remove {
-        /// 提示词名称
-        #[arg(short, long)]
-        name: String,
-
-        /// 应用类型
-        #[arg(short, long)]
-        app: String,
-    },
-
-    /// 查看提示词内容
-    Show {
-        /// 提示词名称
-        #[arg(short, long)]
-        name: String,
-
-        /// 应用类型
-        #[arg(short, long)]
-        app: String,
-    },
-}
-
-#[derive(Subcommand)]
-pub enum SkillCommands {
-    /// 列出已安装的技能
-    List {
-        /// 应用类型（可选）
-        #[arg(short, long)]
-        app: Option<String>,
-    },
-
-    /// 安装技能
-    Install {
-        /// 技能ID
-        #[arg(short, long)]
-        id: String,
-
-        /// 应用类型（多个）
-        #[arg(short, long)]
-        apps: Vec<String>,
-    },
-
-    /// 卸载技能
-    Uninstall {
-        /// 技能ID
-        #[arg(short, long)]
-        id: String,
-
-        /// 应用类型（可选，不指定则从所有应用卸载）
-        #[arg(short, long)]
-        app: Option<String>,
-    },
-
-    /// 发现可用技能
-    Discover,
 }

@@ -2,7 +2,7 @@ use clap::Parser;
 
 use super::{
     commands, output, server, Cli, Commands, ConfigCommands, FailoverCommands, HyperparamsCommands,
-    McpCommands, PromptCommands, ProviderCommands, ServerCommands, SkillCommands, StatsCommands,
+    ProviderCommands, ServerCommands,
 };
 
 pub fn has_cli_args() -> bool {
@@ -139,7 +139,6 @@ async fn run_cli(cli: Cli) -> Result<(), String> {
                 }
             },
             ProviderCommands::Show { app, id } => commands::provider_show(&app, &id).await,
-            ProviderCommands::Test { app, id } => commands::provider_test(&app, &id).await,
             ProviderCommands::Export {
                 app,
                 output,
@@ -181,8 +180,6 @@ async fn run_cli(cli: Cli) -> Result<(), String> {
             ConfigCommands::Set { key, value, app } => {
                 commands::config_set(&key, &value, app).await
             }
-            ConfigCommands::Export { output } => commands::config_export(&output).await,
-            ConfigCommands::Import { input } => commands::config_import(&input).await,
             ConfigCommands::Proxy { app } => commands::config_proxy(app).await,
             ConfigCommands::Loadbalance { app, enabled } => {
                 commands::config_loadbalance(&app, enabled).await
@@ -195,49 +192,6 @@ async fn run_cli(cli: Cli) -> Result<(), String> {
             FailoverCommands::Toggle { app, enabled } => {
                 commands::failover_toggle(&app, enabled).await
             }
-            FailoverCommands::CircuitBreaker { app, id } => {
-                commands::failover_circuit_breaker(&app, id).await
-            }
-            FailoverCommands::Reset { app, id } => commands::failover_reset(&app, &id).await,
-        },
-        Commands::Stats(cmd) => match cmd {
-            StatsCommands::Summary { days, app } => commands::stats_summary(days, app).await,
-            StatsCommands::Provider { app, id, days } => {
-                commands::stats_provider(&app, id, days).await
-            }
-            StatsCommands::Model { days } => commands::stats_model(days).await,
-            StatsCommands::Logs {
-                limit,
-                app,
-                provider,
-            } => commands::stats_logs(limit, app, provider).await,
-        },
-        Commands::Mcp(cmd) => match cmd {
-            McpCommands::List { app } => commands::mcp_list(app).await,
-            McpCommands::Add {
-                name,
-                command,
-                args,
-                enabled,
-            } => commands::mcp_add(&name, &command, args, enabled).await,
-            McpCommands::Remove { name } => commands::mcp_remove(&name).await,
-            McpCommands::Toggle { name, app, enabled } => {
-                commands::mcp_toggle(&name, &app, enabled).await
-            }
-        },
-        Commands::Prompt(cmd) => match cmd {
-            PromptCommands::List { app } => commands::prompt_list(app).await,
-            PromptCommands::Add { name, content, app } => {
-                commands::prompt_add(&name, &content, &app).await
-            }
-            PromptCommands::Remove { name, app } => commands::prompt_remove(&name, &app).await,
-            PromptCommands::Show { name, app } => commands::prompt_show(&name, &app).await,
-        },
-        Commands::Skill(cmd) => match cmd {
-            SkillCommands::List { app } => commands::skill_list(app).await,
-            SkillCommands::Install { id, apps } => commands::skill_install(&id, apps).await,
-            SkillCommands::Uninstall { id, app } => commands::skill_uninstall(&id, app).await,
-            SkillCommands::Discover => commands::skill_discover().await,
         },
     }
 }
