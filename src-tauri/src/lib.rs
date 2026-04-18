@@ -58,12 +58,22 @@ pub use store::AppState;
 use tauri_plugin_deep_link::DeepLinkExt;
 use tauri_plugin_dialog::{DialogExt, MessageDialogButtons, MessageDialogKind};
 
-use std::sync::Arc;
+use std::sync::{Arc, Once};
 #[cfg(target_os = "macos")]
 use tauri::image::Image;
 use tauri::tray::{TrayIconBuilder, TrayIconEvent};
 use tauri::RunEvent;
 use tauri::{Emitter, Manager};
+
+pub fn ensure_rustls_crypto_provider() {
+    static INIT: Once = Once::new();
+
+    INIT.call_once(|| {
+        // rustls 0.23 在同时启用多个 provider 特性时不会自动选型。
+        // 本项目统一显式选择 ring，并要求在任何 TLS 客户端初始化前完成安装。
+        let _ = rustls::crypto::ring::default_provider().install_default();
+    });
+}
 
 fn redact_url_for_log(url_str: &str) -> String {
     match url::Url::parse(url_str) {
@@ -198,6 +208,8 @@ fn macos_tray_icon() -> Option<Image<'static>> {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    ensure_rustls_crypto_provider();
+
     // 设置 panic hook，在应用崩溃时记录日志到 <app_config_dir>/crash.log（默认 ~/.cc-switch/crash.log）
     panic_hook::setup_panic_hook();
 

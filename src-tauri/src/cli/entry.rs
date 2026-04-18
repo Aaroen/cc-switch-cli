@@ -44,6 +44,8 @@ pub fn has_cli_args() -> bool {
 }
 
 pub fn run_from_env() -> ! {
+    crate::ensure_rustls_crypto_provider();
+
     let runtime = tokio::runtime::Builder::new_multi_thread()
         .enable_all()
         .build()
