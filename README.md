@@ -13,29 +13,6 @@
 
 ## 一键部署
 
-### Git 版本（实时更新代码）
-
-目录存在则自动 `git pull --rebase` 更新后再执行部署脚本；不存在则 `git clone` 后部署。该模式会在本机编译（首次耗时较久，但代码最新）。
-
-```bash
-bash -lc 'set -e; dir="$HOME/cc-switch-cli"; if [ -d "$dir/.git" ]; then git -C "$dir" pull --rebase; else git clone https://github.com/Aaroen/cc-switch-cli.git "$dir"; fi; bash "$dir/install-ccs.sh"'
-```
-
-### Release 版本（免编译，可能滞后）
-
-从 GitHub Releases 下载预构建二进制并安装运行（无需本机编译）。
-
-当前 Tag Release 会生成以下资产：
-
-- Linux GUI：`CC-Switch-<TAG>-Linux-x86_64.AppImage` / `.deb` / `.rpm`
-- Linux GUI：`CC-Switch-<TAG>-Linux-arm64.AppImage` / `.deb` / `.rpm`
-- Linux CLI：`cc-switch-cli-linux-x86_64.tar.gz`
-- Linux CLI：`cc-switch-cli-linux-arm64.tar.gz`
-- macOS GUI：`CC-Switch-<TAG>-macOS.zip`，如配置签名密钥则同时生成 `CC-Switch-<TAG>-macOS.tar.gz`
-- macOS CLI：`cc-switch-cli-macos-universal.tar.gz`
-- Windows GUI：`CC-Switch-<TAG>-Windows.msi` 与 `CC-Switch-<TAG>-Windows-Portable.zip`
-- Windows CLI：`cc-switch-cli-windows-x86_64.zip`
-
 Linux 终端环境可直接使用下述一行命令自动识别 `x86_64/arm64` 并安装 CLI 版本：
 
 ```bash
