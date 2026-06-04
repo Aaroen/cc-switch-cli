@@ -235,6 +235,7 @@ impl LoadBalancer {
     }
 
     /// 重置全局计数器
+    #[allow(dead_code)] // 保留 LB API（曾由分层转发器使用）
     pub fn reset_counter(&mut self) {
         self.global_round = 0;
     }
@@ -250,16 +251,19 @@ impl LoadBalancer {
     }
 
     /// 获取Provider数量
+    #[allow(dead_code)] // 保留 LB API
     pub fn len(&self) -> usize {
         self.providers.len()
     }
 
     /// 检查是否为空
+    #[allow(dead_code)] // 保留 LB API
     pub fn is_empty(&self) -> bool {
         self.providers.is_empty()
     }
 
     /// 更新单个Provider的权重
+    #[allow(dead_code)] // 保留 LB API（曾由分层转发器使用）
     pub fn update_weight(&mut self, provider_id: &str, weight: u32) -> bool {
         if let Some(p) = self
             .providers

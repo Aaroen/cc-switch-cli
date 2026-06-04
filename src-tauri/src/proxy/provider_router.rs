@@ -328,6 +328,7 @@ impl ProviderRouter {
     /// 重置指定应用的负载均衡器
     ///
     /// 当供应商配置变化时（添加/删除/修改权重），应调用此方法重置负载均衡器
+    #[allow(dead_code)] // 保留 API：当前权重变更经 needs_update 自动重建
     pub async fn reset_load_balancer(&self, app_type: &str) {
         let mut lbs = self.load_balancers.write().await;
         if lbs.remove(app_type).is_some() {

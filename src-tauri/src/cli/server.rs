@@ -522,6 +522,7 @@ fn get_config_dir() -> PathBuf {
     config_dir
 }
 
+#[allow(dead_code)] // 保留：备用 DB 路径解析
 fn get_db_path() -> PathBuf {
     get_config_dir().join("cc-switch.db")
 }

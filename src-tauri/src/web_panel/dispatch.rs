@@ -19,6 +19,29 @@ use serde_json::Value;
 use std::str::FromStr;
 use std::sync::Arc;
 
+// 合并官方上游后新增功能域网关所需类型
+use crate::app_config::{McpApps, McpServer};
+use crate::deeplink::{
+    import_mcp_from_deeplink, import_prompt_from_deeplink, import_provider_from_deeplink,
+    import_skill_from_deeplink, parse_deeplink_url, DeepLinkImportRequest,
+};
+use crate::prompt::Prompt;
+use crate::provider::ClaudeDesktopMode;
+use crate::proxy::providers::codex_oauth_auth::CodexOAuthManager;
+use crate::proxy::providers::copilot_auth::{CopilotAuthError, CopilotAuthManager};
+use crate::proxy::types::{LogConfig, OptimizerConfig, RectifierConfig};
+use crate::proxy::CircuitBreakerConfig;
+use crate::services::env_checker::EnvConflict;
+use crate::session_manager;
+use crate::services::skill::{
+    DiscoverableSkill, ImportSkillSelection, SkillRepo, SkillService, SkillStorageLocation,
+};
+use crate::services::stream_check::StreamCheckConfig;
+use crate::services::subscription::{query_codex_quota, CredentialStatus, SubscriptionQuota};
+use crate::services::usage_stats::UsageSummaryByApp;
+use crate::services::{McpService, PromptService, SpeedtestService};
+use std::sync::OnceLock;
+
 /// 提取并反序列化指定参数键（camelCase）。
 fn arg<T: DeserializeOwned>(args: &Value, key: &str) -> Result<T, String> {
     let v = args.get(key).cloned().unwrap_or(Value::Null);
@@ -28,6 +51,16 @@ fn arg<T: DeserializeOwned>(args: &Value, key: &str) -> Result<T, String> {
 /// 将结果序列化为 JSON 信封 data。
 fn ok<T: Serialize>(value: T) -> Result<Value, String> {
     serde_json::to_value(value).map_err(|e| e.to_string())
+}
+
+/// 进程级 GitHub Copilot 认证管理器（Web 控制台专用）。
+///
+/// GUI/代理使用 Tauri 托管的 `CopilotAuthState` 单例，Web 面板无 AppHandle 无法触达，
+/// 故在面板进程内复用同一磁盘凭据目录构造一个进程级单例，读写同一份 `copilot_auth.json`
+/// （与 GUI 共享磁盘多账号 store），跨调用持久化内存 token/models 缓存。
+fn copilot_manager() -> &'static CopilotAuthManager {
+    static MANAGER: OnceLock<CopilotAuthManager> = OnceLock::new();
+    MANAGER.get_or_init(|| CopilotAuthManager::new(crate::config::get_app_config_dir()))
 }
 
 pub async fn dispatch(app: &Arc<AppState>, command: &str, args: Value) -> Result<Value, String> {
@@ -698,6 +731,986 @@ pub async fn dispatch(app: &Arc<AppState>, command: &str, args: Value) -> Result
         // ==================== 启动期 / 桌面专属（Web 降级）====================
         "get_init_error" => ok(Value::Null), // 浏览器无后端初始化错误事件
         "update_tray_menu" => ok(true),      // 无托盘：no-op，避免变更后置回调报错
+
+
+        // ==================== auth ====================
+
+        // ==================== copilot ====================
+        "copilot_start_device_flow" => {
+            let github_domain: Option<String> = arg(&args, "githubDomain").unwrap_or(None);
+            ok(copilot_manager()
+                .start_device_flow(github_domain.as_deref())
+                .await
+                .map_err(|e| e.to_string())?)
+        }
+        "copilot_poll_for_auth" => {
+            let device_code: String = arg(&args, "deviceCode")?;
+            let github_domain: Option<String> = arg(&args, "githubDomain").unwrap_or(None);
+            match copilot_manager()
+                .poll_for_token(&device_code, github_domain.as_deref())
+                .await
+            {
+                Ok(Some(_account)) => ok(true),
+                Ok(None) => ok(false),
+                Err(CopilotAuthError::AuthorizationPending) => ok(false),
+                Err(e) => Err(e.to_string()),
+            }
+        }
+        "copilot_poll_for_account" => {
+            let device_code: String = arg(&args, "deviceCode")?;
+            let github_domain: Option<String> = arg(&args, "githubDomain").unwrap_or(None);
+            match copilot_manager()
+                .poll_for_token(&device_code, github_domain.as_deref())
+                .await
+            {
+                Ok(account) => ok(account),
+                Err(CopilotAuthError::AuthorizationPending) => ok(Value::Null),
+                Err(e) => Err(e.to_string()),
+            }
+        }
+        "copilot_list_accounts" => ok(copilot_manager().list_accounts().await),
+        "copilot_remove_account" => {
+            let account_id: String = arg(&args, "accountId")?;
+            copilot_manager()
+                .remove_account(&account_id)
+                .await
+                .map_err(|e| e.to_string())?;
+            ok(Value::Null)
+        }
+        "copilot_set_default_account" => {
+            let account_id: String = arg(&args, "accountId")?;
+            copilot_manager()
+                .set_default_account(&account_id)
+                .await
+                .map_err(|e| e.to_string())?;
+            ok(Value::Null)
+        }
+        "copilot_get_auth_status" => ok(copilot_manager().get_status().await),
+        "copilot_is_authenticated" => ok(copilot_manager().is_authenticated().await),
+        "copilot_logout" => {
+            copilot_manager().clear_auth().await.map_err(|e| e.to_string())?;
+            ok(Value::Null)
+        }
+        "copilot_get_token" => ok(copilot_manager()
+            .get_valid_token()
+            .await
+            .map_err(|e| e.to_string())?),
+        "copilot_get_token_for_account" => {
+            let account_id: String = arg(&args, "accountId")?;
+            ok(copilot_manager()
+                .get_valid_token_for_account(&account_id)
+                .await
+                .map_err(|e| e.to_string())?)
+        }
+        "copilot_get_models" => ok(copilot_manager()
+            .fetch_models()
+            .await
+            .map_err(|e| e.to_string())?),
+        "copilot_get_models_for_account" => {
+            let account_id: String = arg(&args, "accountId")?;
+            ok(copilot_manager()
+                .fetch_models_for_account(&account_id)
+                .await
+                .map_err(|e| e.to_string())?)
+        }
+        "copilot_get_usage" => ok(copilot_manager()
+            .fetch_usage()
+            .await
+            .map_err(|e| e.to_string())?),
+        "copilot_get_usage_for_account" => {
+            let account_id: String = arg(&args, "accountId")?;
+            ok(copilot_manager()
+                .fetch_usage_for_account(&account_id)
+                .await
+                .map_err(|e| e.to_string())?)
+        }
+
+        // ==================== skill ====================
+        "get_installed_skills" => ok(SkillService::get_all_installed(&app.db).map_err(|e| e.to_string())?),
+        "get_skill_backups" => ok(SkillService::list_backups().map_err(|e| e.to_string())?),
+        "delete_skill_backup" => {
+            let backup_id: String = arg(&args, "backupId")?;
+            SkillService::delete_backup(&backup_id).map_err(|e| e.to_string())?;
+            ok(true)
+        }
+        "install_skill_unified" => {
+            let skill: DiscoverableSkill = arg(&args, "skill")?;
+            let current_app: String = arg(&args, "currentApp")?;
+            let app_type = AppType::from_str(&current_app).map_err(|e| e.to_string())?;
+            ok(SkillService::new()
+                .install(&app.db, &skill, &app_type)
+                .await
+                .map_err(|e| e.to_string())?)
+        }
+        "uninstall_skill_unified" => {
+            let id: String = arg(&args, "id")?;
+            ok(SkillService::uninstall(&app.db, &id).map_err(|e| e.to_string())?)
+        }
+        "restore_skill_backup" => {
+            let backup_id: String = arg(&args, "backupId")?;
+            let current_app: String = arg(&args, "currentApp")?;
+            let app_type = AppType::from_str(&current_app).map_err(|e| e.to_string())?;
+            ok(SkillService::restore_from_backup(&app.db, &backup_id, &app_type)
+                .map_err(|e| e.to_string())?)
+        }
+        "toggle_skill_app" => {
+            let id: String = arg(&args, "id")?;
+            let app_str: String = arg(&args, "app")?;
+            let enabled: bool = arg(&args, "enabled")?;
+            let app_type = AppType::from_str(&app_str).map_err(|e| e.to_string())?;
+            SkillService::toggle_app(&app.db, &id, &app_type, enabled).map_err(|e| e.to_string())?;
+            ok(true)
+        }
+        "scan_unmanaged_skills" => ok(SkillService::scan_unmanaged(&app.db).map_err(|e| e.to_string())?),
+        "import_skills_from_apps" => {
+            let imports: Vec<ImportSkillSelection> = arg(&args, "imports")?;
+            ok(SkillService::import_from_apps(&app.db, imports).map_err(|e| e.to_string())?)
+        }
+        "discover_available_skills" => {
+            let repos = app.db.get_skill_repos().map_err(|e| e.to_string())?;
+            ok(SkillService::new()
+                .discover_available(repos)
+                .await
+                .map_err(|e| e.to_string())?)
+        }
+        "check_skill_updates" => ok(SkillService::new()
+            .check_updates(&app.db)
+            .await
+            .map_err(|e| e.to_string())?),
+        "update_skill" => {
+            let id: String = arg(&args, "id")?;
+            ok(SkillService::new()
+                .update_skill(&app.db, &id)
+                .await
+                .map_err(|e| e.to_string())?)
+        }
+        "migrate_skill_storage" => {
+            let target: SkillStorageLocation = arg(&args, "target")?;
+            ok(SkillService::migrate_storage(&app.db, target).map_err(|e| e.to_string())?)
+        }
+        "search_skills_sh" => {
+            let query: String = arg(&args, "query")?;
+            let limit: usize = arg(&args, "limit")?;
+            let offset: usize = arg(&args, "offset")?;
+            ok(SkillService::search_skills_sh(&query, limit, offset)
+                .await
+                .map_err(|e| e.to_string())?)
+        }
+        "get_skills" => {
+            let repos = app.db.get_skill_repos().map_err(|e| e.to_string())?;
+            ok(SkillService::new()
+                .list_skills(repos, &app.db)
+                .await
+                .map_err(|e| e.to_string())?)
+        }
+        "get_skills_for_app" => {
+            // 新版本不再区分应用：验证 app 参数后统一返回所有技能
+            let app_str: String = arg(&args, "app")?;
+            AppType::from_str(&app_str).map_err(|e| e.to_string())?;
+            let repos = app.db.get_skill_repos().map_err(|e| e.to_string())?;
+            ok(SkillService::new()
+                .list_skills(repos, &app.db)
+                .await
+                .map_err(|e| e.to_string())?)
+        }
+        "install_skill" => {
+            // 兼容旧 API：固定 claude，通过 directory 在发现列表中匹配后安装
+            let directory: String = arg(&args, "directory")?;
+            let app_type = AppType::from_str("claude").map_err(|e| e.to_string())?;
+            let repos = app.db.get_skill_repos().map_err(|e| e.to_string())?;
+            let svc = SkillService::new();
+            let skills = svc.discover_available(repos).await.map_err(|e| e.to_string())?;
+            let skill = skills
+                .into_iter()
+                .find(|s| {
+                    let install_name = std::path::Path::new(&s.directory)
+                        .file_name()
+                        .map(|n| n.to_string_lossy().to_string())
+                        .unwrap_or_else(|| s.directory.clone());
+                    install_name.eq_ignore_ascii_case(&directory)
+                        || s.directory.eq_ignore_ascii_case(&directory)
+                })
+                .ok_or_else(|| format!("未找到可安装的 Skill: {directory}"))?;
+            svc.install(&app.db, &skill, &app_type)
+                .await
+                .map_err(|e| e.to_string())?;
+            ok(true)
+        }
+        "install_skill_for_app" => {
+            // 兼容旧 API：通过 directory 在发现列表中匹配后安装到指定应用
+            let app_str: String = arg(&args, "app")?;
+            let directory: String = arg(&args, "directory")?;
+            let app_type = AppType::from_str(&app_str).map_err(|e| e.to_string())?;
+            let repos = app.db.get_skill_repos().map_err(|e| e.to_string())?;
+            let svc = SkillService::new();
+            let skills = svc.discover_available(repos).await.map_err(|e| e.to_string())?;
+            let skill = skills
+                .into_iter()
+                .find(|s| {
+                    let install_name = std::path::Path::new(&s.directory)
+                        .file_name()
+                        .map(|n| n.to_string_lossy().to_string())
+                        .unwrap_or_else(|| s.directory.clone());
+                    install_name.eq_ignore_ascii_case(&directory)
+                        || s.directory.eq_ignore_ascii_case(&directory)
+                })
+                .ok_or_else(|| format!("未找到可安装的 Skill: {directory}"))?;
+            svc.install(&app.db, &skill, &app_type)
+                .await
+                .map_err(|e| e.to_string())?;
+            ok(true)
+        }
+        "uninstall_skill" => {
+            // 兼容旧 API：固定 claude，通过 directory 找到已安装 skill id 后卸载
+            let directory: String = arg(&args, "directory")?;
+            let skills = SkillService::get_all_installed(&app.db).map_err(|e| e.to_string())?;
+            let skill = skills
+                .into_iter()
+                .find(|s| s.directory.eq_ignore_ascii_case(&directory))
+                .ok_or_else(|| format!("未找到已安装的 Skill: {directory}"))?;
+            ok(SkillService::uninstall(&app.db, &skill.id).map_err(|e| e.to_string())?)
+        }
+        "uninstall_skill_for_app" => {
+            // 兼容旧 API：验证 app 参数后，通过 directory 找到已安装 skill id 后卸载
+            let app_str: String = arg(&args, "app")?;
+            let directory: String = arg(&args, "directory")?;
+            AppType::from_str(&app_str).map_err(|e| e.to_string())?;
+            let skills = SkillService::get_all_installed(&app.db).map_err(|e| e.to_string())?;
+            let skill = skills
+                .into_iter()
+                .find(|s| s.directory.eq_ignore_ascii_case(&directory))
+                .ok_or_else(|| format!("未找到已安装的 Skill: {directory}"))?;
+            ok(SkillService::uninstall(&app.db, &skill.id).map_err(|e| e.to_string())?)
+        }
+        "get_skill_repos" => ok(app.db.get_skill_repos().map_err(|e| e.to_string())?),
+        "add_skill_repo" => {
+            let repo: SkillRepo = arg(&args, "repo")?;
+            app.db.save_skill_repo(&repo).map_err(|e| e.to_string())?;
+            ok(true)
+        }
+        "remove_skill_repo" => {
+            let owner: String = arg(&args, "owner")?;
+            let name: String = arg(&args, "name")?;
+            app.db.delete_skill_repo(&owner, &name).map_err(|e| e.to_string())?;
+            ok(true)
+        }
+        "install_skills_from_zip" => {
+            let file_path: String = arg(&args, "filePath")?;
+            let current_app: String = arg(&args, "currentApp")?;
+            let app_type = AppType::from_str(&current_app).map_err(|e| e.to_string())?;
+            let path = std::path::Path::new(&file_path);
+            ok(SkillService::install_from_zip(&app.db, path, &app_type).map_err(|e| e.to_string())?)
+        }
+
+        // ==================== mcp ====================
+        "get_claude_mcp_status" => ok(crate::claude_mcp::get_mcp_status().map_err(|e| e.to_string())?),
+        "read_claude_mcp_config" => ok(crate::claude_mcp::read_mcp_json().map_err(|e| e.to_string())?),
+        "upsert_claude_mcp_server" => {
+            let id: String = arg(&args, "id")?;
+            let spec: Value = arg(&args, "spec")?;
+            ok(crate::claude_mcp::upsert_mcp_server(&id, spec).map_err(|e| e.to_string())?)
+        }
+        "delete_claude_mcp_server" => {
+            let id: String = arg(&args, "id")?;
+            ok(crate::claude_mcp::delete_mcp_server(&id).map_err(|e| e.to_string())?)
+        }
+        "validate_mcp_command" => {
+            let cmd: String = arg(&args, "cmd")?;
+            ok(crate::claude_mcp::validate_command_in_path(&cmd).map_err(|e| e.to_string())?)
+        }
+        "get_mcp_config" => {
+            #[allow(deprecated)]
+            {
+                let app_str: String = arg(&args, "app")?;
+                let app_ty = AppType::from_str(&app_str).map_err(|e| e.to_string())?;
+                let config_path = crate::config::get_app_config_path()
+                    .to_string_lossy()
+                    .to_string();
+                let servers = McpService::get_servers(app, app_ty).map_err(|e| e.to_string())?;
+                ok(serde_json::json!({
+                    "config_path": config_path,
+                    "servers": servers,
+                }))
+            }
+        }
+        "upsert_mcp_server_in_config" => {
+            let app_str: String = arg(&args, "app")?;
+            let id: String = arg(&args, "id")?;
+            let spec: Value = arg(&args, "spec")?;
+            let sync_other_side: Option<bool> = args.get("syncOtherSide").and_then(|v| v.as_bool());
+            let app_ty = AppType::from_str(&app_str).map_err(|e| e.to_string())?;
+
+            let existing_server = {
+                let servers = app.db.get_all_mcp_servers().map_err(|e| e.to_string())?;
+                servers.get(&id).cloned()
+            };
+
+            let mut new_server = if let Some(mut existing) = existing_server {
+                existing.server = spec.clone();
+                existing.apps.set_enabled_for(&app_ty, true);
+                existing
+            } else {
+                let mut apps = McpApps::default();
+                apps.set_enabled_for(&app_ty, true);
+                let name = spec
+                    .get("name")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or(&id)
+                    .to_string();
+                McpServer {
+                    id: id.clone(),
+                    name,
+                    server: spec,
+                    apps,
+                    description: None,
+                    homepage: None,
+                    docs: None,
+                    tags: Vec::new(),
+                }
+            };
+
+            if sync_other_side.unwrap_or(false) {
+                new_server.apps.claude = true;
+                new_server.apps.codex = true;
+                new_server.apps.gemini = true;
+                new_server.apps.opencode = true;
+            }
+
+            McpService::upsert_server(app, new_server).map_err(|e| e.to_string())?;
+            ok(true)
+        }
+        "delete_mcp_server_in_config" => {
+            let id: String = arg(&args, "id")?;
+            ok(McpService::delete_server(app, &id).map_err(|e| e.to_string())?)
+        }
+        "set_mcp_enabled" => {
+            #[allow(deprecated)]
+            {
+                let app_str: String = arg(&args, "app")?;
+                let id: String = arg(&args, "id")?;
+                let enabled: bool = arg(&args, "enabled")?;
+                let app_ty = AppType::from_str(&app_str).map_err(|e| e.to_string())?;
+                ok(McpService::set_enabled(app, app_ty, &id, enabled).map_err(|e| e.to_string())?)
+            }
+        }
+        "get_mcp_servers" => ok(McpService::get_all_servers(app).map_err(|e| e.to_string())?),
+        "upsert_mcp_server" => {
+            let server: McpServer = arg(&args, "server")?;
+            McpService::upsert_server(app, server).map_err(|e| e.to_string())?;
+            ok(Value::Null)
+        }
+        "delete_mcp_server" => {
+            let id: String = arg(&args, "id")?;
+            ok(McpService::delete_server(app, &id).map_err(|e| e.to_string())?)
+        }
+        "toggle_mcp_app" => {
+            let server_id: String = arg(&args, "serverId")?;
+            let app_str: String = arg(&args, "app")?;
+            let enabled: bool = arg(&args, "enabled")?;
+            let app_ty = AppType::from_str(&app_str).map_err(|e| e.to_string())?;
+            McpService::toggle_app(app, &server_id, app_ty, enabled).map_err(|e| e.to_string())?;
+            ok(Value::Null)
+        }
+        "import_mcp_from_apps" => {
+            let mut total = 0usize;
+            total += McpService::import_from_claude(app).unwrap_or(0);
+            total += McpService::import_from_codex(app).unwrap_or(0);
+            total += McpService::import_from_gemini(app).unwrap_or(0);
+            total += McpService::import_from_opencode(app).unwrap_or(0);
+            total += McpService::import_from_hermes(app).unwrap_or(0);
+            ok(total)
+        }
+
+        // ==================== hermes ====================
+        "get_hermes_live_provider_ids" => ok(crate::hermes_config::get_providers()
+            .map(|providers| providers.keys().cloned().collect::<Vec<String>>())
+            .map_err(|e| e.to_string())?),
+        "get_hermes_model_config" => {
+            ok(crate::hermes_config::get_model_config().map_err(|e| e.to_string())?)
+        }
+        "get_hermes_memory" => {
+            let kind: crate::hermes_config::MemoryKind = arg(&args, "kind")?;
+            ok(crate::hermes_config::read_memory(kind).map_err(|e| e.to_string())?)
+        }
+        "set_hermes_memory" => {
+            let kind: crate::hermes_config::MemoryKind = arg(&args, "kind")?;
+            let content: String = arg(&args, "content")?;
+            crate::hermes_config::write_memory(kind, &content).map_err(|e| e.to_string())?;
+            ok(Value::Null)
+        }
+        "get_hermes_memory_limits" => {
+            ok(crate::hermes_config::read_memory_limits().map_err(|e| e.to_string())?)
+        }
+        "set_hermes_memory_enabled" => {
+            let kind: crate::hermes_config::MemoryKind = arg(&args, "kind")?;
+            let enabled: bool = arg(&args, "enabled")?;
+            ok(crate::hermes_config::set_memory_enabled(kind, enabled).map_err(|e| e.to_string())?)
+        }
+        "import_hermes_providers_from_live" => ok(
+            crate::services::provider::import_hermes_providers_from_live(app.as_ref())
+                .map_err(|e| e.to_string())?,
+        ),
+
+        // ==================== openclaw ====================
+        "get_openclaw_agents_defaults" => ok(crate::openclaw_config::get_agents_defaults().map_err(|e| e.to_string())?),
+        "get_openclaw_default_model" => ok(crate::openclaw_config::get_default_model().map_err(|e| e.to_string())?),
+        "get_openclaw_env" => ok(crate::openclaw_config::get_env_config().map_err(|e| e.to_string())?),
+        "get_openclaw_live_provider" => {
+    let provider_id: String = arg(&args, "providerId")?;
+    ok(crate::openclaw_config::get_provider(&provider_id).map_err(|e| e.to_string())?)
+}
+        "get_openclaw_model_catalog" => ok(crate::openclaw_config::get_model_catalog().map_err(|e| e.to_string())?),
+        "get_openclaw_tools" => ok(crate::openclaw_config::get_tools_config().map_err(|e| e.to_string())?),
+        "scan_openclaw_config_health" => ok(crate::openclaw_config::scan_openclaw_config_health().map_err(|e| e.to_string())?),
+        "set_openclaw_agents_defaults" => {
+    let defaults: crate::openclaw_config::OpenClawAgentsDefaults = arg(&args, "defaults")?;
+    ok(crate::openclaw_config::set_agents_defaults(&defaults).map_err(|e| e.to_string())?)
+}
+        "set_openclaw_default_model" => {
+    let model: crate::openclaw_config::OpenClawDefaultModel = arg(&args, "model")?;
+    ok(crate::openclaw_config::set_default_model(&model).map_err(|e| e.to_string())?)
+}
+        "set_openclaw_env" => {
+    let env: crate::openclaw_config::OpenClawEnvConfig = arg(&args, "env")?;
+    ok(crate::openclaw_config::set_env_config(&env).map_err(|e| e.to_string())?)
+}
+        "set_openclaw_model_catalog" => {
+    let catalog: std::collections::HashMap<String, crate::openclaw_config::OpenClawModelCatalogEntry> = arg(&args, "catalog")?;
+    ok(crate::openclaw_config::set_model_catalog(&catalog).map_err(|e| e.to_string())?)
+}
+        "set_openclaw_tools" => {
+    let tools: crate::openclaw_config::OpenClawToolsConfig = arg(&args, "tools")?;
+    ok(crate::openclaw_config::set_tools_config(&tools).map_err(|e| e.to_string())?)
+}
+
+        // ==================== omo ====================
+        "read_omo_local_file" => ok(crate::services::OmoService::read_local_file(&crate::services::omo::STANDARD).map_err(|e| e.to_string())?),
+        "read_omo_slim_local_file" => ok(crate::services::OmoService::read_local_file(&crate::services::omo::SLIM).map_err(|e| e.to_string())?),
+        "get_current_omo_provider_id" => {
+    let provider = app
+        .db
+        .get_current_omo_provider("opencode", "omo")
+        .map_err(|e| e.to_string())?;
+    ok(provider.map(|p| p.id).unwrap_or_default())
+}
+        "get_current_omo_slim_provider_id" => {
+    let provider = app
+        .db
+        .get_current_omo_provider("opencode", "omo-slim")
+        .map_err(|e| e.to_string())?;
+    ok(provider.map(|p| p.id).unwrap_or_default())
+}
+        "disable_current_omo" => {
+    let providers = app
+        .db
+        .get_all_providers("opencode")
+        .map_err(|e| e.to_string())?;
+    for (id, p) in &providers {
+        if p.category.as_deref() == Some("omo") {
+            app.db
+                .clear_omo_provider_current("opencode", id, "omo")
+                .map_err(|e| e.to_string())?;
+        }
+    }
+    crate::services::OmoService::delete_config_file(&crate::services::omo::STANDARD)
+        .map_err(|e| e.to_string())?;
+    ok(Value::Null)
+}
+        "disable_current_omo_slim" => {
+    let providers = app
+        .db
+        .get_all_providers("opencode")
+        .map_err(|e| e.to_string())?;
+    for (id, p) in &providers {
+        if p.category.as_deref() == Some("omo-slim") {
+            app.db
+                .clear_omo_provider_current("opencode", id, "omo-slim")
+                .map_err(|e| e.to_string())?;
+        }
+    }
+    crate::services::OmoService::delete_config_file(&crate::services::omo::SLIM)
+        .map_err(|e| e.to_string())?;
+    ok(Value::Null)
+}
+
+        // ==================== session ====================
+        "list_sessions" => ok(session_manager::scan_sessions()),
+        "get_session_messages" => {
+            let provider_id: String = arg(&args, "providerId")?;
+            let source_path: String = arg(&args, "sourcePath")?;
+            ok(session_manager::load_messages(&provider_id, &source_path)?)
+        }
+        "delete_session" => {
+            let provider_id: String = arg(&args, "providerId")?;
+            let session_id: String = arg(&args, "sessionId")?;
+            let source_path: String = arg(&args, "sourcePath")?;
+            ok(session_manager::delete_session(&provider_id, &session_id, &source_path)?)
+        }
+        "delete_sessions" => {
+            let items: Vec<session_manager::DeleteSessionRequest> = arg(&args, "items")?;
+            ok(session_manager::delete_sessions(&items))
+        }
+
+        // ==================== prompt ====================
+        "get_prompts" => {
+    let app_str: String = arg(&args, "app")?;
+    let app_type = AppType::from_str(&app_str).map_err(|e| e.to_string())?;
+    ok(PromptService::get_prompts(app.as_ref(), app_type).map_err(|e| e.to_string())?)
+}
+        "upsert_prompt" => {
+    let app_str: String = arg(&args, "app")?;
+    let id: String = arg(&args, "id")?;
+    let prompt: Prompt = arg(&args, "prompt")?;
+    let app_type = AppType::from_str(&app_str).map_err(|e| e.to_string())?;
+    PromptService::upsert_prompt(app.as_ref(), app_type, &id, prompt).map_err(|e| e.to_string())?;
+    ok(Value::Null)
+}
+        "delete_prompt" => {
+    let app_str: String = arg(&args, "app")?;
+    let id: String = arg(&args, "id")?;
+    let app_type = AppType::from_str(&app_str).map_err(|e| e.to_string())?;
+    PromptService::delete_prompt(app.as_ref(), app_type, &id).map_err(|e| e.to_string())?;
+    ok(Value::Null)
+}
+        "enable_prompt" => {
+    let app_str: String = arg(&args, "app")?;
+    let id: String = arg(&args, "id")?;
+    let app_type = AppType::from_str(&app_str).map_err(|e| e.to_string())?;
+    PromptService::enable_prompt(app.as_ref(), app_type, &id).map_err(|e| e.to_string())?;
+    ok(Value::Null)
+}
+        "import_prompt_from_file" => {
+    let app_str: String = arg(&args, "app")?;
+    let app_type = AppType::from_str(&app_str).map_err(|e| e.to_string())?;
+    ok(PromptService::import_from_file(app.as_ref(), app_type).map_err(|e| e.to_string())?)
+}
+        "get_current_prompt_file_content" => {
+    let app_str: String = arg(&args, "app")?;
+    let app_type = AppType::from_str(&app_str).map_err(|e| e.to_string())?;
+    ok(PromptService::get_current_file_content(app_type).map_err(|e| e.to_string())?)
+}
+
+        // ==================== workspace_memory ====================
+        "list_daily_memory_files" => ok(crate::commands::list_daily_memory_files().await?),
+        "read_daily_memory_file" => {
+            let filename: String = arg(&args, "filename")?;
+            ok(crate::commands::read_daily_memory_file(filename).await?)
+        }
+        "write_daily_memory_file" => {
+            let filename: String = arg(&args, "filename")?;
+            let content: String = arg(&args, "content")?;
+            crate::commands::write_daily_memory_file(filename, content).await?;
+            ok(Value::Null)
+        }
+        "delete_daily_memory_file" => {
+            let filename: String = arg(&args, "filename")?;
+            crate::commands::delete_daily_memory_file(filename).await?;
+            ok(Value::Null)
+        }
+        "search_daily_memory_files" => {
+            let query: String = arg(&args, "query")?;
+            ok(crate::commands::search_daily_memory_files(query).await?)
+        }
+        "read_workspace_file" => {
+            let filename: String = arg(&args, "filename")?;
+            ok(crate::commands::read_workspace_file(filename).await?)
+        }
+        "write_workspace_file" => {
+            let filename: String = arg(&args, "filename")?;
+            let content: String = arg(&args, "content")?;
+            crate::commands::write_workspace_file(filename, content).await?;
+            ok(Value::Null)
+        }
+
+        // ==================== endpoints_deeplink ====================
+        "get_custom_endpoints" => {
+            let app_str: String = arg(&args, "app")?;
+            let provider_id: String = arg(&args, "providerId")?;
+            let app_type = AppType::from_str(&app_str).map_err(|e| e.to_string())?;
+            ok(ProviderService::get_custom_endpoints(app.as_ref(), app_type, &provider_id)
+                .map_err(|e| e.to_string())?)
+        }
+        "add_custom_endpoint" => {
+            let app_str: String = arg(&args, "app")?;
+            let provider_id: String = arg(&args, "providerId")?;
+            let url: String = arg(&args, "url")?;
+            let app_type = AppType::from_str(&app_str).map_err(|e| e.to_string())?;
+            ProviderService::add_custom_endpoint(app.as_ref(), app_type, &provider_id, url)
+                .map_err(|e| e.to_string())?;
+            ok(Value::Null)
+        }
+        "remove_custom_endpoint" => {
+            let app_str: String = arg(&args, "app")?;
+            let provider_id: String = arg(&args, "providerId")?;
+            let url: String = arg(&args, "url")?;
+            let app_type = AppType::from_str(&app_str).map_err(|e| e.to_string())?;
+            ProviderService::remove_custom_endpoint(app.as_ref(), app_type, &provider_id, url)
+                .map_err(|e| e.to_string())?;
+            ok(Value::Null)
+        }
+        "update_endpoint_last_used" => {
+            let app_str: String = arg(&args, "app")?;
+            let provider_id: String = arg(&args, "providerId")?;
+            let url: String = arg(&args, "url")?;
+            let app_type = AppType::from_str(&app_str).map_err(|e| e.to_string())?;
+            ProviderService::update_endpoint_last_used(app.as_ref(), app_type, &provider_id, url)
+                .map_err(|e| e.to_string())?;
+            ok(Value::Null)
+        }
+        "parse_deeplink" => {
+            let url: String = arg(&args, "url")?;
+            ok(parse_deeplink_url(&url).map_err(|e| e.to_string())?)
+        }
+        "merge_deeplink_config" => {
+            let request: DeepLinkImportRequest = arg(&args, "request")?;
+            ok(crate::deeplink::parse_and_merge_config(&request).map_err(|e| e.to_string())?)
+        }
+        "import_from_deeplink_unified" => {
+            let request: DeepLinkImportRequest = arg(&args, "request")?;
+            match request.resource.as_str() {
+                "provider" => {
+                    let provider_id = import_provider_from_deeplink(app.as_ref(), request)
+                        .map_err(|e| e.to_string())?;
+                    ok(serde_json::json!({ "type": "provider", "id": provider_id }))
+                }
+                "prompt" => {
+                    let prompt_id = import_prompt_from_deeplink(app.as_ref(), request)
+                        .map_err(|e| e.to_string())?;
+                    ok(serde_json::json!({ "type": "prompt", "id": prompt_id }))
+                }
+                "mcp" => {
+                    let result = import_mcp_from_deeplink(app.as_ref(), request)
+                        .map_err(|e| e.to_string())?;
+                    ok(serde_json::json!({
+                        "type": "mcp",
+                        "importedCount": result.imported_count,
+                        "importedIds": result.imported_ids,
+                        "failed": result.failed
+                    }))
+                }
+                "skill" => {
+                    let skill_key = import_skill_from_deeplink(app.as_ref(), request)
+                        .map_err(|e| e.to_string())?;
+                    ok(serde_json::json!({ "type": "skill", "key": skill_key }))
+                }
+                other => Err(format!("Unsupported resource type: {other}")),
+            }
+        }
+
+        // ==================== proxy_config_misc ====================
+        "get_circuit_breaker_config" => ok(app.db.get_circuit_breaker_config().await.map_err(|e| e.to_string())?),
+        "update_circuit_breaker_config" => {
+    let config: CircuitBreakerConfig = arg(&args, "config")?;
+    app.db
+        .update_circuit_breaker_config(&config)
+        .await
+        .map_err(|e| e.to_string())?;
+    app.proxy_service
+        .update_circuit_breaker_configs(config)
+        .await?;
+    ok(Value::Null)
+}
+        "get_rectifier_config" => ok(app.db.get_rectifier_config().map_err(|e| e.to_string())?),
+        "set_rectifier_config" => {
+    let config: RectifierConfig = arg(&args, "config")?;
+    app.db.set_rectifier_config(&config).map_err(|e| e.to_string())?;
+    ok(true)
+}
+        "get_optimizer_config" => ok(app.db.get_optimizer_config().map_err(|e| e.to_string())?),
+        "set_optimizer_config" => {
+    let config: OptimizerConfig = arg(&args, "config")?;
+    match config.cache_ttl.as_str() {
+        "5m" | "1h" => {}
+        other => {
+            return Err(format!(
+                "Invalid cache_ttl value: '{other}'. Allowed values: '5m', '1h'"
+            ))
+        }
+    }
+    app.db.set_optimizer_config(&config).map_err(|e| e.to_string())?;
+    ok(true)
+}
+        "get_log_config" => ok(app.db.get_log_config().map_err(|e| e.to_string())?),
+        "set_log_config" => {
+    let config: LogConfig = arg(&args, "config")?;
+    app.db.set_log_config(&config).map_err(|e| e.to_string())?;
+    log::set_max_level(config.to_level_filter());
+    log::info!(
+        "日志配置已更新: enabled={}, level={}",
+        config.enabled,
+        config.level
+    );
+    ok(true)
+}
+        "get_stream_check_config" => ok(app.db.get_stream_check_config().map_err(|e| e.to_string())?),
+        "save_stream_check_config" => {
+    let config: StreamCheckConfig = arg(&args, "config")?;
+    app.db.save_stream_check_config(&config).map_err(|e| e.to_string())?;
+    ok(Value::Null)
+}
+        "stream_check_provider" | "stream_check_all_providers" => Err(
+            "流式健康检查依赖桌面端 Copilot 认证状态，Web 控制台暂不支持（请使用桌面端）".to_string(),
+        ),
+
+        // ==================== env ====================
+        "check_env_conflicts" => {
+            let app_str: String = arg(&args, "app")?;
+            ok(crate::services::env_checker::check_env_conflicts(&app_str)?)
+        }
+        "delete_env_vars" => {
+            let conflicts: Vec<EnvConflict> = arg(&args, "conflicts")?;
+            ok(crate::services::env_manager::delete_env_vars(conflicts)?)
+        }
+        "restore_env_backup" => {
+            let backup_path: String = arg(&args, "backupPath")?;
+            crate::services::env_manager::restore_from_backup(backup_path)?;
+            ok(Value::Null)
+        }
+
+        // ==================== claude_desktop_plugin ====================
+        "apply_claude_plugin_config" => {
+    let official: bool = arg(&args, "official")?;
+    let applied = if official {
+        crate::claude_plugin::clear_claude_config().map_err(|e| e.to_string())?
+    } else {
+        crate::claude_plugin::write_claude_config().map_err(|e| e.to_string())?
+    };
+    ok(applied)
+}
+        "apply_claude_onboarding_skip" => ok(crate::claude_mcp::set_has_completed_onboarding().map_err(|e| e.to_string())?),
+        "clear_claude_onboarding_skip" => ok(crate::claude_mcp::clear_has_completed_onboarding().map_err(|e| e.to_string())?),
+        "get_claude_code_config_path" => ok(crate::config::get_claude_settings_path().to_string_lossy().to_string()),
+        "get_claude_desktop_status" => {
+    let proxy_running = app.proxy_service.is_running().await;
+    ok(crate::claude_desktop_config::get_status(app.db.as_ref(), proxy_running).map_err(|e| e.to_string())?)
+}
+        "get_claude_desktop_default_routes" => ok(crate::claude_desktop_config::default_proxy_routes()),
+        "ensure_claude_desktop_official_provider" => ok(app
+    .db
+    .ensure_official_seed_by_id(
+        crate::database::CLAUDE_DESKTOP_OFFICIAL_PROVIDER_ID,
+        AppType::ClaudeDesktop,
+    )
+    .map_err(|e| e.to_string())?),
+        "import_claude_desktop_providers_from_claude" => {
+    // 复用 commands::provider::import_claude_desktop_providers_from_claude 核心逻辑（纯 db）。
+    // 私有助手 claude_provider_models_are_claude_safe 不可跨模块引用，故用公开的
+    // is_claude_safe_model_id 内联等价复刻；suggested_claude_desktop_routes 为 pub(crate) 可直接调用。
+    let claude_providers = app
+        .db
+        .get_all_providers(AppType::Claude.as_str())
+        .map_err(|e| e.to_string())?;
+    let existing_ids = app
+        .db
+        .get_provider_ids(AppType::ClaudeDesktop.as_str())
+        .map_err(|e| e.to_string())?;
+
+    let mut imported = 0usize;
+    for provider in claude_providers.values() {
+        if existing_ids.contains(&provider.id) {
+            continue;
+        }
+
+        let mut desktop_provider = provider.clone();
+        desktop_provider.in_failover_queue = false;
+        let meta = desktop_provider.meta.get_or_insert_with(Default::default);
+
+        let models_claude_safe = match provider
+            .settings_config
+            .get("env")
+            .and_then(|value| value.as_object())
+        {
+            None => true,
+            Some(env) => [
+                "ANTHROPIC_MODEL",
+                "ANTHROPIC_DEFAULT_HAIKU_MODEL",
+                "ANTHROPIC_DEFAULT_SONNET_MODEL",
+                "ANTHROPIC_DEFAULT_OPUS_MODEL",
+            ]
+            .into_iter()
+            .filter_map(|key| env.get(key).and_then(|value| value.as_str()))
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+            .all(crate::claude_desktop_config::is_claude_safe_model_id),
+        };
+
+        if crate::claude_desktop_config::is_compatible_direct_provider(provider) && models_claude_safe
+        {
+            meta.claude_desktop_mode = Some(ClaudeDesktopMode::Direct);
+        } else if let Some(routes) = crate::commands::suggested_claude_desktop_routes(provider) {
+            meta.claude_desktop_mode = Some(ClaudeDesktopMode::Proxy);
+            meta.claude_desktop_model_routes = routes;
+        } else {
+            continue;
+        }
+
+        app.db
+            .save_provider(AppType::ClaudeDesktop.as_str(), &desktop_provider)
+            .map_err(|e| e.to_string())?;
+        imported += 1;
+    }
+
+    if let Err(e) = app.db.ensure_official_seed_by_id(
+        crate::database::CLAUDE_DESKTOP_OFFICIAL_PROVIDER_ID,
+        AppType::ClaudeDesktop,
+    ) {
+        log::warn!("Failed to ensure claude-desktop-official seed during import: {e}");
+    }
+
+    ok(imported)
+}
+
+        // ==================== quota_balance_models ====================
+        "get_balance" => {
+            let base_url: String = arg(&args, "baseUrl")?;
+            let api_key: String = arg(&args, "apiKey")?;
+            ok(crate::services::balance::get_balance(&base_url, &api_key).await?)
+        }
+        "get_coding_plan_quota" => {
+            let base_url: String = arg(&args, "baseUrl")?;
+            let api_key: String = arg(&args, "apiKey")?;
+            ok(crate::services::coding_plan::get_coding_plan_quota(&base_url, &api_key).await?)
+        }
+        "get_subscription_quota" => {
+            // 命令本体仅为发 usage-cache-updated 事件 / 刷新托盘才取 AppHandle+State，
+            // Web 面板靠轮询刷新，这里只调用同一核心逻辑并跳过事件/托盘副作用。
+            let tool: String = arg(&args, "tool")?;
+            ok(crate::services::subscription::get_subscription_quota(&tool).await?)
+        }
+        "fetch_models_for_config" => {
+            let base_url: String = arg(&args, "baseUrl")?;
+            let api_key: String = arg(&args, "apiKey")?;
+            let is_full_url: Option<bool> = arg(&args, "isFullUrl")?;
+            let models_url: Option<String> = arg(&args, "modelsUrl")?;
+            ok(crate::services::model_fetch::fetch_models(
+                &base_url,
+                &api_key,
+                is_full_url.unwrap_or(false),
+                models_url.as_deref(),
+            )
+            .await?)
+        }
+        "test_api_endpoints" => {
+            let urls: Vec<String> = arg(&args, "urls")?;
+            let timeout_secs: Option<u64> = arg(&args, "timeoutSecs")?;
+            ok(SpeedtestService::test_endpoints(urls, timeout_secs)
+                .await
+                .map_err(|e| e.to_string())?)
+        }
+        "get_codex_oauth_quota" => {
+            // 命令本体取 State<CodexOAuthState>，Web 网关无 AppHandle/State：
+            // 复用全局 get_app_config_dir() 构造 CodexOAuthManager（与 lib.rs 初始化一致），
+            // 调用同一 query_codex_quota 协议路径。
+            let account_id: Option<String> = arg(&args, "accountId")?;
+            let manager = CodexOAuthManager::new(crate::config::get_app_config_dir());
+            let resolved = match account_id {
+                Some(id) => Some(id),
+                None => manager.default_account_id().await,
+            };
+            let Some(id) = resolved else {
+                return ok(SubscriptionQuota::not_found("codex_oauth"));
+            };
+            let quota = match manager.get_valid_token_for_account(&id).await {
+                Ok(token) => {
+                    query_codex_quota(
+                        token.as_str(),
+                        Some(id.as_str()),
+                        "codex_oauth",
+                        "Codex OAuth access token expired or rejected. Please re-login via cc-switch.",
+                    )
+                    .await
+                }
+                Err(e) => SubscriptionQuota::error(
+                    "codex_oauth",
+                    CredentialStatus::Expired,
+                    format!("Codex OAuth token unavailable: {e}"),
+                ),
+            };
+            ok(quota)
+        }
+        "get_codex_oauth_models" => {
+            // 同 get_codex_oauth_quota：无 State，经全局 config dir 构造 CodexOAuthManager。
+            let account_id: Option<String> = arg(&args, "accountId")?;
+            let manager = CodexOAuthManager::new(crate::config::get_app_config_dir());
+            let resolved = match account_id
+                .as_deref()
+                .map(str::trim)
+                .filter(|id| !id.is_empty())
+            {
+                Some(id) => Some(id.to_string()),
+                None => manager.default_account_id().await,
+            };
+            let Some(id) = resolved else {
+                return Err("No ChatGPT account available".to_string());
+            };
+            let token = manager
+                .get_valid_token_for_account(&id)
+                .await
+                .map_err(|e| format!("Codex OAuth token unavailable: {e}"))?;
+            ok(crate::services::codex_oauth_models::fetch_models_with_token(&token, &id).await?)
+        }
+
+        // ==================== tool_misc ====================
+        "get_tool_versions" => {
+            let tools: Option<Vec<String>> = arg(&args, "tools")?;
+            let wsl_shell_by_tool: Option<
+                std::collections::HashMap<String, crate::commands::WslShellPreferenceInput>,
+            > = arg(&args, "wslShellByTool")?;
+            ok(crate::commands::get_tool_versions(tools, wsl_shell_by_tool).await?)
+        }
+        "probe_tool_installations" => {
+            let tools: Vec<String> = arg(&args, "tools")?;
+            ok(crate::commands::probe_tool_installations(tools).await?)
+        }
+        "run_tool_lifecycle_action" => {
+            let tools: Vec<String> = arg(&args, "tools")?;
+            let action: String = arg(&args, "action")?;
+            let wsl_shell_by_tool: Option<
+                std::collections::HashMap<String, crate::commands::WslShellPreferenceInput>,
+            > = arg(&args, "wslShellByTool")?;
+            crate::commands::run_tool_lifecycle_action(tools, action, wsl_shell_by_tool).await?;
+            ok(Value::Null)
+        }
+        "get_usage_summary_by_app" => {
+            let start_date: Option<i64> = arg(&args, "startDate")?;
+            let end_date: Option<i64> = arg(&args, "endDate")?;
+            let result: Vec<UsageSummaryByApp> = app
+                .db
+                .get_usage_summary_by_app(start_date, end_date)
+                .map_err(|e| e.to_string())?;
+            ok(result)
+        }
+        "read_live_provider_settings" => {
+            let app_str: String = arg(&args, "app")?;
+            let app_type = AppType::from_str(&app_str).map_err(|e| e.to_string())?;
+            ok(ProviderService::read_live_settings(app_type).map_err(|e| e.to_string())?)
+        }
+        "get_config_dir" => {
+            let app_str: String = arg(&args, "app")?;
+            let dir = match AppType::from_str(&app_str).map_err(|e| e.to_string())? {
+                AppType::Claude => crate::config::get_claude_config_dir(),
+                AppType::ClaudeDesktop => crate::claude_desktop_config::get_config_library_path()
+                    .map_err(|e| e.to_string())?,
+                AppType::Codex => crate::codex_config::get_codex_config_dir(),
+                AppType::Gemini => crate::gemini_config::get_gemini_dir(),
+                AppType::OpenCode => crate::opencode_config::get_opencode_dir(),
+                AppType::OpenClaw => crate::openclaw_config::get_openclaw_dir(),
+                AppType::Hermes => crate::hermes_config::get_hermes_dir(),
+            };
+            ok(dir.to_string_lossy().to_string())
+        }
+        "is_portable_mode" => {
+            let exe_path =
+                std::env::current_exe().map_err(|e| format!("获取可执行路径失败: {e}"))?;
+            let portable = exe_path
+                .parent()
+                .map(|dir| dir.join("portable.ini").is_file())
+                .unwrap_or(false);
+            ok(portable)
+        }
+        "get_app_config_path" => ok(crate::config::get_app_config_path().to_string_lossy().to_string()),
+        "get_app_config_dir_override" => ok(crate::app_store::get_app_config_dir_override()
+            .map(|p| p.to_string_lossy().to_string())),
 
         // 未实现命令：明确报错（前端对应功能提示错误，但界面不崩溃）
         other => Err(format!("Web 控制台暂未支持的命令: {other}")),

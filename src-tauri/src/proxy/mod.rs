@@ -8,8 +8,10 @@ pub mod circuit_breaker;
 pub mod copilot_optimizer;
 pub mod error;
 pub mod error_mapper;
+#[allow(dead_code)] // 分层转发器扩展：合并官方 forwarder 后暂未接线，保留待后续集成
 pub mod extensions; // 【新增】扩展模块
 pub(crate) mod failover_switch;
+#[allow(dead_code)] // 转发路径文件日志：合并官方 forwarder 后暂未接线，保留待后续集成
 pub mod file_logger; // 【新增】文件日志模块
 mod forwarder;
 pub mod gemini_url;
@@ -17,6 +19,7 @@ pub mod handler_config;
 pub mod handler_context;
 mod handlers;
 mod health;
+#[allow(dead_code)] // 含 fork 出站代理兜底辅助：合并官方 forwarder 后暂未接线，保留待后续集成
 pub mod http_client;
 pub mod hyper_client;
 pub(crate) mod json_canonical;
