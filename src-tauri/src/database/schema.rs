@@ -471,30 +471,35 @@ impl Database {
     /// v3->v4（仅权重），因此 fork-DB 在 user_version 已达 10 时仍缺 `enabled_opencode`。
     /// add_column_if_missing 幂等：官方 schema 的库为 no-op，fork-DB 自愈。
     fn migrate_v10_to_v11(conn: &Connection) -> Result<(), AppError> {
-        Self::add_column_if_missing(
-            conn,
-            "mcp_servers",
-            "enabled_opencode",
-            "BOOLEAN NOT NULL DEFAULT 0",
-        )?;
-        Self::add_column_if_missing(
-            conn,
-            "mcp_servers",
-            "enabled_hermes",
-            "BOOLEAN NOT NULL DEFAULT 0",
-        )?;
-        Self::add_column_if_missing(
-            conn,
-            "skills",
-            "enabled_opencode",
-            "BOOLEAN NOT NULL DEFAULT 0",
-        )?;
-        Self::add_column_if_missing(
-            conn,
-            "skills",
-            "enabled_hermes",
-            "BOOLEAN NOT NULL DEFAULT 0",
-        )?;
+        // 生产流程 create_tables 先行建表；隔离迁移场景下表可能尚未建立，缺表则跳过。
+        if Self::table_exists(conn, "mcp_servers")? {
+            Self::add_column_if_missing(
+                conn,
+                "mcp_servers",
+                "enabled_opencode",
+                "BOOLEAN NOT NULL DEFAULT 0",
+            )?;
+            Self::add_column_if_missing(
+                conn,
+                "mcp_servers",
+                "enabled_hermes",
+                "BOOLEAN NOT NULL DEFAULT 0",
+            )?;
+        }
+        if Self::table_exists(conn, "skills")? {
+            Self::add_column_if_missing(
+                conn,
+                "skills",
+                "enabled_opencode",
+                "BOOLEAN NOT NULL DEFAULT 0",
+            )?;
+            Self::add_column_if_missing(
+                conn,
+                "skills",
+                "enabled_hermes",
+                "BOOLEAN NOT NULL DEFAULT 0",
+            )?;
+        }
         Ok(())
     }
 
