@@ -433,6 +433,13 @@ impl Database {
                         Self::migrate_v9_to_v10(conn)?;
                         Self::set_user_version(conn, 10)?;
                     }
+                    10 => {
+                        log::info!(
+                            "迁移数据库从 v10 到 v11（协调 fork 与官方迁移历史分叉导致的缺失列）"
+                        );
+                        Self::migrate_v10_to_v11(conn)?;
+                        Self::set_user_version(conn, 11)?;
+                    }
                     _ => {
                         return Err(AppError::Database(format!(
                             "未知的数据库版本 {version}，无法迁移到 {SCHEMA_VERSION}"
@@ -456,6 +463,39 @@ impl Database {
                 Err(e)
             }
         }
+    }
+
+    /// v10 -> v11 迁移：协调 fork 与官方迁移历史分叉导致的缺失列。
+    ///
+    /// 官方将 OpenCode 支持追加进既有的 v3->v4 迁移，而本 fork 的 DB 走的是自身的
+    /// v3->v4（仅权重），因此 fork-DB 在 user_version 已达 10 时仍缺 `enabled_opencode`。
+    /// add_column_if_missing 幂等：官方 schema 的库为 no-op，fork-DB 自愈。
+    fn migrate_v10_to_v11(conn: &Connection) -> Result<(), AppError> {
+        Self::add_column_if_missing(
+            conn,
+            "mcp_servers",
+            "enabled_opencode",
+            "BOOLEAN NOT NULL DEFAULT 0",
+        )?;
+        Self::add_column_if_missing(
+            conn,
+            "mcp_servers",
+            "enabled_hermes",
+            "BOOLEAN NOT NULL DEFAULT 0",
+        )?;
+        Self::add_column_if_missing(
+            conn,
+            "skills",
+            "enabled_opencode",
+            "BOOLEAN NOT NULL DEFAULT 0",
+        )?;
+        Self::add_column_if_missing(
+            conn,
+            "skills",
+            "enabled_hermes",
+            "BOOLEAN NOT NULL DEFAULT 0",
+        )?;
+        Ok(())
     }
 
     /// v0 -> v1 迁移：补齐所有缺失列
