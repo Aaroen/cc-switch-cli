@@ -375,7 +375,7 @@ pub async fn provider_add(
 
         if let Some(api_key) = key {
             match app_type {
-                AppType::Claude => {
+                AppType::Claude | AppType::ClaudeDesktop => {
                     config["env"] = json!({
                         "ANTHROPIC_API_KEY": api_key
                     });
@@ -403,12 +403,15 @@ pub async fn provider_add(
                 AppType::OpenClaw => {
                     config["apiKey"] = json!(api_key);
                 }
+                AppType::Hermes => {
+                    config["api_key"] = json!(api_key);
+                }
             }
         }
 
         if let Some(base_url) = url {
             match app_type {
-                AppType::Claude => {
+                AppType::Claude | AppType::ClaudeDesktop => {
                     let env = config.get_mut("env").and_then(|v| v.as_object_mut());
                     if let Some(env) = env {
                         env.insert("ANTHROPIC_BASE_URL".to_string(), json!(base_url));
@@ -443,6 +446,9 @@ pub async fn provider_add(
                 }
                 AppType::OpenClaw => {
                     config["baseUrl"] = json!(base_url);
+                }
+                AppType::Hermes => {
+                    config["base_url"] = json!(base_url);
                 }
             }
         }
@@ -1026,7 +1032,7 @@ pub async fn provider_update(
     // 2) key/url：按 app 类型写入 settings_config（覆盖写入）
     if let Some(api_key) = key {
         match app_type {
-            AppType::Claude => {
+            AppType::Claude | AppType::ClaudeDesktop => {
                 let env = provider
                     .settings_config
                     .as_object_mut()
@@ -1077,12 +1083,15 @@ pub async fn provider_update(
             AppType::OpenClaw => {
                 provider.settings_config["apiKey"] = json!(api_key);
             }
+            AppType::Hermes => {
+                provider.settings_config["api_key"] = json!(api_key);
+            }
         }
     }
 
     if let Some(base_url) = url {
         match app_type {
-            AppType::Claude => {
+            AppType::Claude | AppType::ClaudeDesktop => {
                 let env = provider
                     .settings_config
                     .as_object_mut()
@@ -1123,6 +1132,9 @@ pub async fn provider_update(
             }
             AppType::OpenClaw => {
                 provider.settings_config["baseUrl"] = json!(base_url);
+            }
+            AppType::Hermes => {
+                provider.settings_config["base_url"] = json!(base_url);
             }
         }
     }

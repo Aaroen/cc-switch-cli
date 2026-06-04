@@ -2567,6 +2567,7 @@ mod tests {
             icon: None,
             icon_color: None,
             in_failover_queue: false,
+            weight: 1,
         }
     }
 
@@ -3191,6 +3192,7 @@ mod tests {
             icon: None,
             icon_color: None,
             in_failover_queue: false,
+            weight: 1,
         };
 
         let is_copilot = provider
@@ -3236,6 +3238,7 @@ mod tests {
             icon: None,
             icon_color: None,
             in_failover_queue: false,
+            weight: 1,
         };
 
         let enterprise_base_url = "https://copilot-api.corp.example.com";

@@ -20,7 +20,6 @@ mod health;
 pub mod http_client;
 pub mod hyper_client;
 pub(crate) mod json_canonical;
-pub mod layered_forwarder; // 【新增】分层转发器
 pub mod load_balancer; // 【新增】负载均衡器
 pub mod log_codes;
 pub mod media_sanitizer;
@@ -50,8 +49,6 @@ pub use error::ProxyError;
 pub use extensions::{BenchmarkManager, TrafficController, UrlSelector}; // 【新增】扩展模块导出
 #[allow(unused_imports)]
 pub use file_logger::{get_file_logger, FileLogger}; // 【新增】文件日志器导出
-#[allow(unused_imports)]
-pub use layered_forwarder::LayeredForwarder; // 【新增】分层转发器导出
 #[allow(unused_imports)]
 pub use load_balancer::{LoadBalanceStrategy, LoadBalancer, WeightedProvider}; // 【新增】负载均衡器导出（多策略）
 #[allow(unused_imports)]
