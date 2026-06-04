@@ -728,6 +728,41 @@ pub async fn dispatch(app: &Arc<AppState>, command: &str, args: Value) -> Result
             ok(payload)
         }
 
+        // ==================== 浏览器文件 I/O（内容下载/上传，无服务端路径）====================
+        // Web 控制台专用：导出返回 SQL 文本由浏览器另存为，导入接收上传的 SQL 文本。
+        "export_config_string" => {
+            let content = app.db.export_sql_string().map_err(|e| e.to_string())?;
+            ok(serde_json::json!({ "content": content }))
+        }
+        "import_config_string" => {
+            let content: String = arg(&args, "content")?;
+            let backup_id = app
+                .db
+                .import_sql_string(&content)
+                .map_err(|e| e.to_string())?;
+            let post_warning = {
+                let post_state = crate::store::AppState::new(app.db.clone());
+                match ProviderService::sync_current_to_live(&post_state)
+                    .and_then(|_| crate::settings::reload_settings())
+                {
+                    Ok(()) => None,
+                    Err(e) => {
+                        log::warn!("[WebPanel] 导入后同步状态失败: {e}");
+                        Some(format!("Post-operation synchronization failed: {e}"))
+                    }
+                }
+            };
+            let mut payload = serde_json::json!({
+                "success": true,
+                "message": "SQL imported successfully",
+                "backupId": backup_id
+            });
+            if let (Some(msg), Some(obj)) = (post_warning, payload.as_object_mut()) {
+                obj.insert("warning".to_string(), Value::String(msg));
+            }
+            ok(payload)
+        }
+
         // ==================== 启动期 / 桌面专属（Web 降级）====================
         "get_init_error" => ok(Value::Null), // 浏览器无后端初始化错误事件
         "update_tray_menu" => ok(true),      // 无托盘：no-op，避免变更后置回调报错

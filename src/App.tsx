@@ -57,6 +57,7 @@ import {
   DRAG_REGION_ATTR,
   DRAG_REGION_STYLE,
 } from "@/lib/platform";
+import { isTauri } from "@/lib/platform/isTauri";
 import { AppSwitcher } from "@/components/AppSwitcher";
 import { ProviderList } from "@/components/providers/ProviderList";
 import { AddProviderDialog } from "@/components/providers/AddProviderDialog";
@@ -179,7 +180,7 @@ function App() {
 
   const { data: settingsData } = useSettingsQuery();
   const useAppWindowControls =
-    isLinux() && (settingsData?.useAppWindowControls ?? false);
+    isTauri() && isLinux() && (settingsData?.useAppWindowControls ?? false);
   const dragBarHeight = useAppWindowControls ? 32 : DEFAULT_DRAG_BAR_HEIGHT;
   const contentTopOffset = dragBarHeight + HEADER_HEIGHT;
   const visibleApps: VisibleApps = settingsData?.visibleApps ?? {

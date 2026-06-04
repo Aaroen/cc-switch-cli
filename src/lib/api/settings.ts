@@ -1,6 +1,14 @@
 import { invoke } from "@/lib/api/transport";
+import { isTauri } from "@/lib/platform/isTauri";
+import { downloadTextFile, pickTextFile } from "@/lib/platform/browserFiles";
 import type { Settings, WebDavSyncSettings, RemoteSnapshotInfo } from "@/types";
 import type { AppId } from "./types";
+
+/**
+ * 浏览器导入暂存：openFileDialog 读取所选文件内容后暂存于此，
+ * 随后 importConfigFromFile 消费。Web 控制台下两步连续调用，单线程安全。
+ */
+let pendingBrowserImport: { name: string; content: string } | null = null;
 
 export interface ConfigTransferResult {
   success: boolean;
@@ -91,18 +99,48 @@ export const settingsApi = {
   },
 
   async saveFileDialog(defaultName: string): Promise<string | null> {
+    // 浏览器：无原生另存为对话框，返回默认文件名占位，真正下载在 exportConfigToFile 完成
+    if (!isTauri()) return defaultName || "cc-switch-config.sql";
     return await invoke("save_file_dialog", { defaultName });
   },
 
   async openFileDialog(): Promise<string | null> {
+    // 浏览器：触发文件选择并读取内容暂存，返回文件名作为占位路径
+    if (!isTauri()) {
+      const picked = await pickTextFile(".sql,.db,.txt,application/sql,text/plain");
+      if (!picked) return null;
+      pendingBrowserImport = picked;
+      return picked.name;
+    }
     return await invoke("open_file_dialog");
   },
 
   async exportConfigToFile(filePath: string): Promise<ConfigTransferResult> {
+    if (!isTauri()) {
+      // 浏览器：从网关取 SQL 文本，触发浏览器下载
+      const { content } = await invoke<{ content: string }>(
+        "export_config_string",
+      );
+      const name = filePath || "cc-switch-config.sql";
+      const baseName = name.split(/[\\/]/).pop() || name;
+      downloadTextFile(baseName, content, "application/sql");
+      return { success: true, message: "配置已下载到浏览器", filePath: name };
+    }
     return await invoke("export_config_to_file", { filePath });
   },
 
   async importConfigFromFile(filePath: string): Promise<ConfigTransferResult> {
+    if (!isTauri()) {
+      // 浏览器：使用 openFileDialog 暂存的上传内容，经网关导入
+      const pending = pendingBrowserImport;
+      pendingBrowserImport = null;
+      if (!pending) {
+        throw new Error("未选择要导入的配置文件");
+      }
+      return await invoke<ConfigTransferResult>("import_config_string", {
+        content: pending.content,
+      });
+    }
     return await invoke("import_config_from_file", { filePath });
   },
 
