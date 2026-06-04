@@ -7,9 +7,21 @@ mod entry;
 pub mod output;
 pub mod server;
 
-use clap::{Parser, Subcommand};
+use clap::{Parser, Subcommand, ValueEnum};
 
 pub use entry::{has_cli_args, run_from_env};
+
+/// 彩色输出控制
+#[derive(Copy, Clone, PartialEq, Eq, Debug, Default, ValueEnum)]
+pub enum ColorWhen {
+    /// 自动检测（终端着色，管道/NO_COLOR 时关闭）
+    #[default]
+    Auto,
+    /// 始终着色
+    Always,
+    /// 从不着色
+    Never,
+}
 
 #[derive(Parser)]
 #[command(name = "ccs")]
@@ -17,6 +29,14 @@ pub use entry::{has_cli_args, run_from_env};
 #[command(about = "Claude Code / Codex / Gemini CLI 统一管理工具", long_about = None)]
 #[command(version)]
 pub struct Cli {
+    /// 控制彩色输出：auto（默认）/ always / never
+    #[arg(long, value_enum, default_value_t = ColorWhen::Auto, global = true)]
+    pub color: ColorWhen,
+
+    /// 关闭彩色输出（等价于 --color never）
+    #[arg(long, global = true)]
+    pub no_color: bool,
+
     #[command(subcommand)]
     pub command: Commands,
 }
@@ -44,6 +64,14 @@ pub enum Commands {
         /// 后台运行（兼容旧参数；当前已默认后台启动）
         #[arg(short, long, hide = true, conflicts_with = "foreground")]
         daemon: bool,
+
+        /// 同时启动 Web 控制台并监听该端口（不指定则读取已持久化端口，未配置则不启动）
+        #[arg(long)]
+        web_port: Option<u16>,
+
+        /// Web 控制台监听地址（默认 127.0.0.1）
+        #[arg(long, default_value = "127.0.0.1")]
+        web_bind: String,
     },
 
     /// 停止代理服务器（`server stop` 的简写）
@@ -91,6 +119,14 @@ pub enum ServerCommands {
         /// 后台运行（兼容旧参数；当前已默认后台启动）
         #[arg(short, long, hide = true, conflicts_with = "foreground")]
         daemon: bool,
+
+        /// 同时启动 Web 控制台并监听该端口（不指定则读取已持久化端口，未配置则不启动）
+        #[arg(long)]
+        web_port: Option<u16>,
+
+        /// Web 控制台监听地址（默认 127.0.0.1）
+        #[arg(long, default_value = "127.0.0.1")]
+        web_bind: String,
     },
 
     /// 停止代理服务器
@@ -122,7 +158,6 @@ pub enum ProviderCommands {
     },
 
     /// 添加供应商
-    #[command(alias = "add")]
     Add {
         /// 应用类型
         #[arg(short, long)]
@@ -422,6 +457,10 @@ pub enum ConfigCommands {
         /// 启用/禁用权重轮询（不指定则显示当前状态）
         #[arg(short, long)]
         enabled: Option<bool>,
+
+        /// 负载均衡策略：frequency / weighted_random / hard_round_robin
+        #[arg(short, long)]
+        strategy: Option<String>,
     },
 }
 

@@ -804,14 +804,14 @@ pub async fn provider_export(
     };
 
     if providers.is_empty() {
-        output::warning(&format!("没有可导出的供应商（app={}），将导出空列表", app));
+        output::warning_stderr(&format!("没有可导出的供应商（app={}），将导出空列表", app));
     }
 
     if redact && !providers.is_empty() {
         providers = providers.into_iter().map(redact_provider).collect();
-        output::warning("已启用脱敏导出：密钥字段将被替换为 \"***\"（导入后不可直接使用）");
+        output::warning_stderr("已启用脱敏导出：密钥字段将被替换为 \"***\"（导入后不可直接使用）");
     } else if !redact && !providers.is_empty() {
-        output::warning("导出文件将包含密钥/令牌等敏感信息，请妥善保管");
+        output::warning_stderr("导出文件将包含密钥/令牌等敏感信息，请妥善保管");
     }
 
     let mut current = current_id.clone();
@@ -834,7 +834,8 @@ pub async fn provider_export(
         serde_json::to_string_pretty(&bundle).map_err(|e| format!("序列化失败: {}", e))?;
 
     if output_path == "-" {
-        println!("{content}");
+        // 机器可读路径：原样输出，永不着色（便于 `| jq` 等管道消费）
+        output::raw_stdout(&content);
         return Ok(());
     }
 
@@ -1383,7 +1384,13 @@ pub async fn config_proxy(app: Option<String>) -> Result<(), String> {
     Ok(())
 }
 
-pub async fn config_loadbalance(app: &str, enabled: Option<bool>) -> Result<(), String> {
+pub async fn config_loadbalance(
+    app: &str,
+    enabled: Option<bool>,
+    strategy: Option<String>,
+) -> Result<(), String> {
+    use crate::proxy::load_balancer::LoadBalanceStrategy as LbS;
+
     let db = get_database()?;
     let app_type = parse_app_type(app)?;
 
@@ -1392,8 +1399,30 @@ pub async fn config_loadbalance(app: &str, enabled: Option<bool>) -> Result<(), 
         .await
         .map_err(|e| e.to_string())?;
 
+    // 设置负载均衡策略（如指定）
+    if let Some(ref s) = strategy {
+        let parsed = s.parse::<LbS>().map_err(|_| {
+            format!(
+                "无效的负载均衡策略: {s}（可选 frequency / weighted_random / hard_round_robin）"
+            )
+        })?;
+        db.set_load_balance_strategy(app_type.as_str(), parsed)
+            .map_err(|e| e.to_string())?;
+        config.load_balance_strategy = parsed;
+        output::success(&format!(
+            "{} 负载均衡策略已设为 {}",
+            app.to_uppercase(),
+            parsed.as_str()
+        ));
+        match parsed {
+            LbS::WeightedRandom => output::hint("加权随机为正向权重：权重越大流量越多"),
+            LbS::Frequency => output::hint("频率控制为反向权重：权重越小越频繁（1/N）"),
+            LbS::HardRoundRobin => output::hint("硬全轮询：忽略权重大小，在启用供应商间等概率轮转"),
+        }
+    }
+
+    // 设置权重轮询开关（如指定）
     if let Some(enable) = enabled {
-        // 设置权重轮询开关
         config.weight_round_robin_enabled = enable;
 
         db.update_proxy_config_for_app(config.clone())
@@ -1407,11 +1436,13 @@ pub async fn config_loadbalance(app: &str, enabled: Option<bool>) -> Result<(), 
         ));
 
         if enable {
-            output::info("权重轮询模式：按供应商权重分配请求");
+            output::info("权重轮询模式：按所选策略分配请求");
             output::hint("使用 'ccs provider weight' 设置供应商权重");
         }
-    } else {
-        // 显示当前状态
+    }
+
+    // 未指定任何修改时显示当前状态
+    if enabled.is_none() && strategy.is_none() {
         output::section(&format!("{} 权重轮询配置", app.to_uppercase()));
 
         let status = if config.weight_round_robin_enabled {
@@ -1422,6 +1453,7 @@ pub async fn config_loadbalance(app: &str, enabled: Option<bool>) -> Result<(), 
 
         output::key_value(vec![
             ("状态", status.to_string()),
+            ("策略", config.load_balance_strategy.as_str().to_string()),
             (
                 "自动故障转移",
                 if config.auto_failover_enabled {
@@ -1433,23 +1465,43 @@ pub async fn config_loadbalance(app: &str, enabled: Option<bool>) -> Result<(), 
             ),
         ]);
 
-        // 显示供应商权重列表
+        // 显示供应商权重列表（末列按策略条件渲染）
         let providers = db
             .get_all_providers(app_type.as_str())
             .map_err(|e| e.to_string())?;
 
         if !providers.is_empty() {
+            let total_weight: u32 = providers
+                .iter()
+                .filter(|(_, p)| p.weight > 0)
+                .map(|(_, p)| p.weight)
+                .sum();
+            let last_col = match config.load_balance_strategy {
+                LbS::Frequency => "频率",
+                LbS::WeightedRandom => "流量占比",
+                LbS::HardRoundRobin => "轮转",
+            };
             println!("\n供应商权重:");
-            let headers = vec!["ID", "名称", "权重", "频率"];
+            let headers = vec!["ID", "名称", "权重", last_col];
             let rows: Vec<Vec<String>> = providers
                 .iter()
                 .map(|(id, p)| {
-                    let freq = if p.weight == 0 {
+                    let last = if p.weight == 0 {
                         "禁用".to_string()
                     } else {
-                        format!("1/{}", p.weight)
+                        match config.load_balance_strategy {
+                            LbS::Frequency => format!("1/{}", p.weight),
+                            LbS::WeightedRandom => {
+                                if total_weight == 0 {
+                                    "-".to_string()
+                                } else {
+                                    format!("{:.0}%", p.weight as f64 / total_weight as f64 * 100.0)
+                                }
+                            }
+                            LbS::HardRoundRobin => "等概率".to_string(),
+                        }
                     };
-                    vec![id.clone(), p.name.clone(), p.weight.to_string(), freq]
+                    vec![id.clone(), p.name.clone(), p.weight.to_string(), last]
                 })
                 .collect();
 
@@ -1457,8 +1509,7 @@ pub async fn config_loadbalance(app: &str, enabled: Option<bool>) -> Result<(), 
         }
 
         output::hint(&format!(
-            "使用 'ccs config lb --app {} --enabled true' 启用权重轮询",
-            app
+            "启用：'ccs config lb --app {app} --enabled true'；切换策略：--strategy weighted_random|hard_round_robin|frequency"
         ));
     }
 

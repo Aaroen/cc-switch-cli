@@ -177,6 +177,12 @@ pub struct AppProxyConfig {
     /// 该 app 权重轮询开关（启用后按权重分配请求到不同供应商）
     #[serde(default)]
     pub weight_round_robin_enabled: bool,
+    /// 该 app 负载均衡策略（仅 weight_round_robin_enabled 为 true 时生效）
+    ///
+    /// 注意：本字段仅用于只读展示；写入仅经专用命令 set_load_balance_strategy。
+    /// 通用的 update_proxy_config_for_app 不写该字段，避免前端不带该字段时回写覆盖。
+    #[serde(default)]
+    pub load_balance_strategy: crate::proxy::load_balancer::LoadBalanceStrategy,
     /// 最大重试次数
     pub max_retries: u32,
     /// 流式首字超时（秒）

@@ -3,6 +3,7 @@
 //! 处理代理配置、Provider健康状态和使用统计的数据库操作
 
 use crate::error::AppError;
+use crate::proxy::load_balancer::LoadBalanceStrategy;
 use crate::proxy::types::*;
 use rust_decimal::Decimal;
 
@@ -226,6 +227,7 @@ impl Database {
                         circuit_timeout_seconds: row.get::<_, i32>(9)? as u32,
                         circuit_error_rate_threshold: row.get(10)?,
                         circuit_min_requests: row.get::<_, i32>(11)? as u32,
+                        load_balance_strategy: LoadBalanceStrategy::default(),
                     },
                     row.get::<_, Option<i32>>(12)?.map(|value| value != 0),
                 ))
@@ -239,6 +241,8 @@ impl Database {
                     .get_weight_round_robin_enabled(app_type)?
                     .or(legacy_weight_round_robin_enabled)
                     .unwrap_or(false);
+                config.load_balance_strategy =
+                    self.get_load_balance_strategy(app_type)?.unwrap_or_default();
                 Ok(config)
             }
             Err(rusqlite::Error::QueryReturnedNoRows) => {
@@ -260,6 +264,9 @@ impl Database {
                     circuit_timeout_seconds: 60,
                     circuit_error_rate_threshold: 0.6,
                     circuit_min_requests: 10,
+                    load_balance_strategy: self
+                        .get_load_balance_strategy(app_type)?
+                        .unwrap_or_default(),
                 })
             }
             Err(e) => Err(AppError::Database(e.to_string())),

@@ -120,12 +120,24 @@ export interface GlobalProxyConfig {
   enableLogging: boolean;
 }
 
+// 负载均衡策略
+// - frequency: 频率控制（反向权重，权重越小越频繁，1/N）
+// - weighted_random: 加权随机（正向权重，权重越大流量越多）
+// - hard_round_robin: 硬全轮询（忽略权重大小，启用供应商间等概率轮转）
+export type LoadBalanceStrategy =
+  | "frequency"
+  | "weighted_random"
+  | "hard_round_robin";
+
 // 应用级代理配置（每个 app 独立）
 export interface AppProxyConfig {
   appType: string;
   enabled: boolean;
   autoFailoverEnabled: boolean;
   weightRoundRobinEnabled: boolean;
+  // 负载均衡策略（仅 weightRoundRobinEnabled 为 true 时生效）
+  // 只读字段：写入经专用命令 setLoadBalanceStrategy，通用 update 不写该字段
+  loadBalanceStrategy?: LoadBalanceStrategy;
   maxRetries: number;
   streamingFirstByteTimeout: number;
   streamingIdleTimeout: number;

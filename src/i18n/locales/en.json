@@ -2142,7 +2142,23 @@
       "badgeDisabled": "Routing disabled",
       "badgeFrequency": "Routing 1/{{weight}}",
       "empty": "No providers are available for this app.",
-      "validationFailed": "Invalid weights for: {{providers}}"
+      "validationFailed": "Invalid weights for: {{providers}}",
+      "strategyTitle": "Strategy",
+      "metricShare": "Traffic share",
+      "metricRotation": "Rotation",
+      "equalShare": "Equal",
+      "providerWeightHintForward": "Enter an integer from 0 to 100. 0 = disabled; for weighted random, a higher value means a larger traffic share.",
+      "providerWeightHintEqual": "Enter an integer from 0 to 100. 0 = disabled; hard round robin ignores weight magnitude and only decides participation.",
+      "infoForward": "Weighted random: weight 0 disables a provider; a higher value gives a larger traffic share (share = weight / total weight).",
+      "infoEqual": "Hard round robin: weight 0 disables a provider; the rest ignore weight magnitude and rotate equally in order.",
+      "strategy": {
+        "frequency": "Frequency control (inverse weight)",
+        "frequencyDesc": "Smaller weight = more frequent (1/N); keeps historical behavior, good for primary/backup tiers.",
+        "weightedRandom": "Weighted random (forward weight)",
+        "weightedRandomDesc": "Larger weight = more traffic, distributed randomly by weight share; recommended for sharing across providers.",
+        "hardRoundRobin": "Hard round robin",
+        "hardRoundRobinDesc": "Ignores weight magnitude and rotates equally among enabled providers; ensures everyone is used."
+      }
     }
   },
   "streamCheck": {

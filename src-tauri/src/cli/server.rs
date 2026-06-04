@@ -9,10 +9,16 @@ use tokio::signal;
 use tokio::time::{sleep, timeout, Duration, Instant};
 
 /// 启动无头代理服务器
-pub async fn start_headless_server(host: String, port: u16, daemon: bool) -> Result<(), String> {
+pub async fn start_headless_server(
+    host: String,
+    port: u16,
+    daemon: bool,
+    web_port: Option<u16>,
+    web_bind: String,
+) -> Result<(), String> {
     // 默认后台启动：父进程负责拉起子进程并退出，子进程在后台常驻。
     if daemon && !is_daemon_child() {
-        return start_headless_server_daemon(host, port).await;
+        return start_headless_server_daemon(host, port, web_port, web_bind).await;
     }
 
     crate::cli::output::info(&format!("正在启动代理服务器 {}:{}...", host, port));
@@ -73,6 +79,10 @@ pub async fn start_headless_server(host: String, port: u16, daemon: bool) -> Res
             // 保存PID文件
             save_pid_file().map_err(|e| format!("保存PID失败: {}", e))?;
 
+            // 启动 Web 控制台（如配置）。绑定失败为非致命：记录后继续运行代理。
+            let mut panel =
+                start_web_panel_if_configured(&app_state, web_port, web_bind, port, daemon).await;
+
             if daemon {
                 // 后台子进程：等待 SIGTERM/SIGINT，便于 stop/restart 时优雅退出并清理 PID。
                 #[cfg(unix)]
@@ -96,6 +106,9 @@ pub async fn start_headless_server(host: String, port: u16, daemon: bool) -> Res
                     signal::ctrl_c().await.map_err(|e| e.to_string())?;
                 }
 
+                if let Some(p) = panel.as_mut() {
+                    p.stop().await;
+                }
                 app_state
                     .proxy_service
                     .stop()
@@ -106,6 +119,9 @@ pub async fn start_headless_server(host: String, port: u16, daemon: bool) -> Res
                 crate::cli::output::info("按 Ctrl+C 停止服务器");
                 signal::ctrl_c().await.map_err(|e| e.to_string())?;
                 crate::cli::output::info("\n正在停止服务器...");
+                if let Some(p) = panel.as_mut() {
+                    p.stop().await;
+                }
                 app_state
                     .proxy_service
                     .stop()
@@ -237,8 +253,18 @@ pub async fn restart_server(port: u16) -> Result<(), String> {
         tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
     }
 
-    // 再启动
-    start_headless_server("127.0.0.1".to_string(), port, true).await
+    // 再启动（继承已持久化的 Web 控制台端口）
+    let web_port = crate::database::Database::init()
+        .ok()
+        .and_then(|db| db.get_web_panel_port().ok().flatten());
+    start_headless_server(
+        "127.0.0.1".to_string(),
+        port,
+        true,
+        web_port,
+        "127.0.0.1".to_string(),
+    )
+    .await
 }
 
 // ============================================================================
@@ -251,7 +277,12 @@ fn is_daemon_child() -> bool {
         .unwrap_or(false)
 }
 
-async fn start_headless_server_daemon(host: String, port: u16) -> Result<(), String> {
+async fn start_headless_server_daemon(
+    host: String,
+    port: u16,
+    web_port: Option<u16>,
+    web_bind: String,
+) -> Result<(), String> {
     // 已在运行则直接返回状态
     let pid_file_path = get_pid_file_path();
     if pid_file_path.exists() {
@@ -282,19 +313,33 @@ async fn start_headless_server_daemon(host: String, port: u16) -> Result<(), Str
 
     let exe = std::env::current_exe().map_err(|e| format!("获取可执行文件路径失败: {}", e))?;
 
+    // 解析有效 Web 端口（CLI 优先，其次持久化），显式转发给子进程
+    let eff_web_port = web_port.or_else(|| {
+        crate::database::Database::init()
+            .ok()
+            .and_then(|db| db.get_web_panel_port().ok().flatten())
+    });
+
     let mut cmd = Command::new(exe);
-    cmd.args([
-        "server",
-        "start",
-        "--host",
-        &host,
-        "--port",
-        &port.to_string(),
-    ])
-    .env("CC_SWITCH_DAEMON_CHILD", "1")
-    .stdin(Stdio::null())
-    .stdout(Stdio::from(log_file))
-    .stderr(Stdio::from(log_file_err));
+    let mut cmd_args: Vec<String> = vec![
+        "server".to_string(),
+        "start".to_string(),
+        "--host".to_string(),
+        host.clone(),
+        "--port".to_string(),
+        port.to_string(),
+    ];
+    if let Some(wp) = eff_web_port {
+        cmd_args.push("--web-port".to_string());
+        cmd_args.push(wp.to_string());
+        cmd_args.push("--web-bind".to_string());
+        cmd_args.push(web_bind.clone());
+    }
+    cmd.args(&cmd_args)
+        .env("CC_SWITCH_DAEMON_CHILD", "1")
+        .stdin(Stdio::null())
+        .stdout(Stdio::from(log_file))
+        .stderr(Stdio::from(log_file_err));
 
     // 在 unix 上创建新 session，避免终端关闭导致 SIGHUP 终止后台服务
     #[cfg(unix)]
@@ -353,6 +398,27 @@ async fn start_headless_server_daemon(host: String, port: u16) -> Result<(), Str
                     "已监听端口，但尚未检测到 PID 文件（稍后可用 'ccs status' 再确认）",
                 );
             }
+            if let Some(wp) = eff_web_port {
+                // 等待子进程写入令牌文件，再向用户终端打印完整访问地址（令牌不入后台日志）
+                let mut token = None;
+                for _ in 0..25 {
+                    if let Some(t) = read_panel_token() {
+                        token = Some(t);
+                        break;
+                    }
+                    sleep(Duration::from_millis(80)).await;
+                }
+                let url = format!("http://{}:{}", web_bind, wp);
+                match token {
+                    Some(t) => {
+                        crate::cli::output::success(&format!("Web 控制台: {url}/?token={t}"))
+                    }
+                    None => crate::cli::output::warning(&format!(
+                        "Web 控制台: {url}（令牌见 {}）",
+                        get_panel_token_path().display()
+                    )),
+                }
+            }
             crate::cli::output::hint("使用 'ccs server stop' 停止服务");
             return Ok(());
         }
@@ -363,6 +429,88 @@ async fn start_headless_server_daemon(host: String, port: u16) -> Result<(), Str
 
         sleep(Duration::from_millis(200)).await;
     }
+}
+
+/// 按配置启动 Web 控制台（CLI --web-port 优先，其次持久化端口）。
+///
+/// 返回 Some(server) 表示已启动；绑定失败为非致命（记录警告并返回 None，代理继续运行）。
+async fn start_web_panel_if_configured(
+    app_state: &Arc<AppState>,
+    web_port: Option<u16>,
+    web_bind: String,
+    proxy_port: u16,
+    daemon: bool,
+) -> Option<crate::web_panel::WebPanelServer> {
+    // 解析有效端口：CLI 指定优先；否则读取持久化端口
+    let eff_port = web_port.or_else(|| app_state.db.get_web_panel_port().ok().flatten())?;
+
+    // 端口冲突保护：绝不与代理端口相同
+    if eff_port == proxy_port {
+        crate::cli::output::warning(&format!(
+            "Web 控制台端口 {eff_port} 与代理端口相同，已跳过启动"
+        ));
+        return None;
+    }
+
+    // CLI 显式指定则持久化，供 restart/后台子进程继承
+    if let Some(p) = web_port {
+        let _ = app_state.db.set_web_panel_port(p);
+    }
+
+    // 生成强制 Bearer 令牌并写入 0600 文件
+    let token = uuid::Uuid::new_v4().simple().to_string();
+    if let Err(e) = write_panel_token(&token) {
+        crate::cli::output::warning(&format!("写入面板令牌文件失败: {e}"));
+    }
+
+    let mut server = crate::web_panel::WebPanelServer::new(
+        app_state.clone(),
+        web_bind.clone(),
+        eff_port,
+        token.clone(),
+    );
+    match server.start().await {
+        Ok(()) => {
+            let url = format!("http://{}:{}", web_bind, eff_port);
+            if daemon {
+                // 后台：stdout 重定向至日志，令牌不入日志；父进程会读 panel.token 打印完整 URL
+                crate::cli::output::info(&format!(
+                    "Web 控制台已启动: {url}（令牌见 {}）",
+                    get_panel_token_path().display()
+                ));
+            } else {
+                crate::cli::output::success(&format!("Web 控制台: {url}/?token={token}"));
+                crate::cli::output::hint("在浏览器打开上述链接即可访问（令牌已包含在链接中）");
+            }
+            Some(server)
+        }
+        Err(e) => {
+            crate::cli::output::warning(&format!("Web 控制台启动失败（不影响代理）: {e}"));
+            None
+        }
+    }
+}
+
+fn get_panel_token_path() -> PathBuf {
+    get_config_dir().join("panel.token")
+}
+
+fn write_panel_token(token: &str) -> Result<(), String> {
+    let path = get_panel_token_path();
+    std::fs::write(&path, token).map_err(|e| format!("写入失败: {e}"))?;
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let _ = std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o600));
+    }
+    Ok(())
+}
+
+fn read_panel_token() -> Option<String> {
+    std::fs::read_to_string(get_panel_token_path())
+        .ok()
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty())
 }
 
 fn get_config_dir() -> PathBuf {

@@ -1,19 +1,33 @@
 use clap::Parser;
 
 use super::{
-    commands, output, server, Cli, Commands, ConfigCommands, FailoverCommands, HyperparamsCommands,
-    ProviderCommands, ServerCommands,
+    commands, output, server, Cli, ColorWhen, Commands, ConfigCommands, FailoverCommands,
+    HyperparamsCommands, ProviderCommands, ServerCommands,
 };
 
 pub fn has_cli_args() -> bool {
-    matches!(
-        std::env::args_os()
-            .nth(1)
-            .as_deref()
-            .and_then(|arg| arg.to_str())
-            .map(str::trim)
-            .filter(|arg| !arg.is_empty()),
-        Some(
+    // 跳过出现在子命令之前的全局标志（--color[=..] / --no-color），
+    // 再用第一个非全局标志 token 判定是否进入 CLI（而非启动 GUI）。
+    let mut args = std::env::args_os()
+        .skip(1)
+        .filter_map(|arg| arg.into_string().ok());
+
+    while let Some(arg) = args.next() {
+        let token = arg.trim();
+        if token.is_empty() {
+            continue;
+        }
+        // --color VALUE（空格分隔）：跳过其值
+        if token == "--color" {
+            let _ = args.next();
+            continue;
+        }
+        // --color=VALUE / --no-color：直接跳过
+        if token.starts_with("--color=") || token == "--no-color" {
+            continue;
+        }
+        return matches!(
+            token,
             "server"
                 | "srv"
                 | "start"
@@ -39,8 +53,9 @@ pub fn has_cli_args() -> bool {
                 | "--help"
                 | "-V"
                 | "--version"
-        )
-    )
+        );
+    }
+    false
 }
 
 pub fn run_from_env() -> ! {
@@ -53,6 +68,17 @@ pub fn run_from_env() -> ! {
 
     let exit_code = runtime.block_on(async {
         let cli = Cli::parse();
+
+        // 在任何输出之前设置全局颜色模式（显式 --color/--no-color 优先于自动检测）
+        let color_mode = if cli.no_color || cli.color == ColorWhen::Never {
+            output::ColorMode::Never
+        } else if cli.color == ColorWhen::Always {
+            output::ColorMode::Always
+        } else {
+            output::ColorMode::Auto
+        };
+        output::init_color(color_mode);
+
         match run_cli(cli).await {
             Ok(()) => 0,
             Err(err) => {
@@ -73,9 +99,11 @@ async fn run_cli(cli: Cli) -> Result<(), String> {
                 host,
                 foreground,
                 daemon,
+                web_port,
+                web_bind,
             } => {
                 let background = daemon || !foreground;
-                server::start_headless_server(host, port, background).await
+                server::start_headless_server(host, port, background, web_port, web_bind).await
             }
             ServerCommands::Stop => server::stop_server().await,
             ServerCommands::Status => server::server_status().await,
@@ -86,9 +114,11 @@ async fn run_cli(cli: Cli) -> Result<(), String> {
             host,
             foreground,
             daemon,
+            web_port,
+            web_bind,
         } => {
             let background = daemon || !foreground;
-            server::start_headless_server(host, port, background).await
+            server::start_headless_server(host, port, background, web_port, web_bind).await
         }
         Commands::Stop => server::stop_server().await,
         Commands::Status => server::server_status().await,
@@ -183,9 +213,11 @@ async fn run_cli(cli: Cli) -> Result<(), String> {
                 commands::config_set(&key, &value, app).await
             }
             ConfigCommands::Proxy { app } => commands::config_proxy(app).await,
-            ConfigCommands::Loadbalance { app, enabled } => {
-                commands::config_loadbalance(&app, enabled).await
-            }
+            ConfigCommands::Loadbalance {
+                app,
+                enabled,
+                strategy,
+            } => commands::config_loadbalance(&app, enabled, strategy).await,
         },
         Commands::Failover(cmd) => match cmd {
             FailoverCommands::Queue { app } => commands::failover_queue(&app).await,

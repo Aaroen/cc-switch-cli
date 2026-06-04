@@ -2142,7 +2142,23 @@
       "badgeDisabled": "ルーティング無効",
       "badgeFrequency": "ルーティング 1/{{weight}}",
       "empty": "このアプリで設定可能なプロバイダーはありません。",
-      "validationFailed": "次のプロバイダー重みが無効です: {{providers}}"
+      "validationFailed": "次のプロバイダー重みが無効です: {{providers}}",
+      "strategyTitle": "ストラテジー",
+      "metricShare": "トラフィック比率",
+      "metricRotation": "ローテーション",
+      "equalShare": "均等",
+      "providerWeightHintForward": "0 から 100 の整数を入力してください。0 = 無効。加重ランダムでは値が大きいほどトラフィック比率が高くなります。",
+      "providerWeightHintEqual": "0 から 100 の整数を入力してください。0 = 無効。ハードラウンドロビンは重みの大小を無視し、参加可否のみを決定します。",
+      "infoForward": "加重ランダム：重み 0 は無効化、値が大きいほど選択されるトラフィック比率が高くなります（比率 = 重み / 総重み）。",
+      "infoEqual": "ハードラウンドロビン：重み 0 は無効化、その他は重みの大小を無視して順番に均等ローテーションします。",
+      "strategy": {
+        "frequency": "頻度制御（逆方向の重み）",
+        "frequencyDesc": "重みが小さいほど高頻度（1/N）。従来の動作を維持し、プライマリ/バックアップ階層に適します。",
+        "weightedRandom": "加重ランダム（順方向の重み）",
+        "weightedRandomDesc": "重みが大きいほどトラフィックが増加し、重み比率でランダムに分配します。複数プロバイダーでの分散に推奨。",
+        "hardRoundRobin": "ハードラウンドロビン",
+        "hardRoundRobinDesc": "重みの大小を無視し、有効なプロバイダー間で均等にローテーションします。全員が使われることを保証します。"
+      }
     }
   },
   "streamCheck": {

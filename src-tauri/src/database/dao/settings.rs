@@ -4,7 +4,9 @@
 
 use crate::database::{lock_conn, Database};
 use crate::error::AppError;
+use crate::proxy::load_balancer::LoadBalanceStrategy;
 use rusqlite::params;
+use std::str::FromStr;
 
 /// 全局出站代理配置状态（用于区分 Unset/Direct/Proxy）
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -27,6 +29,11 @@ impl Database {
     /// 应用级权重轮询开关的存储键名
     fn weight_round_robin_enabled_key(app_type: &str) -> String {
         format!("proxy_weight_round_robin_enabled_{app_type}")
+    }
+
+    /// 应用级负载均衡策略的存储键名
+    fn load_balance_strategy_key(app_type: &str) -> String {
+        format!("proxy_load_balance_strategy_{app_type}")
     }
 
     /// 获取设置值
@@ -100,6 +107,50 @@ impl Database {
     ) -> Result<(), AppError> {
         let key = Self::weight_round_robin_enabled_key(app_type);
         self.set_setting(&key, if enabled { "true" } else { "false" })
+    }
+
+    /// 获取指定应用的负载均衡策略
+    ///
+    /// 返回 None 表示未设置（键缺失或值无法解析），由调用方回退到默认策略。
+    /// 与 `get_weight_round_robin_enabled` 一致：未知/未来策略值在读取时静默回退默认，仅记 warn。
+    pub fn get_load_balance_strategy(
+        &self,
+        app_type: &str,
+    ) -> Result<Option<LoadBalanceStrategy>, AppError> {
+        let key = Self::load_balance_strategy_key(app_type);
+        let Some(value) = self.get_setting(&key)? else {
+            return Ok(None);
+        };
+        match LoadBalanceStrategy::from_str(&value) {
+            Ok(strategy) => Ok(Some(strategy)),
+            Err(_) => {
+                log::warn!("忽略无效的负载均衡策略配置: key={}, value={}", key, value);
+                Ok(None)
+            }
+        }
+    }
+
+    /// 设置指定应用的负载均衡策略
+    pub fn set_load_balance_strategy(
+        &self,
+        app_type: &str,
+        strategy: LoadBalanceStrategy,
+    ) -> Result<(), AppError> {
+        let key = Self::load_balance_strategy_key(app_type);
+        self.set_setting(&key, strategy.as_str())
+    }
+
+    /// 获取 Web 控制台端口（持久化于 settings 表；None=未配置/禁用）
+    pub fn get_web_panel_port(&self) -> Result<Option<u16>, AppError> {
+        match self.get_setting("web_panel_port")? {
+            Some(v) => Ok(v.trim().parse::<u16>().ok().filter(|p| *p > 0)),
+            None => Ok(None),
+        }
+    }
+
+    /// 设置 Web 控制台端口（持久化，供 restart/后台子进程继承）
+    pub fn set_web_panel_port(&self, port: u16) -> Result<(), AppError> {
+        self.set_setting("web_panel_port", &port.to_string())
     }
 
     // --- 通用配置片段 (Common Config Snippet) ---

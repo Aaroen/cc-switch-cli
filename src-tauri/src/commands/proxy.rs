@@ -2,10 +2,13 @@
 //!
 //! 提供前端调用的 API 接口
 
+use crate::app_config::AppType;
 use crate::error::AppError;
+use crate::proxy::load_balancer::LoadBalanceStrategy;
 use crate::proxy::types::*;
 use crate::proxy::{CircuitBreakerConfig, CircuitBreakerStats};
 use crate::store::AppState;
+use std::str::FromStr;
 
 /// 启动代理服务器（仅启动服务，不接管 Live 配置）
 #[tauri::command]
@@ -117,6 +120,61 @@ pub async fn update_proxy_config_for_app(
     let db = &state.db;
     db.update_proxy_config_for_app(config)
         .await
+        .map_err(|e| e.to_string())
+}
+
+/// 获取指定应用的负载均衡策略
+///
+/// 返回规范化字符串：frequency / weighted_random / hard_round_robin。
+#[tauri::command]
+pub fn get_load_balance_strategy(
+    state: tauri::State<'_, AppState>,
+    app_type: String,
+) -> Result<String, String> {
+    Ok(state
+        .db
+        .get_load_balance_strategy(&app_type)
+        .map_err(|e| e.to_string())?
+        .unwrap_or_default()
+        .as_str()
+        .to_string())
+}
+
+/// 设置指定应用的负载均衡策略
+///
+/// 仅写入策略键（不经通用 update_proxy_config_for_app，避免回写覆盖）；
+/// 运行中的代理会在下次请求经 needs_update 重建负载均衡器自动生效。
+#[tauri::command]
+pub fn set_load_balance_strategy(
+    state: tauri::State<'_, AppState>,
+    app_type: String,
+    strategy: String,
+) -> Result<(), String> {
+    // 校验 app_type 合法
+    AppType::from_str(&app_type).map_err(|e| e.to_string())?;
+    let parsed = strategy.parse::<LoadBalanceStrategy>().map_err(|_| {
+        format!(
+            "无效的负载均衡策略: {strategy}（可选 frequency / weighted_random / hard_round_robin）"
+        )
+    })?;
+
+    let current = state
+        .db
+        .get_load_balance_strategy(&app_type)
+        .map_err(|e| e.to_string())?
+        .unwrap_or_default();
+    if parsed != current {
+        // 权重语义反转告警：frequency 反向、weighted_random 正向
+        log::warn!(
+            "[{app_type}] 负载均衡策略 {} → {}：frequency 为反向频率（权重越小越频繁），weighted_random 为正向权重（权重越大流量越多），切换后请按新语义重新核对各供应商权重",
+            current.as_str(),
+            parsed.as_str()
+        );
+    }
+
+    state
+        .db
+        .set_load_balance_strategy(&app_type, parsed)
         .map_err(|e| e.to_string())
 }
 

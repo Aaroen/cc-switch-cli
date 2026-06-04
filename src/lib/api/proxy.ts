@@ -1,4 +1,4 @@
-import { invoke } from "@tauri-apps/api/core";
+import { invoke } from "@/lib/api/transport";
 import type {
   ProxyConfig,
   ProxyStatus,
@@ -6,6 +6,7 @@ import type {
   ProxyTakeoverStatus,
   GlobalProxyConfig,
   AppProxyConfig,
+  LoadBalanceStrategy,
 } from "@/types/proxy";
 
 export const proxyApi = {
@@ -91,6 +92,19 @@ export const proxyApi = {
   // 更新指定应用的代理配置
   async updateProxyConfigForApp(config: AppProxyConfig): Promise<void> {
     return invoke("update_proxy_config_for_app", { config });
+  },
+
+  // 获取应用级负载均衡策略
+  async getLoadBalanceStrategy(appType: string): Promise<LoadBalanceStrategy> {
+    return invoke("get_load_balance_strategy", { appType });
+  },
+
+  // 设置应用级负载均衡策略（专用命令，不经通用 update）
+  async setLoadBalanceStrategy(
+    appType: string,
+    strategy: LoadBalanceStrategy,
+  ): Promise<void> {
+    return invoke("set_load_balance_strategy", { appType, strategy });
   },
 
   // ========== 计费默认配置 API ==========

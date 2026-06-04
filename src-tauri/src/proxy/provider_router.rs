@@ -7,7 +7,7 @@ use crate::database::Database;
 use crate::error::AppError;
 use crate::provider::Provider;
 use crate::proxy::circuit_breaker::{AllowResult, CircuitBreaker, CircuitBreakerConfig};
-use crate::proxy::load_balancer::FrequencyControlledRR;
+use crate::proxy::load_balancer::{LoadBalanceStrategy, LoadBalancer};
 use std::collections::HashMap;
 use std::str::FromStr;
 use std::sync::Arc;
@@ -20,7 +20,7 @@ pub struct ProviderRouter {
     /// 熔断器管理器 - key 格式: "app_type:provider_id"
     circuit_breakers: Arc<RwLock<HashMap<String, Arc<CircuitBreaker>>>>,
     /// 负载均衡器 - key: app_type
-    load_balancers: Arc<RwLock<HashMap<String, FrequencyControlledRR>>>,
+    load_balancers: Arc<RwLock<HashMap<String, LoadBalancer>>>,
 }
 
 impl ProviderRouter {
@@ -36,7 +36,7 @@ impl ProviderRouter {
     /// 选择可用的供应商（支持故障转移和权重轮询）
     ///
     /// 返回按优先级排序的可用供应商列表：
-    /// - 权重轮询开启时：使用 FrequencyControlledRR 负载均衡器选择供应商
+    /// - 权重轮询开启时：使用 LoadBalancer（多策略）选择供应商
     /// - 权重轮询关闭且故障转移开启时：按队列顺序依次尝试（P1 → P2 → ...）
     /// - 两者都关闭时：仅返回当前供应商
     pub async fn select_providers(&self, app_type: &str) -> Result<Vec<Provider>, AppError> {
@@ -45,22 +45,23 @@ impl ProviderRouter {
         let mut circuit_open_count = 0usize;
 
         // 读取代理配置
-        let (auto_failover_enabled, weight_round_robin_enabled) =
+        let (auto_failover_enabled, weight_round_robin_enabled, lb_strategy) =
             match self.db.get_proxy_config_for_app(app_type).await {
                 Ok(config) => (
                     config.auto_failover_enabled,
                     config.weight_round_robin_enabled,
+                    config.load_balance_strategy,
                 ),
                 Err(e) => {
                     log::error!(
                         "[{app_type}] 读取 proxy_config 失败: {e}，默认禁用故障转移和权重轮询"
                     );
-                    (false, false)
+                    (false, false, LoadBalanceStrategy::default())
                 }
             };
 
         if weight_round_robin_enabled {
-            // 权重轮询模式：使用 FrequencyControlledRR 负载均衡器
+            // 权重轮询模式：使用 LoadBalancer（多策略）
             let all_providers = self.db.get_all_providers(app_type)?;
             let mut weighted_providers: Vec<Provider> = all_providers
                 .into_iter()
@@ -83,23 +84,28 @@ impl ProviderRouter {
                 let mut lbs = self.load_balancers.write().await;
                 let lb = lbs.entry(app_type.to_string()).or_insert_with(|| {
                     log::info!(
-                        "[{app_type}] 创建新的 FrequencyControlledRR 负载均衡器，供应商数量: {}",
+                        "[{app_type}] 创建新的负载均衡器（策略={}），供应商数量: {}",
+                        lb_strategy.as_str(),
                         weighted_providers.len()
                     );
-                    FrequencyControlledRR::new(weighted_providers.clone())
+                    LoadBalancer::new(weighted_providers.clone(), lb_strategy)
                 });
 
-                // 检查供应商列表是否需要更新（供应商数量或权重变化）
+                // 检查是否需要重建（策略变化 / 供应商数量或权重变化）
                 let current_providers = lb.providers();
-                let needs_update = current_providers.len() != weighted_providers.len()
+                let needs_update = lb.strategy() != lb_strategy
+                    || current_providers.len() != weighted_providers.len()
                     || current_providers
                         .iter()
                         .zip(weighted_providers.iter())
                         .any(|(wp, p)| wp.provider.id != p.id || wp.weight != p.weight);
 
                 if needs_update {
-                    log::info!("[{app_type}] 供应商配置已变化，重建负载均衡器");
-                    *lb = FrequencyControlledRR::new(weighted_providers.clone());
+                    log::info!(
+                        "[{app_type}] 配置已变化（策略={}），重建负载均衡器",
+                        lb_strategy.as_str()
+                    );
+                    *lb = LoadBalancer::new(weighted_providers.clone(), lb_strategy);
                 }
 
                 // 使用负载均衡器选择供应商
@@ -744,5 +750,51 @@ mod tests {
         let _ = router.select_providers("claude").await;
         let round_new = router.get_load_balancer_round("claude").await;
         assert_eq!(round_new, Some(1));
+    }
+
+    #[tokio::test]
+    async fn test_strategy_switch_rebuilds_load_balancer() {
+        let db = Arc::new(Database::memory().unwrap());
+
+        let mut provider_a =
+            Provider::with_id("a".to_string(), "Provider A".to_string(), json!({}), None);
+        provider_a.weight = 1;
+        let mut provider_b =
+            Provider::with_id("b".to_string(), "Provider B".to_string(), json!({}), None);
+        provider_b.weight = 2;
+        db.save_provider("claude", &provider_a).unwrap();
+        db.save_provider("claude", &provider_b).unwrap();
+
+        // 启用权重轮询（默认策略 Frequency）
+        let mut config = db.get_proxy_config_for_app("claude").await.unwrap();
+        config.weight_round_robin_enabled = true;
+        db.update_proxy_config_for_app(config).await.unwrap();
+
+        let router = ProviderRouter::new(db.clone());
+
+        // Frequency 策略下选择 3 次，计数器累加到 3
+        for _ in 0..3 {
+            let _ = router.select_providers("claude").await.unwrap();
+        }
+        assert_eq!(router.get_load_balancer_round("claude").await, Some(3));
+
+        // 切换策略为 HardRoundRobin（仅经专用键写入，不经通用 update）
+        db.set_load_balance_strategy("claude", LoadBalanceStrategy::HardRoundRobin)
+            .unwrap();
+
+        // 下次选择应检测到策略变化并重建：global_round 归零后自增到 1
+        let providers = router.select_providers("claude").await.unwrap();
+        assert!(!providers.is_empty());
+        assert_eq!(
+            router.get_load_balancer_round("claude").await,
+            Some(1),
+            "策略切换应触发负载均衡器重建（global_round 归零）"
+        );
+
+        // HardRoundRobin 在权重升序集合 [a(1), b(2)] 上 index=(1-1)%2=0 → a
+        assert_eq!(providers[0].id, "a");
+
+        // 候选列表仍应包含全部可用供应商（故障转移尾部不丢供应商）
+        assert!(providers.iter().any(|p| p.id == "b"));
     }
 }

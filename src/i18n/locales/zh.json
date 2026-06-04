@@ -2143,7 +2143,23 @@
       "badgeDisabled": "轮询禁用",
       "badgeFrequency": "轮询 1/{{weight}}",
       "empty": "当前应用暂无可配置的供应商。",
-      "validationFailed": "以下供应商权重无效: {{providers}}"
+      "validationFailed": "以下供应商权重无效: {{providers}}",
+      "strategyTitle": "轮询策略",
+      "metricShare": "流量占比",
+      "metricRotation": "轮转",
+      "equalShare": "等概率",
+      "providerWeightHintForward": "输入 0-100 的整数。0 = 禁用；加权随机下数值越大流量占比越高。",
+      "providerWeightHintEqual": "输入 0-100 的整数。0 = 禁用；硬全轮询忽略权重大小，仅决定是否参与轮转。",
+      "infoForward": "加权随机：权重 0 表示禁用，数值越大被选中的流量占比越高（占比 = 权重 / 总权重）。",
+      "infoEqual": "硬全轮询：权重 0 表示禁用，其余供应商忽略权重大小，按顺序等概率轮转。",
+      "strategy": {
+        "frequency": "频率控制（反向权重）",
+        "frequencyDesc": "权重越小越频繁（1/N），保持历史行为；适合主备分级。",
+        "weightedRandom": "加权随机（正向权重）",
+        "weightedRandomDesc": "权重越大流量越多，按权重占比随机分配；推荐多供应商分摊。",
+        "hardRoundRobin": "硬全轮询",
+        "hardRoundRobinDesc": "忽略权重大小，在启用的供应商间等概率轮转；确保人人有份。"
+      }
     }
   },
   "streamCheck": {

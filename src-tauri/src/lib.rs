@@ -29,6 +29,8 @@ mod services;
 mod session_manager;
 mod settings;
 mod store;
+/// CLI 专属 Web 控制台（仅无头 CLI 模式启用；GUI 不启用）
+pub mod web_panel;
 
 mod tray;
 mod usage_script;
@@ -1183,6 +1185,8 @@ pub fn run() {
             commands::update_global_proxy_config,
             commands::get_proxy_config_for_app,
             commands::update_proxy_config_for_app,
+            commands::get_load_balance_strategy, // 【新增】负载均衡策略读取
+            commands::set_load_balance_strategy, // 【新增】负载均衡策略设置
             commands::get_default_cost_multiplier,
             commands::set_default_cost_multiplier,
             commands::get_pricing_model_source,

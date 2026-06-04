@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 import { Loader2, Info, Save } from "lucide-react";
 import { toast } from "sonner";
 import type { AppId } from "@/lib/api";
+import type { LoadBalanceStrategy } from "@/types/proxy";
 import { providersApi } from "@/lib/api/providers";
 import { proxyApi } from "@/lib/api/proxy";
 import { useProvidersQuery } from "@/lib/query/queries";
@@ -14,6 +15,13 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 
 interface WeightRoundRobinConfigPanelProps {
@@ -25,6 +33,36 @@ interface ProviderWeightUpdate {
   id: string;
   weight: number;
 }
+
+const STRATEGY_OPTIONS: Array<{
+  value: LoadBalanceStrategy;
+  labelKey: string;
+  labelDefault: string;
+  descKey: string;
+  descDefault: string;
+}> = [
+  {
+    value: "frequency",
+    labelKey: "proxy.weightRoundRobin.strategy.frequency",
+    labelDefault: "频率控制（反向权重）",
+    descKey: "proxy.weightRoundRobin.strategy.frequencyDesc",
+    descDefault: "权重越小越频繁（1/N），保持历史行为；适合主备分级。",
+  },
+  {
+    value: "weighted_random",
+    labelKey: "proxy.weightRoundRobin.strategy.weightedRandom",
+    labelDefault: "加权随机（正向权重）",
+    descKey: "proxy.weightRoundRobin.strategy.weightedRandomDesc",
+    descDefault: "权重越大流量越多，按权重占比随机分配；推荐多供应商分摊。",
+  },
+  {
+    value: "hard_round_robin",
+    labelKey: "proxy.weightRoundRobin.strategy.hardRoundRobin",
+    labelDefault: "硬全轮询",
+    descKey: "proxy.weightRoundRobin.strategy.hardRoundRobinDesc",
+    descDefault: "忽略权重大小，在启用的供应商间等概率轮转；确保人人有份。",
+  },
+];
 
 export function WeightRoundRobinConfigPanel({
   appType,
@@ -44,11 +82,13 @@ export function WeightRoundRobinConfigPanel({
   } = useProvidersQuery(appType);
 
   const [enabled, setEnabled] = useState(false);
+  const [strategy, setStrategy] = useState<LoadBalanceStrategy>("frequency");
   const [weights, setWeights] = useState<Record<string, string>>({});
 
   useEffect(() => {
     if (config) {
       setEnabled(config.weightRoundRobinEnabled);
+      setStrategy(config.loadBalanceStrategy ?? "frequency");
     }
   }, [config]);
 
@@ -67,9 +107,11 @@ export function WeightRoundRobinConfigPanel({
   const saveMutation = useMutation({
     mutationFn: async ({
       nextEnabled,
+      nextStrategy,
       updates,
     }: {
       nextEnabled: boolean;
+      nextStrategy: LoadBalanceStrategy;
       updates: ProviderWeightUpdate[];
     }) => {
       if (!config) {
@@ -84,6 +126,9 @@ export function WeightRoundRobinConfigPanel({
         ...config,
         weightRoundRobinEnabled: nextEnabled,
       });
+
+      // 策略经专用命令写入（不经通用 update，避免回写覆盖）
+      await proxyApi.setLoadBalanceStrategy(appType, nextStrategy);
 
       for (const update of updates) {
         await providersApi.updateWeight(update.id, appType, update.weight);
@@ -115,24 +160,61 @@ export function WeightRoundRobinConfigPanel({
     return Number.parseInt(trimmed, 10);
   };
 
-  const formatFrequency = (weight: number) => {
+  // 启用供应商的权重总和（用于加权随机的占比展示）
+  const totalWeight = providers.reduce((sum, provider) => {
+    const w = parseWeight(weights[provider.id] ?? "1");
+    return sum + (Number.isNaN(w) || w <= 0 ? 0 : w);
+  }, 0);
+
+  // 末列指标随策略切换：频率 / 流量占比 / 轮转
+  const metricLabel =
+    strategy === "weighted_random"
+      ? t("proxy.weightRoundRobin.metricShare", { defaultValue: "流量占比" })
+      : strategy === "hard_round_robin"
+        ? t("proxy.weightRoundRobin.metricRotation", { defaultValue: "轮转" })
+        : t("proxy.weightRoundRobin.frequency", { defaultValue: "频率" });
+
+  const describeWeight = (weight: number): string => {
     if (weight === 0) {
       return t("proxy.weightRoundRobin.frequencyDisabled", {
         defaultValue: "已禁用",
       });
     }
-
+    if (strategy === "weighted_random") {
+      if (totalWeight <= 0) {
+        return "-";
+      }
+      return `${Math.round((weight / totalWeight) * 100)}%`;
+    }
+    if (strategy === "hard_round_robin") {
+      return t("proxy.weightRoundRobin.equalShare", { defaultValue: "等概率" });
+    }
     if (weight === 1) {
       return t("proxy.weightRoundRobin.frequencyEveryRound", {
         defaultValue: "每轮",
       });
     }
-
     return t("proxy.weightRoundRobin.frequencyEveryN", {
       weight,
       defaultValue: `1/${weight}`,
     });
   };
+
+  const weightHint =
+    strategy === "weighted_random"
+      ? t("proxy.weightRoundRobin.providerWeightHintForward", {
+          defaultValue:
+            "输入 0-100 的整数。0 = 禁用；加权随机下数值越大流量占比越高。",
+        })
+      : strategy === "hard_round_robin"
+        ? t("proxy.weightRoundRobin.providerWeightHintEqual", {
+            defaultValue:
+              "输入 0-100 的整数。0 = 禁用；硬全轮询忽略权重大小，仅决定是否参与轮转。",
+          })
+        : t("proxy.weightRoundRobin.providerWeightHint", {
+            defaultValue:
+              "输入 0-100 的整数。0 = 禁用，1 = 每轮都使用，数值越小频率越高。",
+          });
 
   const handleSave = async () => {
     const invalidProviders = providers.filter((provider) => {
@@ -165,6 +247,7 @@ export function WeightRoundRobinConfigPanel({
 
     await saveMutation.mutateAsync({
       nextEnabled: enabled,
+      nextStrategy: strategy,
       updates,
     });
   };
@@ -172,6 +255,7 @@ export function WeightRoundRobinConfigPanel({
   const handleReset = () => {
     if (config) {
       setEnabled(config.weightRoundRobinEnabled);
+      setStrategy(config.loadBalanceStrategy ?? "frequency");
     }
 
     setWeights(
@@ -195,6 +279,9 @@ export function WeightRoundRobinConfigPanel({
   const isDisabled = disabled || saveMutation.isPending;
   const errorMessage =
     extractErrorMessage(configError) || extractErrorMessage(providersError);
+  const activeStrategy =
+    STRATEGY_OPTIONS.find((option) => option.value === strategy) ??
+    STRATEGY_OPTIONS[0];
 
   return (
     <div className="space-y-4">
@@ -249,13 +336,58 @@ export function WeightRoundRobinConfigPanel({
         />
       </div>
 
+      <div className="space-y-2 rounded-lg border border-border/50 bg-muted/50 p-4">
+        <div className="flex items-center justify-between gap-4">
+          <div className="space-y-0.5">
+            <span className="text-sm font-medium">
+              {t("proxy.weightRoundRobin.strategyTitle", {
+                defaultValue: "轮询策略",
+              })}
+            </span>
+            <p className="text-xs text-muted-foreground">
+              {t(activeStrategy.descKey, {
+                defaultValue: activeStrategy.descDefault,
+              })}
+            </p>
+          </div>
+          <Select
+            value={strategy}
+            onValueChange={(value) =>
+              setStrategy(value as LoadBalanceStrategy)
+            }
+            disabled={isDisabled || !enabled}
+          >
+            <SelectTrigger className="w-[200px]">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {STRATEGY_OPTIONS.map((option) => (
+                <SelectItem key={option.value} value={option.value}>
+                  {t(option.labelKey, { defaultValue: option.labelDefault })}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
+
       <Alert className="border-blue-500/40 bg-blue-500/10">
         <Info className="h-4 w-4" />
         <AlertDescription className="text-sm">
-          {t("proxy.weightRoundRobin.info", {
-            defaultValue:
-              "权重 0 表示禁用该供应商，1 表示每轮都使用，2 表示每 2 轮使用一次。数值越小，请求频率越高。",
-          })}
+          {strategy === "weighted_random"
+            ? t("proxy.weightRoundRobin.infoForward", {
+                defaultValue:
+                  "加权随机：权重 0 表示禁用，数值越大被选中的流量占比越高（占比 = 权重 / 总权重）。",
+              })
+            : strategy === "hard_round_robin"
+              ? t("proxy.weightRoundRobin.infoEqual", {
+                  defaultValue:
+                    "硬全轮询：权重 0 表示禁用，其余供应商忽略权重大小，按顺序等概率轮转。",
+                })
+              : t("proxy.weightRoundRobin.info", {
+                  defaultValue:
+                    "频率控制：权重 0 表示禁用，1 表示每轮都使用，2 表示每 2 轮使用一次。数值越小，请求频率越高。",
+                })}
         </AlertDescription>
       </Alert>
 
@@ -275,12 +407,7 @@ export function WeightRoundRobinConfigPanel({
                 defaultValue: "供应商权重",
               })}
             </h5>
-            <p className="text-xs text-muted-foreground">
-              {t("proxy.weightRoundRobin.providerWeightHint", {
-                defaultValue:
-                  "输入 0-100 的整数。0 = 禁用，1 = 每轮都使用，数值越小频率越高。",
-              })}
-            </p>
+            <p className="text-xs text-muted-foreground">{weightHint}</p>
           </div>
 
           <div className="space-y-3">
@@ -340,9 +467,7 @@ export function WeightRoundRobinConfigPanel({
 
                   <div className="space-y-1">
                     <span className="text-xs font-medium text-muted-foreground">
-                      {t("proxy.weightRoundRobin.frequency", {
-                        defaultValue: "频率",
-                      })}
+                      {metricLabel}
                     </span>
                     <Badge
                       variant="secondary"
@@ -352,7 +477,7 @@ export function WeightRoundRobinConfigPanel({
                           : "border-transparent bg-sky-500/10 text-sky-700 dark:text-sky-300"
                       }
                     >
-                      {formatFrequency(displayWeight)}
+                      {describeWeight(displayWeight)}
                     </Badge>
                   </div>
                 </div>

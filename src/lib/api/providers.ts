@@ -1,4 +1,4 @@
-import { invoke } from "@tauri-apps/api/core";
+import { invoke } from "@/lib/api/transport";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import type {
   Provider,

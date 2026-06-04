@@ -78,6 +78,12 @@ uuid = { version = "1.11", features = ["v4"] }
 clap = { version = "4.5", features = ["derive", "cargo"] }
 serde_with = "3.15"
 comfy-table = "7.1"
+# CLI 输出着色：版本对齐 Cargo.lock 中经 clap 锁定的 1.0.x，避免引入第二个 major
+anstream = "1.0"
+anstyle = "1.0"
+# CLI 专属 Web 控制台：嵌入前端构建产物 + 静态资源 MIME 推断
+rust-embed = "8"
+mime_guess = "2"
 sha2 = "0.10"
 json5 = "0.4"
 json-five = "0.3.1"
