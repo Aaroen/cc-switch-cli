@@ -31,7 +31,7 @@ export const TIER_I18N_KEYS: Record<string, string> = {
   gemini_flash: "subscription.geminiFlash",
   gemini_flash_lite: "subscription.geminiFlashLite",
   // Token Plan（five_hour 已在上方官方映射中）
-  weekly_limit: "subscription.weeklyLimit",
+  weekly_limit: "subscription.sevenDay",
   // GitHub Copilot
   premium: "subscription.copilotPremium",
 };
@@ -205,7 +205,9 @@ export const SubscriptionQuotaView: React.FC<SubscriptionQuotaViewProps> = ({
   }
 
   // 成功获取数据
-  const tiers = quota.tiers || [];
+  const tiers = (quota.tiers || []).filter(
+    (tier) => tier.name in TIER_I18N_KEYS,
+  );
   if (tiers.length === 0) return null;
 
   // ── inline 模式：紧凑两行显示 ──
@@ -307,6 +309,8 @@ export const TierBadge: React.FC<{
     : tier.name;
   const countdown = countdownStr(tier.resetsAt);
 
+  const hasUsd = tier.usedValueUsd != null && tier.maxValueUsd != null;
+
   return (
     <div className="flex items-center gap-0.5">
       <span className="text-gray-500 dark:text-gray-400">{label}:</span>
@@ -315,6 +319,11 @@ export const TierBadge: React.FC<{
       >
         {t("subscription.utilization", { value: Math.round(tier.utilization) })}
       </span>
+      {hasUsd && (
+        <span className="text-muted-foreground/60">
+          (${tier.usedValueUsd!.toFixed(2)}/${tier.maxValueUsd!.toFixed(2)})
+        </span>
+      )}
       {countdown && (
         <span className="text-muted-foreground/60 ml-0.5 flex items-center gap-px">
           <Clock size={10} />

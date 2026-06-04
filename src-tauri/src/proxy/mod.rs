@@ -19,9 +19,11 @@ mod handlers;
 mod health;
 pub mod http_client;
 pub mod hyper_client;
+pub(crate) mod json_canonical;
 pub mod layered_forwarder; // 【新增】分层转发器
 pub mod load_balancer; // 【新增】负载均衡器
 pub mod log_codes;
+pub mod media_sanitizer;
 pub mod model_mapper;
 pub mod provider_router;
 pub mod providers;
