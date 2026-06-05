@@ -584,6 +584,7 @@ function App() {
   const openHermesWebUI = useOpenHermesWebUI(() =>
     setLaunchDashboardOpen(true),
   );
+  const canOpenHermesWebUI = isTauri();
 
   const handleOpenWebsite = async (url: string) => {
     try {
@@ -1376,8 +1377,19 @@ function App() {
                                 variant="ghost"
                                 size="sm"
                                 onClick={() => void openHermesWebUI()}
-                                className="text-muted-foreground hover:text-foreground hover:bg-black/5 dark:hover:bg-white/5 w-8 px-2"
-                                title={t("hermes.webui.open")}
+                                disabled={!canOpenHermesWebUI}
+                                className={cn(
+                                  "text-muted-foreground hover:text-foreground hover:bg-black/5 dark:hover:bg-white/5 w-8 px-2",
+                                  !canOpenHermesWebUI &&
+                                    "opacity-40 cursor-not-allowed",
+                                )}
+                                title={
+                                  canOpenHermesWebUI
+                                    ? t("hermes.webui.open")
+                                    : t("common.desktopOnly", {
+                                        defaultValue: "此功能仅在桌面端可用",
+                                      })
+                                }
                               >
                                 <LayoutDashboard className="w-4 h-4" />
                               </Button>

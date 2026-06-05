@@ -1,24 +1,24 @@
 //! 负载均衡器
 //!
 //! 提供可插拔的多策略供应商选择：
-//! - Frequency（频率控制，反向权重，保留以兼容老数据）：
-//!     weight=0 禁用；weight=1 每轮使用；weight=N 每 N 轮使用一次（频率 1/N）。
-//! - WeightedRandom（加权随机，正向权重）：被选中概率 = weight_i / Σweight。
+//! - Frequency（频率控制）：
+//!     weight=0 禁用；weight=N 表示频率 1/N。实现上先按频率换算供应商在轮询周期
+//!     中的槽位次数，再在这些槽位上执行固定顺序轮询。
+//! - WeightedRandom（加权随机）：被选中概率 = weight_i / Σweight。
 //! - HardRoundRobin（硬全轮询）：在 weight>0 的供应商间等概率轮转，忽略权重大小。
-//!
-//! 注意：Frequency 与 WeightedRandom 对同一 `weight` 字段的解释相反
-//! （Frequency 越小越频繁；WeightedRandom 越大越频繁）。切换策略时调用方应提示用户。
 
 use crate::provider::Provider;
+
+const FREQUENCY_EXACT_SCALE_CAP: u32 = 10_000;
 
 /// 负载均衡策略
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum LoadBalanceStrategy {
-    /// 频率控制轮询（反向权重，默认；保持历史行为）
+    /// 频率控制轮询（按 1/N 换算槽位次数后轮询）
     #[default]
     Frequency,
-    /// 加权随机（正向权重，p_i = weight_i / Σweight）
+    /// 加权随机（p_i = weight_i / Σweight）
     WeightedRandom,
     /// 硬全轮询（等概率轮转 weight>0 的供应商，忽略权重大小）
     HardRoundRobin,
@@ -74,8 +74,9 @@ fn fnv1a(s: &str) -> u64 {
 pub struct LoadBalancer {
     strategy: LoadBalanceStrategy,
     providers: Vec<WeightedProvider>,
-    global_round: u32, // 全局轮询计数器
-    rng_state: u64,    // WeightedRandom 用的 SplitMix64 状态
+    frequency_order: Vec<usize>, // Frequency 策略的虚拟轮询槽位（provider 下标）
+    global_round: u32,           // 全局轮询计数器
+    rng_state: u64,              // WeightedRandom 用的 SplitMix64 状态
 }
 
 impl LoadBalancer {
@@ -100,12 +101,68 @@ impl LoadBalancer {
                 acc.rotate_left(5) ^ fnv1a(&wp.provider.id)
             });
 
+        let frequency_order = Self::build_frequency_order(&weighted_providers);
+
         Self {
             strategy,
             providers: weighted_providers,
+            frequency_order,
             global_round: 0,
             rng_state: seed,
         }
+    }
+
+    fn gcd(mut a: u32, mut b: u32) -> u32 {
+        while b != 0 {
+            let r = a % b;
+            a = b;
+            b = r;
+        }
+        a.max(1)
+    }
+
+    fn frequency_scale(providers: &[WeightedProvider]) -> u32 {
+        let mut scale = 1u32;
+        for weight in providers.iter().filter(|p| p.weight > 0).map(|p| p.weight) {
+            let gcd = Self::gcd(scale, weight);
+            let next = (scale / gcd) as u64 * weight as u64;
+            if next > FREQUENCY_EXACT_SCALE_CAP as u64 {
+                return FREQUENCY_EXACT_SCALE_CAP;
+            }
+            scale = next as u32;
+        }
+        scale
+    }
+
+    fn build_frequency_order(providers: &[WeightedProvider]) -> Vec<usize> {
+        let scale = Self::frequency_scale(providers);
+        let slots: Vec<(usize, u32)> = providers
+            .iter()
+            .enumerate()
+            .filter_map(|(idx, provider)| {
+                if provider.weight == 0 {
+                    None
+                } else {
+                    Some((idx, (scale / provider.weight).max(1)))
+                }
+            })
+            .collect();
+
+        let total_slots: usize = slots.iter().map(|(_, count)| *count as usize).sum();
+        if total_slots == 0 {
+            return Vec::new();
+        }
+
+        let max_slots = slots.iter().map(|(_, count)| *count).max().unwrap_or(0);
+        let mut order = Vec::with_capacity(total_slots);
+        for pass in 0..max_slots {
+            for (idx, count) in &slots {
+                if pass < *count {
+                    order.push(*idx);
+                }
+            }
+        }
+        order
     }
 
     /// 当前策略
@@ -134,43 +191,21 @@ impl LoadBalancer {
         }
     }
 
-    /// 频率控制轮询（反向权重）：保持历史行为不变
+    /// 频率控制轮询：在硬全轮询基础上按频率分配槽位次数。
     ///
-    /// 1. 找到所有"到轮次"的 Provider (global_round % weight == 0)
-    /// 2. 优先选择 weight 最大的（低频优先，确保不会被 weight=1 长期压制）
-    /// 3. 同权重间按轮次轮转
-    /// 4. 没有到轮次的则回退到 weight==1 的 Provider
+    /// weight=N 表示频率 1/N。对当前供应商集合先取一个有界公共尺度，
+    /// 将每个供应商换算为 `scale / N` 个虚拟槽位，然后按供应商顺序逐层
+    /// 轮询这些槽位。权重越小，槽位次数越多；weight=0 不参与。
     fn select_frequency(&self) -> Option<&Provider> {
-        // 找到所有"到轮次"的Provider
-        let eligible: Vec<&WeightedProvider> = self
-            .providers
-            .iter()
-            .filter(|p| p.weight > 0 && self.global_round % p.weight == 0)
-            .collect();
-
-        if !eligible.is_empty() {
-            // 有到轮次的，优先选择weight最大的（低频优先）
-            let max_weight = eligible.iter().map(|p| p.weight).max().unwrap_or(1);
-
-            // 同权重轮转（避免同权重供应商长期被固定顺序压制）
-            let same_weight: Vec<&WeightedProvider> = eligible
-                .into_iter()
-                .filter(|p| p.weight == max_weight)
-                .collect();
-
-            let round_slot = (self.global_round / max_weight).max(1);
-            let index = ((round_slot - 1) as usize) % same_weight.len();
-            return Some(&same_weight[index].provider);
+        if self.frequency_order.is_empty() {
+            return None;
         }
-
-        // 没有到轮次的，回退到weight=1的Provider（如果有）
-        self.providers
-            .iter()
-            .find(|p| p.weight == 1)
-            .map(|p| &p.provider)
+        let slot = ((self.global_round - 1) as usize) % self.frequency_order.len();
+        let provider_index = self.frequency_order[slot];
+        self.providers.get(provider_index).map(|p| &p.provider)
     }
 
-    /// 加权随机（正向权重）：p_i = weight_i / Σweight（仅 weight>0 参与）
+    /// 加权随机：p_i = weight_i / Σweight（仅 weight>0 参与）
     ///
     /// 采用同步、无分配、可种子化的 SplitMix64，保证：
     /// - 不在写锁临界区内引入 `.await`；
@@ -271,6 +306,7 @@ impl LoadBalancer {
             .find(|p| p.provider.id == provider_id)
         {
             p.weight = weight;
+            self.frequency_order = Self::build_frequency_order(&self.providers);
             true
         } else {
             false
@@ -310,9 +346,22 @@ mod tests {
 
     /// 显式构造 Frequency 均衡器（rng_state 固定为 0 以保证测试确定性）。
     fn freq_lb(providers: Vec<WeightedProvider>) -> LoadBalancer {
+        let frequency_order = LoadBalancer::build_frequency_order(&providers);
         LoadBalancer {
             strategy: LoadBalanceStrategy::Frequency,
             providers,
+            frequency_order,
+            global_round: 0,
+            rng_state: 0,
+        }
+    }
+
+    fn lb(strategy: LoadBalanceStrategy, providers: Vec<WeightedProvider>) -> LoadBalancer {
+        let frequency_order = LoadBalancer::build_frequency_order(&providers);
+        LoadBalancer {
+            strategy,
+            providers,
+            frequency_order,
             global_round: 0,
             rng_state: 0,
         }
@@ -327,7 +376,10 @@ mod tests {
         ] {
             assert_eq!(s.as_str().parse::<LoadBalanceStrategy>().unwrap(), s);
         }
-        assert_eq!(LoadBalanceStrategy::default(), LoadBalanceStrategy::Frequency);
+        assert_eq!(
+            LoadBalanceStrategy::default(),
+            LoadBalanceStrategy::Frequency
+        );
         assert!("nope".parse::<LoadBalanceStrategy>().is_err());
     }
 
@@ -341,31 +393,18 @@ mod tests {
 
         let mut lb = freq_lb(providers);
 
-        // Round 1: A(1%1=0✓), B(1%2=1), C(1%3=1) -> 选A
-        assert_eq!(lb.select().unwrap().id, "A");
-        assert_eq!(lb.current_round(), 1);
+        let seq: Vec<String> = (0..11).map(|_| lb.select().unwrap().id.clone()).collect();
 
-        // Round 2: A(2%1=0✓), B(2%2=0✓), C(2%3=2) -> 选B (weight最大)
-        assert_eq!(lb.select().unwrap().id, "B");
-        assert_eq!(lb.current_round(), 2);
-
-        // Round 3: A(3%1=0✓), B(3%2=1), C(3%3=0✓) -> 选C (weight最大)
-        assert_eq!(lb.select().unwrap().id, "C");
-        assert_eq!(lb.current_round(), 3);
-
-        // Round 4: A(4%1=0✓), B(4%2=0✓), C(4%3=1) -> 选B
-        assert_eq!(lb.select().unwrap().id, "B");
-
-        // Round 5: A(5%1=0✓), B(5%2=1), C(5%3=2) -> 选A
-        assert_eq!(lb.select().unwrap().id, "A");
-
-        // Round 6: A(6%1=0✓), B(6%2=0✓), C(6%3=0✓) -> 选C (weight最大)
-        assert_eq!(lb.select().unwrap().id, "C");
+        // scale=lcm(1,2,3)=6，槽位数 A=6、B=3、C=2。
+        assert_eq!(
+            seq,
+            vec!["A", "B", "C", "A", "B", "C", "A", "B", "A", "A", "A"]
+        );
+        assert_eq!(lb.current_round(), 11);
     }
 
     #[test]
     fn test_frequency_controlled_rr_no_weight_1() {
-        // 测试没有weight=1的情况
         let providers = vec![
             create_weighted_provider("B", 2),
             create_weighted_provider("C", 3),
@@ -373,17 +412,10 @@ mod tests {
 
         let mut lb = freq_lb(providers);
 
-        // Round 1: 都不到轮次，且没有weight=1 -> None
-        assert!(lb.select().is_none());
+        let seq: Vec<String> = (0..5).map(|_| lb.select().unwrap().id.clone()).collect();
 
-        // Round 2: B到轮次
-        assert_eq!(lb.select().unwrap().id, "B");
-
-        // Round 3: C到轮次
-        assert_eq!(lb.select().unwrap().id, "C");
-
-        // Round 4: B到轮次
-        assert_eq!(lb.select().unwrap().id, "B");
+        // scale=lcm(2,3)=6，槽位数 B=3、C=2；没有 weight=1 时也正常轮询。
+        assert_eq!(seq, vec!["B", "C", "B", "C", "B"]);
     }
 
     #[test]
@@ -427,6 +459,7 @@ mod tests {
         // 更新权重
         assert!(lb.update_weight("A", 5));
         assert_eq!(lb.providers[0].weight, 5);
+        assert_eq!(lb.frequency_order.len(), 1);
 
         // 更新不存在的Provider
         assert!(!lb.update_weight("B", 5));
@@ -445,16 +478,15 @@ mod tests {
 
         let mut counts = HashMap::new();
 
-        // 运行10轮
-        for _ in 0..10 {
+        // 完整周期：scale=10，槽位数 Fast=10、Medium=5、Slow=2，总计17。
+        for _ in 0..17 {
             if let Some(p) = lb.select() {
                 *counts.entry(p.id.clone()).or_insert(0) += 1;
             }
         }
 
-        // 期望分布：Fast=4, Medium=4, Slow=2（Round 5/10 由 Slow 选中）
-        assert_eq!(counts.get("Fast"), Some(&4));
-        assert_eq!(counts.get("Medium"), Some(&4));
+        assert_eq!(counts.get("Fast"), Some(&10));
+        assert_eq!(counts.get("Medium"), Some(&5));
         assert_eq!(counts.get("Slow"), Some(&2));
     }
 
@@ -467,35 +499,21 @@ mod tests {
 
         let mut lb = freq_lb(providers);
 
-        let mut picks = Vec::new();
-        for _ in 0..40 {
-            let p_id = lb.select().map(|p| p.id.clone());
-            let round = lb.current_round();
-            if round % 10 == 0 {
-                assert!(p_id.is_some());
-                picks.push(p_id.unwrap());
-            }
-        }
-
-        assert_eq!(picks, vec!["A", "B", "A", "B"]);
+        let seq: Vec<String> = (0..6).map(|_| lb.select().unwrap().id.clone()).collect();
+        assert_eq!(seq, vec!["A", "B", "A", "B", "A", "B"]);
     }
 
-    // ---- WeightedRandom（正向权重）----
+    // ---- WeightedRandom ----
 
     #[test]
     fn test_weighted_random_distribution() {
-        // 正向权重：weight 越大流量越多。A=1,B=3,C=6 -> 期望 0.1/0.3/0.6
+        // weight 越大流量越多。A=1,B=3,C=6 -> 期望 0.1/0.3/0.6
         let providers = vec![
             create_weighted_provider("A", 1),
             create_weighted_provider("B", 3),
             create_weighted_provider("C", 6),
         ];
-        let mut lb = LoadBalancer {
-            strategy: LoadBalanceStrategy::WeightedRandom,
-            providers,
-            global_round: 0,
-            rng_state: 0,
-        };
+        let mut lb = lb(LoadBalanceStrategy::WeightedRandom, providers);
 
         let n = 10_000;
         let mut counts: HashMap<String, u32> = HashMap::new();
@@ -512,15 +530,15 @@ mod tests {
 
     #[test]
     fn test_weighted_random_is_deterministic_for_fixed_seed() {
-        let build = || LoadBalancer {
-            strategy: LoadBalanceStrategy::WeightedRandom,
-            providers: vec![
-                create_weighted_provider("A", 1),
-                create_weighted_provider("B", 3),
-                create_weighted_provider("C", 6),
-            ],
-            global_round: 0,
-            rng_state: 0,
+        let build = || {
+            lb(
+                LoadBalanceStrategy::WeightedRandom,
+                vec![
+                    create_weighted_provider("A", 1),
+                    create_weighted_provider("B", 3),
+                    create_weighted_provider("C", 6),
+                ],
+            )
         };
         let mut lb1 = build();
         let mut lb2 = build();
@@ -535,12 +553,7 @@ mod tests {
             create_weighted_provider("A", 0),
             create_weighted_provider("B", 0),
         ];
-        let mut lb = LoadBalancer {
-            strategy: LoadBalanceStrategy::WeightedRandom,
-            providers,
-            global_round: 0,
-            rng_state: 0,
-        };
+        let mut lb = lb(LoadBalanceStrategy::WeightedRandom, providers);
         for _ in 0..10 {
             assert!(lb.select().is_none());
         }
@@ -554,12 +567,7 @@ mod tests {
             create_weighted_provider("B", 0),
             create_weighted_provider("C", 1),
         ];
-        let mut lb = LoadBalancer {
-            strategy: LoadBalanceStrategy::WeightedRandom,
-            providers,
-            global_round: 0,
-            rng_state: 0,
-        };
+        let mut lb = lb(LoadBalanceStrategy::WeightedRandom, providers);
         let mut counts: HashMap<String, u32> = HashMap::new();
         for _ in 0..2000 {
             let id = lb.select().unwrap().id.clone();
@@ -575,12 +583,7 @@ mod tests {
     #[test]
     fn test_weighted_random_single_provider() {
         let providers = vec![create_weighted_provider("Only", 7)];
-        let mut lb = LoadBalancer {
-            strategy: LoadBalanceStrategy::WeightedRandom,
-            providers,
-            global_round: 0,
-            rng_state: 0,
-        };
+        let mut lb = lb(LoadBalanceStrategy::WeightedRandom, providers);
         for _ in 0..50 {
             assert_eq!(lb.select().unwrap().id, "Only");
         }
@@ -597,12 +600,7 @@ mod tests {
             create_weighted_provider("C", 5),
             create_weighted_provider("D", 0),
         ];
-        let mut lb = LoadBalancer {
-            strategy: LoadBalanceStrategy::HardRoundRobin,
-            providers,
-            global_round: 0,
-            rng_state: 0,
-        };
+        let mut lb = lb(LoadBalanceStrategy::HardRoundRobin, providers);
         let seq: Vec<String> = (0..7).map(|_| lb.select().unwrap().id.clone()).collect();
         assert_eq!(seq, vec!["A", "B", "C", "A", "B", "C", "A"]);
     }
@@ -614,12 +612,7 @@ mod tests {
             create_weighted_provider("A", 1),
             create_weighted_provider("B", 100),
         ];
-        let mut lb = LoadBalancer {
-            strategy: LoadBalanceStrategy::HardRoundRobin,
-            providers,
-            global_round: 0,
-            rng_state: 0,
-        };
+        let mut lb = lb(LoadBalanceStrategy::HardRoundRobin, providers);
         let seq: Vec<String> = (0..4).map(|_| lb.select().unwrap().id.clone()).collect();
         assert_eq!(seq, vec!["A", "B", "A", "B"]);
     }

@@ -1,32 +1,57 @@
 import { invoke as tauriInvoke } from "@tauri-apps/api/core";
 import { isTauri } from "@/lib/platform/isTauri";
 
-const TOKEN_KEY = "cc-switch-panel-token";
+const TOKEN_KEY = "cc-switch-panel-session-token";
+const LEGACY_TOKEN_KEY = "cc-switch-panel-token";
+export const PANEL_AUTH_REQUIRED_EVENT = "cc-switch-panel-auth-required";
 
 /**
- * 读取 Web 控制台访问令牌。
- *
- * 首次加载从 URL `?token=` 取出并存入 sessionStorage，随后从地址栏清除（避免泄漏到历史/日志），
- * 之后从 sessionStorage 读取。
+ * 读取 Web 控制台会话令牌。
  */
-function panelToken(): string | null {
+export function getPanelToken(): string | null {
   if (typeof window === "undefined") return null;
+  stripLegacyTokenFromUrl();
   try {
-    const url = new URL(window.location.href);
-    const t = url.searchParams.get("token");
-    if (t) {
-      sessionStorage.setItem(TOKEN_KEY, t);
-      url.searchParams.delete("token");
-      window.history.replaceState({}, document.title, url.toString());
-    }
-  } catch {
-    // 忽略 URL 解析失败
-  }
-  try {
-    return sessionStorage.getItem(TOKEN_KEY);
+    return localStorage.getItem(TOKEN_KEY);
   } catch {
     return null;
   }
+}
+
+export function setPanelToken(token: string): void {
+  if (typeof window === "undefined") return;
+  try {
+    localStorage.setItem(TOKEN_KEY, token);
+    sessionStorage.removeItem(LEGACY_TOKEN_KEY);
+  } catch {
+    // 忽略存储失败，后续请求会按未登录处理
+  }
+}
+
+export function clearPanelToken(): void {
+  if (typeof window === "undefined") return;
+  try {
+    localStorage.removeItem(TOKEN_KEY);
+    sessionStorage.removeItem(LEGACY_TOKEN_KEY);
+  } catch {
+    // 忽略存储清理失败
+  }
+}
+
+function stripLegacyTokenFromUrl(): void {
+  try {
+    const url = new URL(window.location.href);
+    if (!url.searchParams.has("token")) return;
+    url.searchParams.delete("token");
+    window.history.replaceState({}, document.title, url.toString());
+  } catch {
+    // 忽略 URL 解析失败
+  }
+}
+
+function emitPanelAuthRequired(): void {
+  if (typeof window === "undefined") return;
+  window.dispatchEvent(new Event(PANEL_AUTH_REQUIRED_EVENT));
 }
 
 /**
@@ -96,7 +121,7 @@ export async function invoke<T = unknown>(
     throw new Error(DESKTOP_ONLY_MESSAGE);
   }
 
-  const token = panelToken();
+  const token = getPanelToken();
   const res = await fetch(`/api/invoke/${encodeURIComponent(cmd)}`, {
     method: "POST",
     headers: {
@@ -108,6 +133,11 @@ export async function invoke<T = unknown>(
   });
 
   if (!res.ok) {
+    if (res.status === 401) {
+      clearPanelToken();
+      emitPanelAuthRequired();
+      throw new Error("请重新登录 Web 控制台");
+    }
     throw new Error(`HTTP ${res.status}`);
   }
 

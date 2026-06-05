@@ -32,7 +32,6 @@ use crate::proxy::providers::copilot_auth::{CopilotAuthError, CopilotAuthManager
 use crate::proxy::types::{LogConfig, OptimizerConfig, RectifierConfig};
 use crate::proxy::CircuitBreakerConfig;
 use crate::services::env_checker::EnvConflict;
-use crate::session_manager;
 use crate::services::skill::{
     DiscoverableSkill, ImportSkillSelection, SkillRepo, SkillService, SkillStorageLocation,
 };
@@ -40,6 +39,7 @@ use crate::services::stream_check::StreamCheckConfig;
 use crate::services::subscription::{query_codex_quota, CredentialStatus, SubscriptionQuota};
 use crate::services::usage_stats::UsageSummaryByApp;
 use crate::services::{McpService, PromptService, SpeedtestService};
+use crate::session_manager;
 use std::sync::OnceLock;
 
 /// 提取并反序列化指定参数键（camelCase）。
@@ -61,6 +61,20 @@ fn ok<T: Serialize>(value: T) -> Result<Value, String> {
 fn copilot_manager() -> &'static CopilotAuthManager {
     static MANAGER: OnceLock<CopilotAuthManager> = OnceLock::new();
     MANAGER.get_or_init(|| CopilotAuthManager::new(crate::config::get_app_config_dir()))
+}
+
+/// 进程级 `CopilotAuthState`（Web 控制台专用）。
+///
+/// 供需要 `State<CopilotAuthState>` 的核心逻辑（如 `query_provider_usage_inner`）在无
+/// AppHandle 的面板进程内复用。与 `copilot_manager()` 一样读写同一磁盘凭据目录。
+fn copilot_state() -> &'static crate::commands::CopilotAuthState {
+    use crate::commands::CopilotAuthState;
+    static STATE: OnceLock<CopilotAuthState> = OnceLock::new();
+    STATE.get_or_init(|| {
+        CopilotAuthState(Arc::new(tokio::sync::RwLock::new(CopilotAuthManager::new(
+            crate::config::get_app_config_dir(),
+        ))))
+    })
 }
 
 pub async fn dispatch(app: &Arc<AppState>, command: &str, args: Value) -> Result<Value, String> {
@@ -236,6 +250,9 @@ pub async fn dispatch(app: &Arc<AppState>, command: &str, args: Value) -> Result
                 .get_usage_summary(start_date, end_date, app_type.as_deref())
                 .map_err(|e| e.to_string())?)
         }
+        "get_usage_date_bounds" => {
+            ok(app.db.get_usage_date_bounds().map_err(|e| e.to_string())?)
+        }
         "get_usage_trends" => {
             let start_date: Option<i64> = arg(&args, "startDate")?;
             let end_date: Option<i64> = arg(&args, "endDate")?;
@@ -262,6 +279,49 @@ pub async fn dispatch(app: &Arc<AppState>, command: &str, args: Value) -> Result
                 .db
                 .get_model_stats(start_date, end_date, app_type.as_deref())
                 .map_err(|e| e.to_string())?)
+        }
+        // 按供应商查询脚本型用量（供应商卡片/托盘）。复用 #[tauri::command]
+        // queryProviderUsage 的核心逻辑，跳过 usage_cache 写入 / emit / 托盘刷新
+        // （均依赖 AppHandle，面板经 react-query 轮询刷新）。
+        "queryProviderUsage" => {
+            let provider_id: String = arg(&args, "providerId")?;
+            let app_str: String = arg(&args, "app")?;
+            let app_type = AppType::from_str(&app_str).map_err(|e| e.to_string())?;
+            ok(crate::commands::query_provider_usage_inner(
+                app.as_ref(),
+                copilot_state(),
+                app_type,
+                &provider_id,
+            )
+            .await?)
+        }
+        // 用量脚本测试（供应商表单的“测试脚本”按钮）。与 #[tauri::command]
+        // testUsageScript 调用同一 ProviderService 核心逻辑，无 AppHandle 依赖。
+        "testUsageScript" => {
+            let provider_id: String = arg(&args, "providerId")?;
+            let app_str: String = arg(&args, "app")?;
+            let script_code: String = arg(&args, "scriptCode")?;
+            let timeout: Option<u64> = arg(&args, "timeout")?;
+            let api_key: Option<String> = arg(&args, "apiKey")?;
+            let base_url: Option<String> = arg(&args, "baseUrl")?;
+            let access_token: Option<String> = arg(&args, "accessToken")?;
+            let user_id: Option<String> = arg(&args, "userId")?;
+            let template_type: Option<String> = arg(&args, "templateType")?;
+            let app_type = AppType::from_str(&app_str).map_err(|e| e.to_string())?;
+            ok(ProviderService::test_usage_script(
+                app.as_ref(),
+                app_type,
+                &provider_id,
+                &script_code,
+                timeout.unwrap_or(10),
+                api_key.as_deref(),
+                base_url.as_deref(),
+                access_token.as_deref(),
+                user_id.as_deref(),
+                template_type.as_deref(),
+            )
+            .await
+            .map_err(|e| e.to_string())?)
         }
         "get_request_logs" => {
             let filters: LogFilters = arg(&args, "filters")?;
@@ -354,10 +414,10 @@ pub async fn dispatch(app: &Arc<AppState>, command: &str, args: Value) -> Result
             }
             ok(result)
         }
-        "get_usage_data_sources" => ok(
-            crate::services::session_usage::get_data_source_breakdown(&app.db)
-                .map_err(|e| e.to_string())?,
-        ),
+        "get_usage_data_sources" => ok(crate::services::session_usage::get_data_source_breakdown(
+            &app.db,
+        )
+        .map_err(|e| e.to_string())?),
 
         // ==================== 供应商 CRUD / 导入 ====================
         "add_provider" => {
@@ -365,10 +425,13 @@ pub async fn dispatch(app: &Arc<AppState>, command: &str, args: Value) -> Result
             let provider: Provider = arg(&args, "provider")?;
             let add_to_live: Option<bool> = args.get("addToLive").and_then(|v| v.as_bool());
             let app_type = AppType::from_str(&app_str).map_err(|e| e.to_string())?;
-            ok(
-                ProviderService::add(app.as_ref(), app_type, provider, add_to_live.unwrap_or(true))
-                    .map_err(|e| e.to_string())?,
+            ok(ProviderService::add(
+                app.as_ref(),
+                app_type,
+                provider,
+                add_to_live.unwrap_or(true),
             )
+            .map_err(|e| e.to_string())?)
         }
         "update_provider" => {
             let app_str: String = arg(&args, "app")?;
@@ -408,8 +471,10 @@ pub async fn dispatch(app: &Arc<AppState>, command: &str, args: Value) -> Result
             let app_str: String = arg(&args, "app")?;
             let updates: Vec<ProviderSortUpdate> = arg(&args, "updates")?;
             let app_type = AppType::from_str(&app_str).map_err(|e| e.to_string())?;
-            ok(ProviderService::update_sort_order(app.as_ref(), app_type, updates)
-                .map_err(|e| e.to_string())?)
+            ok(
+                ProviderService::update_sort_order(app.as_ref(), app_type, updates)
+                    .map_err(|e| e.to_string())?,
+            )
         }
         "import_default_config" => import_default_config(app, args).await,
         "import_opencode_providers_from_live" => ok(
@@ -505,9 +570,10 @@ pub async fn dispatch(app: &Arc<AppState>, command: &str, args: Value) -> Result
                 .map_err(|e| e.to_string())?;
             ok(Value::Null)
         }
-        "get_claude_common_config_snippet" => {
-            ok(app.db.get_config_snippet("claude").map_err(|e| e.to_string())?)
-        }
+        "get_claude_common_config_snippet" => ok(app
+            .db
+            .get_config_snippet("claude")
+            .map_err(|e| e.to_string())?),
         "set_claude_common_config_snippet" => {
             let snippet: String = arg(&args, "snippet")?;
             let is_cleared = snippet.trim().is_empty();
@@ -683,8 +749,10 @@ pub async fn dispatch(app: &Arc<AppState>, command: &str, args: Value) -> Result
         "rename_db_backup" => {
             let old_filename: String = arg(&args, "oldFilename")?;
             let new_name: String = arg(&args, "newName")?;
-            ok(crate::database::Database::rename_backup(&old_filename, &new_name)
-                .map_err(|e| e.to_string())?)
+            ok(
+                crate::database::Database::rename_backup(&old_filename, &new_name)
+                    .map_err(|e| e.to_string())?,
+            )
         }
         "delete_db_backup" => {
             let filename: String = arg(&args, "filename")?;
@@ -767,7 +835,6 @@ pub async fn dispatch(app: &Arc<AppState>, command: &str, args: Value) -> Result
         "get_init_error" => ok(Value::Null), // 浏览器无后端初始化错误事件
         "update_tray_menu" => ok(true),      // 无托盘：no-op，避免变更后置回调报错
 
-
         // ==================== auth ====================
 
         // ==================== copilot ====================
@@ -823,7 +890,10 @@ pub async fn dispatch(app: &Arc<AppState>, command: &str, args: Value) -> Result
         "copilot_get_auth_status" => ok(copilot_manager().get_status().await),
         "copilot_is_authenticated" => ok(copilot_manager().is_authenticated().await),
         "copilot_logout" => {
-            copilot_manager().clear_auth().await.map_err(|e| e.to_string())?;
+            copilot_manager()
+                .clear_auth()
+                .await
+                .map_err(|e| e.to_string())?;
             ok(Value::Null)
         }
         "copilot_get_token" => ok(copilot_manager()
@@ -861,7 +931,9 @@ pub async fn dispatch(app: &Arc<AppState>, command: &str, args: Value) -> Result
         }
 
         // ==================== skill ====================
-        "get_installed_skills" => ok(SkillService::get_all_installed(&app.db).map_err(|e| e.to_string())?),
+        "get_installed_skills" => {
+            ok(SkillService::get_all_installed(&app.db).map_err(|e| e.to_string())?)
+        }
         "get_skill_backups" => ok(SkillService::list_backups().map_err(|e| e.to_string())?),
         "delete_skill_backup" => {
             let backup_id: String = arg(&args, "backupId")?;
@@ -885,18 +957,23 @@ pub async fn dispatch(app: &Arc<AppState>, command: &str, args: Value) -> Result
             let backup_id: String = arg(&args, "backupId")?;
             let current_app: String = arg(&args, "currentApp")?;
             let app_type = AppType::from_str(&current_app).map_err(|e| e.to_string())?;
-            ok(SkillService::restore_from_backup(&app.db, &backup_id, &app_type)
-                .map_err(|e| e.to_string())?)
+            ok(
+                SkillService::restore_from_backup(&app.db, &backup_id, &app_type)
+                    .map_err(|e| e.to_string())?,
+            )
         }
         "toggle_skill_app" => {
             let id: String = arg(&args, "id")?;
             let app_str: String = arg(&args, "app")?;
             let enabled: bool = arg(&args, "enabled")?;
             let app_type = AppType::from_str(&app_str).map_err(|e| e.to_string())?;
-            SkillService::toggle_app(&app.db, &id, &app_type, enabled).map_err(|e| e.to_string())?;
+            SkillService::toggle_app(&app.db, &id, &app_type, enabled)
+                .map_err(|e| e.to_string())?;
             ok(true)
         }
-        "scan_unmanaged_skills" => ok(SkillService::scan_unmanaged(&app.db).map_err(|e| e.to_string())?),
+        "scan_unmanaged_skills" => {
+            ok(SkillService::scan_unmanaged(&app.db).map_err(|e| e.to_string())?)
+        }
         "import_skills_from_apps" => {
             let imports: Vec<ImportSkillSelection> = arg(&args, "imports")?;
             ok(SkillService::import_from_apps(&app.db, imports).map_err(|e| e.to_string())?)
@@ -954,7 +1031,10 @@ pub async fn dispatch(app: &Arc<AppState>, command: &str, args: Value) -> Result
             let app_type = AppType::from_str("claude").map_err(|e| e.to_string())?;
             let repos = app.db.get_skill_repos().map_err(|e| e.to_string())?;
             let svc = SkillService::new();
-            let skills = svc.discover_available(repos).await.map_err(|e| e.to_string())?;
+            let skills = svc
+                .discover_available(repos)
+                .await
+                .map_err(|e| e.to_string())?;
             let skill = skills
                 .into_iter()
                 .find(|s| {
@@ -978,7 +1058,10 @@ pub async fn dispatch(app: &Arc<AppState>, command: &str, args: Value) -> Result
             let app_type = AppType::from_str(&app_str).map_err(|e| e.to_string())?;
             let repos = app.db.get_skill_repos().map_err(|e| e.to_string())?;
             let svc = SkillService::new();
-            let skills = svc.discover_available(repos).await.map_err(|e| e.to_string())?;
+            let skills = svc
+                .discover_available(repos)
+                .await
+                .map_err(|e| e.to_string())?;
             let skill = skills
                 .into_iter()
                 .find(|s| {
@@ -1026,7 +1109,9 @@ pub async fn dispatch(app: &Arc<AppState>, command: &str, args: Value) -> Result
         "remove_skill_repo" => {
             let owner: String = arg(&args, "owner")?;
             let name: String = arg(&args, "name")?;
-            app.db.delete_skill_repo(&owner, &name).map_err(|e| e.to_string())?;
+            app.db
+                .delete_skill_repo(&owner, &name)
+                .map_err(|e| e.to_string())?;
             ok(true)
         }
         "install_skills_from_zip" => {
@@ -1034,12 +1119,17 @@ pub async fn dispatch(app: &Arc<AppState>, command: &str, args: Value) -> Result
             let current_app: String = arg(&args, "currentApp")?;
             let app_type = AppType::from_str(&current_app).map_err(|e| e.to_string())?;
             let path = std::path::Path::new(&file_path);
-            ok(SkillService::install_from_zip(&app.db, path, &app_type).map_err(|e| e.to_string())?)
+            ok(SkillService::install_from_zip(&app.db, path, &app_type)
+                .map_err(|e| e.to_string())?)
         }
 
         // ==================== mcp ====================
-        "get_claude_mcp_status" => ok(crate::claude_mcp::get_mcp_status().map_err(|e| e.to_string())?),
-        "read_claude_mcp_config" => ok(crate::claude_mcp::read_mcp_json().map_err(|e| e.to_string())?),
+        "get_claude_mcp_status" => {
+            ok(crate::claude_mcp::get_mcp_status().map_err(|e| e.to_string())?)
+        }
+        "read_claude_mcp_config" => {
+            ok(crate::claude_mcp::read_mcp_json().map_err(|e| e.to_string())?)
+        }
         "upsert_claude_mcp_server" => {
             let id: String = arg(&args, "id")?;
             let spec: Value = arg(&args, "spec")?;
@@ -1125,7 +1215,10 @@ pub async fn dispatch(app: &Arc<AppState>, command: &str, args: Value) -> Result
                 let id: String = arg(&args, "id")?;
                 let enabled: bool = arg(&args, "enabled")?;
                 let app_ty = AppType::from_str(&app_str).map_err(|e| e.to_string())?;
-                ok(McpService::set_enabled(app, app_ty, &id, enabled).map_err(|e| e.to_string())?)
+                ok(
+                    McpService::set_enabled(app, app_ty, &id, enabled)
+                        .map_err(|e| e.to_string())?,
+                )
             }
         }
         "get_mcp_servers" => ok(McpService::get_all_servers(app).map_err(|e| e.to_string())?),
@@ -1179,7 +1272,8 @@ pub async fn dispatch(app: &Arc<AppState>, command: &str, args: Value) -> Result
         "set_hermes_memory_enabled" => {
             let kind: crate::hermes_config::MemoryKind = arg(&args, "kind")?;
             let enabled: bool = arg(&args, "enabled")?;
-            ok(crate::hermes_config::set_memory_enabled(kind, enabled).map_err(|e| e.to_string())?)
+            ok(crate::hermes_config::set_memory_enabled(kind, enabled)
+                .map_err(|e| e.to_string())?)
         }
         "import_hermes_providers_from_live" => ok(
             crate::services::provider::import_hermes_providers_from_live(app.as_ref())
@@ -1187,86 +1281,110 @@ pub async fn dispatch(app: &Arc<AppState>, command: &str, args: Value) -> Result
         ),
 
         // ==================== openclaw ====================
-        "get_openclaw_agents_defaults" => ok(crate::openclaw_config::get_agents_defaults().map_err(|e| e.to_string())?),
-        "get_openclaw_default_model" => ok(crate::openclaw_config::get_default_model().map_err(|e| e.to_string())?),
-        "get_openclaw_env" => ok(crate::openclaw_config::get_env_config().map_err(|e| e.to_string())?),
+        "get_openclaw_agents_defaults" => {
+            ok(crate::openclaw_config::get_agents_defaults().map_err(|e| e.to_string())?)
+        }
+        "get_openclaw_default_model" => {
+            ok(crate::openclaw_config::get_default_model().map_err(|e| e.to_string())?)
+        }
+        "get_openclaw_env" => {
+            ok(crate::openclaw_config::get_env_config().map_err(|e| e.to_string())?)
+        }
         "get_openclaw_live_provider" => {
-    let provider_id: String = arg(&args, "providerId")?;
-    ok(crate::openclaw_config::get_provider(&provider_id).map_err(|e| e.to_string())?)
-}
-        "get_openclaw_model_catalog" => ok(crate::openclaw_config::get_model_catalog().map_err(|e| e.to_string())?),
-        "get_openclaw_tools" => ok(crate::openclaw_config::get_tools_config().map_err(|e| e.to_string())?),
-        "scan_openclaw_config_health" => ok(crate::openclaw_config::scan_openclaw_config_health().map_err(|e| e.to_string())?),
+            let provider_id: String = arg(&args, "providerId")?;
+            ok(crate::openclaw_config::get_provider(&provider_id).map_err(|e| e.to_string())?)
+        }
+        "get_openclaw_model_catalog" => {
+            ok(crate::openclaw_config::get_model_catalog().map_err(|e| e.to_string())?)
+        }
+        "get_openclaw_tools" => {
+            ok(crate::openclaw_config::get_tools_config().map_err(|e| e.to_string())?)
+        }
+        "scan_openclaw_config_health" => {
+            ok(crate::openclaw_config::scan_openclaw_config_health().map_err(|e| e.to_string())?)
+        }
         "set_openclaw_agents_defaults" => {
-    let defaults: crate::openclaw_config::OpenClawAgentsDefaults = arg(&args, "defaults")?;
-    ok(crate::openclaw_config::set_agents_defaults(&defaults).map_err(|e| e.to_string())?)
-}
+            let defaults: crate::openclaw_config::OpenClawAgentsDefaults = arg(&args, "defaults")?;
+            ok(
+                crate::openclaw_config::set_agents_defaults(&defaults)
+                    .map_err(|e| e.to_string())?,
+            )
+        }
         "set_openclaw_default_model" => {
-    let model: crate::openclaw_config::OpenClawDefaultModel = arg(&args, "model")?;
-    ok(crate::openclaw_config::set_default_model(&model).map_err(|e| e.to_string())?)
-}
+            let model: crate::openclaw_config::OpenClawDefaultModel = arg(&args, "model")?;
+            ok(crate::openclaw_config::set_default_model(&model).map_err(|e| e.to_string())?)
+        }
         "set_openclaw_env" => {
-    let env: crate::openclaw_config::OpenClawEnvConfig = arg(&args, "env")?;
-    ok(crate::openclaw_config::set_env_config(&env).map_err(|e| e.to_string())?)
-}
+            let env: crate::openclaw_config::OpenClawEnvConfig = arg(&args, "env")?;
+            ok(crate::openclaw_config::set_env_config(&env).map_err(|e| e.to_string())?)
+        }
         "set_openclaw_model_catalog" => {
-    let catalog: std::collections::HashMap<String, crate::openclaw_config::OpenClawModelCatalogEntry> = arg(&args, "catalog")?;
-    ok(crate::openclaw_config::set_model_catalog(&catalog).map_err(|e| e.to_string())?)
-}
+            let catalog: std::collections::HashMap<
+                String,
+                crate::openclaw_config::OpenClawModelCatalogEntry,
+            > = arg(&args, "catalog")?;
+            ok(crate::openclaw_config::set_model_catalog(&catalog).map_err(|e| e.to_string())?)
+        }
         "set_openclaw_tools" => {
-    let tools: crate::openclaw_config::OpenClawToolsConfig = arg(&args, "tools")?;
-    ok(crate::openclaw_config::set_tools_config(&tools).map_err(|e| e.to_string())?)
-}
+            let tools: crate::openclaw_config::OpenClawToolsConfig = arg(&args, "tools")?;
+            ok(crate::openclaw_config::set_tools_config(&tools).map_err(|e| e.to_string())?)
+        }
 
         // ==================== omo ====================
-        "read_omo_local_file" => ok(crate::services::OmoService::read_local_file(&crate::services::omo::STANDARD).map_err(|e| e.to_string())?),
-        "read_omo_slim_local_file" => ok(crate::services::OmoService::read_local_file(&crate::services::omo::SLIM).map_err(|e| e.to_string())?),
+        "read_omo_local_file" => ok(crate::services::OmoService::read_local_file(
+            &crate::services::omo::STANDARD,
+        )
+        .map_err(|e| e.to_string())?),
+        "read_omo_slim_local_file" => ok(crate::services::OmoService::read_local_file(
+            &crate::services::omo::SLIM,
+        )
+        .map_err(|e| e.to_string())?),
         "get_current_omo_provider_id" => {
-    let provider = app
-        .db
-        .get_current_omo_provider("opencode", "omo")
-        .map_err(|e| e.to_string())?;
-    ok(provider.map(|p| p.id).unwrap_or_default())
-}
+            let provider = app
+                .db
+                .get_current_omo_provider("opencode", "omo")
+                .map_err(|e| e.to_string())?;
+            ok(provider.map(|p| p.id).unwrap_or_default())
+        }
         "get_current_omo_slim_provider_id" => {
-    let provider = app
-        .db
-        .get_current_omo_provider("opencode", "omo-slim")
-        .map_err(|e| e.to_string())?;
-    ok(provider.map(|p| p.id).unwrap_or_default())
-}
+            let provider = app
+                .db
+                .get_current_omo_provider("opencode", "omo-slim")
+                .map_err(|e| e.to_string())?;
+            ok(provider.map(|p| p.id).unwrap_or_default())
+        }
         "disable_current_omo" => {
-    let providers = app
-        .db
-        .get_all_providers("opencode")
-        .map_err(|e| e.to_string())?;
-    for (id, p) in &providers {
-        if p.category.as_deref() == Some("omo") {
-            app.db
-                .clear_omo_provider_current("opencode", id, "omo")
+            let providers = app
+                .db
+                .get_all_providers("opencode")
                 .map_err(|e| e.to_string())?;
+            for (id, p) in &providers {
+                if p.category.as_deref() == Some("omo") {
+                    app.db
+                        .clear_omo_provider_current("opencode", id, "omo")
+                        .map_err(|e| e.to_string())?;
+                }
+            }
+            crate::services::OmoService::delete_config_file(&crate::services::omo::STANDARD)
+                .map_err(|e| e.to_string())?;
+            ok(Value::Null)
         }
-    }
-    crate::services::OmoService::delete_config_file(&crate::services::omo::STANDARD)
-        .map_err(|e| e.to_string())?;
-    ok(Value::Null)
-}
         "disable_current_omo_slim" => {
-    let providers = app
-        .db
-        .get_all_providers("opencode")
-        .map_err(|e| e.to_string())?;
-    for (id, p) in &providers {
-        if p.category.as_deref() == Some("omo-slim") {
-            app.db
-                .clear_omo_provider_current("opencode", id, "omo-slim")
+            let providers = app
+                .db
+                .get_all_providers("opencode")
                 .map_err(|e| e.to_string())?;
+            for (id, p) in &providers {
+                if p.category.as_deref() == Some("omo-slim") {
+                    app.db
+                        .clear_omo_provider_current("opencode", id, "omo-slim")
+                        .map_err(|e| e.to_string())?;
+                }
+            }
+            crate::services::OmoService::delete_config_file(&crate::services::omo::SLIM)
+                .map_err(|e| e.to_string())?;
+            ok(Value::Null)
         }
-    }
-    crate::services::OmoService::delete_config_file(&crate::services::omo::SLIM)
-        .map_err(|e| e.to_string())?;
-    ok(Value::Null)
-}
 
         // ==================== session ====================
         "list_sessions" => ok(session_manager::scan_sessions()),
@@ -1279,7 +1397,11 @@ pub async fn dispatch(app: &Arc<AppState>, command: &str, args: Value) -> Result
             let provider_id: String = arg(&args, "providerId")?;
             let session_id: String = arg(&args, "sessionId")?;
             let source_path: String = arg(&args, "sourcePath")?;
-            ok(session_manager::delete_session(&provider_id, &session_id, &source_path)?)
+            ok(session_manager::delete_session(
+                &provider_id,
+                &session_id,
+                &source_path,
+            )?)
         }
         "delete_sessions" => {
             let items: Vec<session_manager::DeleteSessionRequest> = arg(&args, "items")?;
@@ -1288,42 +1410,44 @@ pub async fn dispatch(app: &Arc<AppState>, command: &str, args: Value) -> Result
 
         // ==================== prompt ====================
         "get_prompts" => {
-    let app_str: String = arg(&args, "app")?;
-    let app_type = AppType::from_str(&app_str).map_err(|e| e.to_string())?;
-    ok(PromptService::get_prompts(app.as_ref(), app_type).map_err(|e| e.to_string())?)
-}
+            let app_str: String = arg(&args, "app")?;
+            let app_type = AppType::from_str(&app_str).map_err(|e| e.to_string())?;
+            ok(PromptService::get_prompts(app.as_ref(), app_type).map_err(|e| e.to_string())?)
+        }
         "upsert_prompt" => {
-    let app_str: String = arg(&args, "app")?;
-    let id: String = arg(&args, "id")?;
-    let prompt: Prompt = arg(&args, "prompt")?;
-    let app_type = AppType::from_str(&app_str).map_err(|e| e.to_string())?;
-    PromptService::upsert_prompt(app.as_ref(), app_type, &id, prompt).map_err(|e| e.to_string())?;
-    ok(Value::Null)
-}
+            let app_str: String = arg(&args, "app")?;
+            let id: String = arg(&args, "id")?;
+            let prompt: Prompt = arg(&args, "prompt")?;
+            let app_type = AppType::from_str(&app_str).map_err(|e| e.to_string())?;
+            PromptService::upsert_prompt(app.as_ref(), app_type, &id, prompt)
+                .map_err(|e| e.to_string())?;
+            ok(Value::Null)
+        }
         "delete_prompt" => {
-    let app_str: String = arg(&args, "app")?;
-    let id: String = arg(&args, "id")?;
-    let app_type = AppType::from_str(&app_str).map_err(|e| e.to_string())?;
-    PromptService::delete_prompt(app.as_ref(), app_type, &id).map_err(|e| e.to_string())?;
-    ok(Value::Null)
-}
+            let app_str: String = arg(&args, "app")?;
+            let id: String = arg(&args, "id")?;
+            let app_type = AppType::from_str(&app_str).map_err(|e| e.to_string())?;
+            PromptService::delete_prompt(app.as_ref(), app_type, &id).map_err(|e| e.to_string())?;
+            ok(Value::Null)
+        }
         "enable_prompt" => {
-    let app_str: String = arg(&args, "app")?;
-    let id: String = arg(&args, "id")?;
-    let app_type = AppType::from_str(&app_str).map_err(|e| e.to_string())?;
-    PromptService::enable_prompt(app.as_ref(), app_type, &id).map_err(|e| e.to_string())?;
-    ok(Value::Null)
-}
+            let app_str: String = arg(&args, "app")?;
+            let id: String = arg(&args, "id")?;
+            let app_type = AppType::from_str(&app_str).map_err(|e| e.to_string())?;
+            PromptService::enable_prompt(app.as_ref(), app_type, &id).map_err(|e| e.to_string())?;
+            ok(Value::Null)
+        }
         "import_prompt_from_file" => {
-    let app_str: String = arg(&args, "app")?;
-    let app_type = AppType::from_str(&app_str).map_err(|e| e.to_string())?;
-    ok(PromptService::import_from_file(app.as_ref(), app_type).map_err(|e| e.to_string())?)
-}
+            let app_str: String = arg(&args, "app")?;
+            let app_type = AppType::from_str(&app_str).map_err(|e| e.to_string())?;
+            ok(PromptService::import_from_file(app.as_ref(), app_type)
+                .map_err(|e| e.to_string())?)
+        }
         "get_current_prompt_file_content" => {
-    let app_str: String = arg(&args, "app")?;
-    let app_type = AppType::from_str(&app_str).map_err(|e| e.to_string())?;
-    ok(PromptService::get_current_file_content(app_type).map_err(|e| e.to_string())?)
-}
+            let app_str: String = arg(&args, "app")?;
+            let app_type = AppType::from_str(&app_str).map_err(|e| e.to_string())?;
+            ok(PromptService::get_current_file_content(app_type).map_err(|e| e.to_string())?)
+        }
 
         // ==================== workspace_memory ====================
         "list_daily_memory_files" => ok(crate::commands::list_daily_memory_files().await?),
@@ -1362,8 +1486,10 @@ pub async fn dispatch(app: &Arc<AppState>, command: &str, args: Value) -> Result
             let app_str: String = arg(&args, "app")?;
             let provider_id: String = arg(&args, "providerId")?;
             let app_type = AppType::from_str(&app_str).map_err(|e| e.to_string())?;
-            ok(ProviderService::get_custom_endpoints(app.as_ref(), app_type, &provider_id)
-                .map_err(|e| e.to_string())?)
+            ok(
+                ProviderService::get_custom_endpoints(app.as_ref(), app_type, &provider_id)
+                    .map_err(|e| e.to_string())?,
+            )
         }
         "add_custom_endpoint" => {
             let app_str: String = arg(&args, "app")?;
@@ -1433,58 +1559,72 @@ pub async fn dispatch(app: &Arc<AppState>, command: &str, args: Value) -> Result
         }
 
         // ==================== proxy_config_misc ====================
-        "get_circuit_breaker_config" => ok(app.db.get_circuit_breaker_config().await.map_err(|e| e.to_string())?),
+        "get_circuit_breaker_config" => ok(app
+            .db
+            .get_circuit_breaker_config()
+            .await
+            .map_err(|e| e.to_string())?),
         "update_circuit_breaker_config" => {
-    let config: CircuitBreakerConfig = arg(&args, "config")?;
-    app.db
-        .update_circuit_breaker_config(&config)
-        .await
-        .map_err(|e| e.to_string())?;
-    app.proxy_service
-        .update_circuit_breaker_configs(config)
-        .await?;
-    ok(Value::Null)
-}
+            let config: CircuitBreakerConfig = arg(&args, "config")?;
+            app.db
+                .update_circuit_breaker_config(&config)
+                .await
+                .map_err(|e| e.to_string())?;
+            app.proxy_service
+                .update_circuit_breaker_configs(config)
+                .await?;
+            ok(Value::Null)
+        }
         "get_rectifier_config" => ok(app.db.get_rectifier_config().map_err(|e| e.to_string())?),
         "set_rectifier_config" => {
-    let config: RectifierConfig = arg(&args, "config")?;
-    app.db.set_rectifier_config(&config).map_err(|e| e.to_string())?;
-    ok(true)
-}
+            let config: RectifierConfig = arg(&args, "config")?;
+            app.db
+                .set_rectifier_config(&config)
+                .map_err(|e| e.to_string())?;
+            ok(true)
+        }
         "get_optimizer_config" => ok(app.db.get_optimizer_config().map_err(|e| e.to_string())?),
         "set_optimizer_config" => {
-    let config: OptimizerConfig = arg(&args, "config")?;
-    match config.cache_ttl.as_str() {
-        "5m" | "1h" => {}
-        other => {
-            return Err(format!(
-                "Invalid cache_ttl value: '{other}'. Allowed values: '5m', '1h'"
-            ))
+            let config: OptimizerConfig = arg(&args, "config")?;
+            match config.cache_ttl.as_str() {
+                "5m" | "1h" => {}
+                other => {
+                    return Err(format!(
+                        "Invalid cache_ttl value: '{other}'. Allowed values: '5m', '1h'"
+                    ))
+                }
+            }
+            app.db
+                .set_optimizer_config(&config)
+                .map_err(|e| e.to_string())?;
+            ok(true)
         }
-    }
-    app.db.set_optimizer_config(&config).map_err(|e| e.to_string())?;
-    ok(true)
-}
         "get_log_config" => ok(app.db.get_log_config().map_err(|e| e.to_string())?),
         "set_log_config" => {
-    let config: LogConfig = arg(&args, "config")?;
-    app.db.set_log_config(&config).map_err(|e| e.to_string())?;
-    log::set_max_level(config.to_level_filter());
-    log::info!(
-        "日志配置已更新: enabled={}, level={}",
-        config.enabled,
-        config.level
-    );
-    ok(true)
-}
-        "get_stream_check_config" => ok(app.db.get_stream_check_config().map_err(|e| e.to_string())?),
+            let config: LogConfig = arg(&args, "config")?;
+            app.db.set_log_config(&config).map_err(|e| e.to_string())?;
+            log::set_max_level(config.to_level_filter());
+            log::info!(
+                "日志配置已更新: enabled={}, level={}",
+                config.enabled,
+                config.level
+            );
+            ok(true)
+        }
+        "get_stream_check_config" => ok(app
+            .db
+            .get_stream_check_config()
+            .map_err(|e| e.to_string())?),
         "save_stream_check_config" => {
-    let config: StreamCheckConfig = arg(&args, "config")?;
-    app.db.save_stream_check_config(&config).map_err(|e| e.to_string())?;
-    ok(Value::Null)
-}
+            let config: StreamCheckConfig = arg(&args, "config")?;
+            app.db
+                .save_stream_check_config(&config)
+                .map_err(|e| e.to_string())?;
+            ok(Value::Null)
+        }
         "stream_check_provider" | "stream_check_all_providers" => Err(
-            "流式健康检查依赖桌面端 Copilot 认证状态，Web 控制台暂不支持（请使用桌面端）".to_string(),
+            "流式健康检查依赖桌面端 Copilot 认证状态，Web 控制台暂不支持（请使用桌面端）"
+                .to_string(),
         ),
 
         // ==================== env ====================
@@ -1504,96 +1644,110 @@ pub async fn dispatch(app: &Arc<AppState>, command: &str, args: Value) -> Result
 
         // ==================== claude_desktop_plugin ====================
         "apply_claude_plugin_config" => {
-    let official: bool = arg(&args, "official")?;
-    let applied = if official {
-        crate::claude_plugin::clear_claude_config().map_err(|e| e.to_string())?
-    } else {
-        crate::claude_plugin::write_claude_config().map_err(|e| e.to_string())?
-    };
-    ok(applied)
-}
-        "apply_claude_onboarding_skip" => ok(crate::claude_mcp::set_has_completed_onboarding().map_err(|e| e.to_string())?),
-        "clear_claude_onboarding_skip" => ok(crate::claude_mcp::clear_has_completed_onboarding().map_err(|e| e.to_string())?),
-        "get_claude_code_config_path" => ok(crate::config::get_claude_settings_path().to_string_lossy().to_string()),
+            let official: bool = arg(&args, "official")?;
+            let applied = if official {
+                crate::claude_plugin::clear_claude_config().map_err(|e| e.to_string())?
+            } else {
+                crate::claude_plugin::write_claude_config().map_err(|e| e.to_string())?
+            };
+            ok(applied)
+        }
+        "apply_claude_onboarding_skip" => {
+            ok(crate::claude_mcp::set_has_completed_onboarding().map_err(|e| e.to_string())?)
+        }
+        "clear_claude_onboarding_skip" => {
+            ok(crate::claude_mcp::clear_has_completed_onboarding().map_err(|e| e.to_string())?)
+        }
+        "get_claude_code_config_path" => ok(crate::config::get_claude_settings_path()
+            .to_string_lossy()
+            .to_string()),
         "get_claude_desktop_status" => {
-    let proxy_running = app.proxy_service.is_running().await;
-    ok(crate::claude_desktop_config::get_status(app.db.as_ref(), proxy_running).map_err(|e| e.to_string())?)
-}
-        "get_claude_desktop_default_routes" => ok(crate::claude_desktop_config::default_proxy_routes()),
+            let proxy_running = app.proxy_service.is_running().await;
+            ok(
+                crate::claude_desktop_config::get_status(app.db.as_ref(), proxy_running)
+                    .map_err(|e| e.to_string())?,
+            )
+        }
+        "get_claude_desktop_default_routes" => {
+            ok(crate::claude_desktop_config::default_proxy_routes())
+        }
         "ensure_claude_desktop_official_provider" => ok(app
-    .db
-    .ensure_official_seed_by_id(
-        crate::database::CLAUDE_DESKTOP_OFFICIAL_PROVIDER_ID,
-        AppType::ClaudeDesktop,
-    )
-    .map_err(|e| e.to_string())?),
+            .db
+            .ensure_official_seed_by_id(
+                crate::database::CLAUDE_DESKTOP_OFFICIAL_PROVIDER_ID,
+                AppType::ClaudeDesktop,
+            )
+            .map_err(|e| e.to_string())?),
         "import_claude_desktop_providers_from_claude" => {
-    // 复用 commands::provider::import_claude_desktop_providers_from_claude 核心逻辑（纯 db）。
-    // 私有助手 claude_provider_models_are_claude_safe 不可跨模块引用，故用公开的
-    // is_claude_safe_model_id 内联等价复刻；suggested_claude_desktop_routes 为 pub(crate) 可直接调用。
-    let claude_providers = app
-        .db
-        .get_all_providers(AppType::Claude.as_str())
-        .map_err(|e| e.to_string())?;
-    let existing_ids = app
-        .db
-        .get_provider_ids(AppType::ClaudeDesktop.as_str())
-        .map_err(|e| e.to_string())?;
+            // 复用 commands::provider::import_claude_desktop_providers_from_claude 核心逻辑（纯 db）。
+            // 私有助手 claude_provider_models_are_claude_safe 不可跨模块引用，故用公开的
+            // is_claude_safe_model_id 内联等价复刻；suggested_claude_desktop_routes 为 pub(crate) 可直接调用。
+            let claude_providers = app
+                .db
+                .get_all_providers(AppType::Claude.as_str())
+                .map_err(|e| e.to_string())?;
+            let existing_ids = app
+                .db
+                .get_provider_ids(AppType::ClaudeDesktop.as_str())
+                .map_err(|e| e.to_string())?;
 
-    let mut imported = 0usize;
-    for provider in claude_providers.values() {
-        if existing_ids.contains(&provider.id) {
-            continue;
+            let mut imported = 0usize;
+            for provider in claude_providers.values() {
+                if existing_ids.contains(&provider.id) {
+                    continue;
+                }
+
+                let mut desktop_provider = provider.clone();
+                desktop_provider.in_failover_queue = false;
+                let meta = desktop_provider.meta.get_or_insert_with(Default::default);
+
+                let models_claude_safe = match provider
+                    .settings_config
+                    .get("env")
+                    .and_then(|value| value.as_object())
+                {
+                    None => true,
+                    Some(env) => [
+                        "ANTHROPIC_MODEL",
+                        "ANTHROPIC_DEFAULT_HAIKU_MODEL",
+                        "ANTHROPIC_DEFAULT_SONNET_MODEL",
+                        "ANTHROPIC_DEFAULT_OPUS_MODEL",
+                    ]
+                    .into_iter()
+                    .filter_map(|key| env.get(key).and_then(|value| value.as_str()))
+                    .map(str::trim)
+                    .filter(|value| !value.is_empty())
+                    .all(crate::claude_desktop_config::is_claude_safe_model_id),
+                };
+
+                if crate::claude_desktop_config::is_compatible_direct_provider(provider)
+                    && models_claude_safe
+                {
+                    meta.claude_desktop_mode = Some(ClaudeDesktopMode::Direct);
+                } else if let Some(routes) =
+                    crate::commands::suggested_claude_desktop_routes(provider)
+                {
+                    meta.claude_desktop_mode = Some(ClaudeDesktopMode::Proxy);
+                    meta.claude_desktop_model_routes = routes;
+                } else {
+                    continue;
+                }
+
+                app.db
+                    .save_provider(AppType::ClaudeDesktop.as_str(), &desktop_provider)
+                    .map_err(|e| e.to_string())?;
+                imported += 1;
+            }
+
+            if let Err(e) = app.db.ensure_official_seed_by_id(
+                crate::database::CLAUDE_DESKTOP_OFFICIAL_PROVIDER_ID,
+                AppType::ClaudeDesktop,
+            ) {
+                log::warn!("Failed to ensure claude-desktop-official seed during import: {e}");
+            }
+
+            ok(imported)
         }
-
-        let mut desktop_provider = provider.clone();
-        desktop_provider.in_failover_queue = false;
-        let meta = desktop_provider.meta.get_or_insert_with(Default::default);
-
-        let models_claude_safe = match provider
-            .settings_config
-            .get("env")
-            .and_then(|value| value.as_object())
-        {
-            None => true,
-            Some(env) => [
-                "ANTHROPIC_MODEL",
-                "ANTHROPIC_DEFAULT_HAIKU_MODEL",
-                "ANTHROPIC_DEFAULT_SONNET_MODEL",
-                "ANTHROPIC_DEFAULT_OPUS_MODEL",
-            ]
-            .into_iter()
-            .filter_map(|key| env.get(key).and_then(|value| value.as_str()))
-            .map(str::trim)
-            .filter(|value| !value.is_empty())
-            .all(crate::claude_desktop_config::is_claude_safe_model_id),
-        };
-
-        if crate::claude_desktop_config::is_compatible_direct_provider(provider) && models_claude_safe
-        {
-            meta.claude_desktop_mode = Some(ClaudeDesktopMode::Direct);
-        } else if let Some(routes) = crate::commands::suggested_claude_desktop_routes(provider) {
-            meta.claude_desktop_mode = Some(ClaudeDesktopMode::Proxy);
-            meta.claude_desktop_model_routes = routes;
-        } else {
-            continue;
-        }
-
-        app.db
-            .save_provider(AppType::ClaudeDesktop.as_str(), &desktop_provider)
-            .map_err(|e| e.to_string())?;
-        imported += 1;
-    }
-
-    if let Err(e) = app.db.ensure_official_seed_by_id(
-        crate::database::CLAUDE_DESKTOP_OFFICIAL_PROVIDER_ID,
-        AppType::ClaudeDesktop,
-    ) {
-        log::warn!("Failed to ensure claude-desktop-official seed during import: {e}");
-    }
-
-    ok(imported)
-}
 
         // ==================== quota_balance_models ====================
         "get_balance" => {
@@ -1646,15 +1800,13 @@ pub async fn dispatch(app: &Arc<AppState>, command: &str, args: Value) -> Result
                 return ok(SubscriptionQuota::not_found("codex_oauth"));
             };
             let quota = match manager.get_valid_token_for_account(&id).await {
-                Ok(token) => {
-                    query_codex_quota(
-                        token.as_str(),
-                        Some(id.as_str()),
-                        "codex_oauth",
-                        "Codex OAuth access token expired or rejected. Please re-login via cc-switch.",
-                    )
-                    .await
-                }
+                Ok(token) => query_codex_quota(
+                    token.as_str(),
+                    Some(id.as_str()),
+                    "codex_oauth",
+                    "Codex OAuth access token expired or rejected. Please re-login via cc-switch.",
+                )
+                .await,
                 Err(e) => SubscriptionQuota::error(
                     "codex_oauth",
                     CredentialStatus::Expired,
@@ -1743,7 +1895,9 @@ pub async fn dispatch(app: &Arc<AppState>, command: &str, args: Value) -> Result
                 .unwrap_or(false);
             ok(portable)
         }
-        "get_app_config_path" => ok(crate::config::get_app_config_path().to_string_lossy().to_string()),
+        "get_app_config_path" => ok(crate::config::get_app_config_path()
+            .to_string_lossy()
+            .to_string()),
         "get_app_config_dir_override" => ok(crate::app_store::get_app_config_dir_override()
             .map(|p| p.to_string_lossy().to_string())),
 
@@ -1819,11 +1973,11 @@ async fn reset_circuit_breaker(app: &Arc<AppState>, args: Value) -> Result<Value
         .reset_provider_circuit_breaker(&provider_id, &app_type)
         .await?;
 
-    let (app_enabled, auto_failover_enabled) = match app.db.get_proxy_config_for_app(&app_type).await
-    {
-        Ok(config) => (config.enabled, config.auto_failover_enabled),
-        Err(_) => (false, false),
-    };
+    let (app_enabled, auto_failover_enabled) =
+        match app.db.get_proxy_config_for_app(&app_type).await {
+            Ok(config) => (config.enabled, config.auto_failover_enabled),
+            Err(_) => (false, false),
+        };
 
     if app_enabled && auto_failover_enabled && app.proxy_service.is_running().await {
         if let Ok(Some(current_id)) = app.db.get_current_provider(&app_type) {
@@ -2012,8 +2166,11 @@ async fn set_common_config_snippet(app: &Arc<AppState>, args: Value) -> Result<V
             .map_err(|e| e.to_string())?
             .is_some()
     {
-        crate::services::OmoService::write_config_to_file(app.as_ref(), &crate::services::omo::STANDARD)
-            .map_err(|e| e.to_string())?;
+        crate::services::OmoService::write_config_to_file(
+            app.as_ref(),
+            &crate::services::omo::STANDARD,
+        )
+        .map_err(|e| e.to_string())?;
     }
     if app_type == "omo-slim"
         && app
@@ -2022,8 +2179,11 @@ async fn set_common_config_snippet(app: &Arc<AppState>, args: Value) -> Result<V
             .map_err(|e| e.to_string())?
             .is_some()
     {
-        crate::services::OmoService::write_config_to_file(app.as_ref(), &crate::services::omo::SLIM)
-            .map_err(|e| e.to_string())?;
+        crate::services::OmoService::write_config_to_file(
+            app.as_ref(),
+            &crate::services::omo::SLIM,
+        )
+        .map_err(|e| e.to_string())?;
     }
 
     ok(Value::Null)
@@ -2045,11 +2205,7 @@ async fn update_global_proxy_config(app: &Arc<AppState>, args: Value) -> Result<
         || previous.listen_port != config.listen_port;
 
     if address_or_port_changed && app.proxy_service.is_running().await {
-        let mut proxy_config = app
-            .db
-            .get_proxy_config()
-            .await
-            .map_err(|e| e.to_string())?;
+        let mut proxy_config = app.db.get_proxy_config().await.map_err(|e| e.to_string())?;
         proxy_config.listen_address = config.listen_address.clone();
         proxy_config.listen_port = config.listen_port;
         proxy_config.enable_logging = config.enable_logging;

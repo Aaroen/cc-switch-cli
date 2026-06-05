@@ -40,7 +40,7 @@ pub struct Provider {
     #[serde(default)]
     #[serde(rename = "inFailoverQueue")]
     pub in_failover_queue: bool,
-    /// 负载均衡权重 (0-100, 0表示禁用, 1表示每轮都使用)
+    /// 负载均衡权重 (0-100, 0 表示禁用, N 表示按 1/N 参与轮询槽位)
     #[serde(default = "default_weight")]
     pub weight: u32,
 }
@@ -472,8 +472,8 @@ pub struct ProviderMeta {
     pub proxy_config: Option<ProviderProxyConfig>,
     /// 权重轮询的频率控制值
     /// - 0: 禁用该供应商
-    /// - 1: 每轮都使用（默认值，不持久化）
-    /// - N: 每 N 轮使用一次
+    /// - 1: 参与频率 1/1（默认值，不持久化）
+    /// - N: 按 1/N 参与轮询槽位
     #[serde(rename = "routingWeight", skip_serializing_if = "Option::is_none")]
     pub routing_weight: Option<u32>,
     /// Claude API 格式（仅 Claude 供应商使用）

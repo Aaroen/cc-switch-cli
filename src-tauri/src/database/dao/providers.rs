@@ -431,7 +431,7 @@ impl Database {
     /// # Arguments
     /// * `app_type` - 应用类型
     /// * `provider_id` - 供应商ID
-    /// * `weight` - 权重值 (0-100, 0表示禁用, 1表示每轮都使用)
+    /// * `weight` - 权重值 (0-100, 0 表示禁用, N 表示按 1/N 参与轮询槽位)
     ///
     /// # Errors
     /// - 权重超出范围 (0-100)
@@ -1012,7 +1012,10 @@ mod tests {
             .get_provider_by_id("provider-1", "codex")
             .expect("query provider")
             .expect("provider should exist");
-        assert_eq!(saved.weight, 1, "effective weight should be the updated value");
+        assert_eq!(
+            saved.weight, 1,
+            "effective weight should be the updated value"
+        );
         assert_eq!(
             saved.meta.as_ref().and_then(|meta| meta.routing_weight),
             None,

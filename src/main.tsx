@@ -11,8 +11,10 @@ import { queryClient } from "@/lib/query";
 import { Toaster } from "@/components/ui/sonner";
 import { listen } from "@tauri-apps/api/event";
 import { invoke } from "@/lib/api/transport";
+import { isTauri } from "@/lib/platform/isTauri";
 import { message } from "@tauri-apps/plugin-dialog";
 import { exit } from "@tauri-apps/plugin-process";
+import { WebPanelAuthGate } from "@/components/web-panel/WebPanelAuthGate";
 
 // 根据平台添加 body class，便于平台特定样式
 try {
@@ -61,29 +63,33 @@ async function handleConfigLoadError(
 }
 
 // 监听后端的配置加载错误事件：仅提醒用户并强制退出，不修改任何配置文件
-try {
-  void listen("configLoadError", async (evt) => {
-    await handleConfigLoadError(evt.payload as ConfigLoadErrorPayload | null);
-  });
-} catch (e) {
-  // 忽略事件订阅异常（例如在非 Tauri 环境下）
-  console.error("订阅 configLoadError 事件失败", e);
+if (isTauri()) {
+  try {
+    void listen("configLoadError", async (evt) => {
+      await handleConfigLoadError(evt.payload as ConfigLoadErrorPayload | null);
+    });
+  } catch (e) {
+    // 忽略事件订阅异常
+    console.error("订阅 configLoadError 事件失败", e);
+  }
 }
 
 async function bootstrap() {
   // 启动早期主动查询后端初始化错误，避免事件竞态
-  try {
-    const initError = (await invoke(
-      "get_init_error",
-    )) as ConfigLoadErrorPayload | null;
-    if (initError && (initError.path || initError.error)) {
-      await handleConfigLoadError(initError);
-      // 注意：不会执行到这里，因为 exit(1) 会终止进程
-      return;
+  if (isTauri()) {
+    try {
+      const initError = (await invoke(
+        "get_init_error",
+      )) as ConfigLoadErrorPayload | null;
+      if (initError && (initError.path || initError.error)) {
+        await handleConfigLoadError(initError);
+        // 注意：不会执行到这里，因为 exit(1) 会终止进程
+        return;
+      }
+    } catch (e) {
+      // 忽略拉取错误，继续渲染
+      console.error("拉取初始化错误失败", e);
     }
-  } catch (e) {
-    // 忽略拉取错误，继续渲染
-    console.error("拉取初始化错误失败", e);
   }
 
   ReactDOM.createRoot(document.getElementById("root")!).render(
@@ -91,7 +97,9 @@ async function bootstrap() {
       <QueryClientProvider client={queryClient}>
         <ThemeProvider defaultTheme="system" storageKey="cc-switch-theme">
           <UpdateProvider>
-            <App />
+            <WebPanelAuthGate>
+              <App />
+            </WebPanelAuthGate>
             <Toaster />
           </UpdateProvider>
         </ThemeProvider>

@@ -430,7 +430,44 @@ fn local_day_start_rfc3339(day: NaiveDate) -> String {
     local_midnight.to_rfc3339()
 }
 
+/// 用量数据时间边界（跨 proxy_request_logs 明细与 usage_daily_rollups 归档）。
+///
+/// 用于前端首屏自适应日期范围：当最新数据早于默认窗口时，自动定位到已有数据跨度，
+/// 避免“明明有数据却首屏空白”。
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct UsageDateBounds {
+    /// 最早数据时间（Unix 秒）；无任何数据时为 None。
+    pub min_date: Option<i64>,
+    /// 最新数据时间（Unix 秒）；无任何数据时为 None。
+    pub max_date: Option<i64>,
+}
+
 impl Database {
+    /// 获取用量数据的时间边界（明细表 `created_at` 与归档表 `date` 的并集）。
+    ///
+    /// 归档表 `date` 为本地日期字符串，这里按 UTC 起止秒近似换算（前端会再向外扩展范围，
+    /// 时区误差可忽略）。两源皆空时返回 None/None。
+    pub fn get_usage_date_bounds(&self) -> Result<UsageDateBounds, AppError> {
+        let conn = lock_conn!(self.conn);
+        let (min_date, max_date): (Option<i64>, Option<i64>) = conn
+            .query_row(
+                "SELECT \
+                   (SELECT MIN(ts) FROM ( \
+                      SELECT MIN(created_at) AS ts FROM proxy_request_logs \
+                      UNION ALL \
+                      SELECT CAST(strftime('%s', MIN(date)) AS INTEGER) FROM usage_daily_rollups)), \
+                   (SELECT MAX(ts) FROM ( \
+                      SELECT MAX(created_at) AS ts FROM proxy_request_logs \
+                      UNION ALL \
+                      SELECT CAST(strftime('%s', MAX(date), '+1 day', '-1 second') AS INTEGER) FROM usage_daily_rollups))",
+                [],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .map_err(|e| AppError::Database(format!("查询用量时间边界失败: {e}")))?;
+        Ok(UsageDateBounds { min_date, max_date })
+    }
+
     /// 获取使用量汇总
     pub fn get_usage_summary(
         &self,

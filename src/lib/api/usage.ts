@@ -17,6 +17,12 @@ import type { UsageResult } from "@/types";
 import type { AppId } from "./types";
 import type { TemplateType } from "@/config/constants";
 
+/** 用量数据时间边界（Unix 秒），用于首屏自适应日期范围。无数据时字段为 null。 */
+export interface UsageDateBounds {
+  minDate: number | null;
+  maxDate: number | null;
+}
+
 export const usageApi = {
   // Provider usage script methods
   query: async (providerId: string, appId: AppId): Promise<UsageResult> => {
@@ -54,6 +60,11 @@ export const usageApi = {
     appType?: string,
   ): Promise<UsageSummary> => {
     return invoke("get_usage_summary", { startDate, endDate, appType });
+  },
+
+  // 用量数据时间边界（首屏自适应日期范围用）
+  getDateBounds: async (): Promise<UsageDateBounds> => {
+    return invoke("get_usage_date_bounds");
   },
 
   getUsageSummaryByApp: async (

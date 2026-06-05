@@ -17,6 +17,7 @@ import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import type { AppId } from "@/lib/api";
+import { isTauri } from "@/lib/platform/isTauri";
 
 interface ProviderActionsProps {
   appId?: AppId;
@@ -72,6 +73,9 @@ export function ProviderActions({
 }: ProviderActionsProps) {
   const { t } = useTranslation();
   const iconButtonClass = "h-8 w-8 p-1";
+  const desktopOnlyHint = t("common.desktopOnly", {
+    defaultValue: "此功能仅在桌面端可用",
+  });
 
   // 累加模式应用（OpenCode 非 OMO / OpenClaw / Hermes）
   const isAdditiveMode =
@@ -210,6 +214,7 @@ export function ProviderActions({
 
   const canDelete =
     !isReadOnly && (isOmo || isAdditiveMode ? true : !isCurrent);
+  const canOpenTerminal = Boolean(onOpenTerminal && isTauri());
   const readOnlyHint = t("provider.managedByHermesHint", {
     defaultValue: "由 Hermes 管理，请在 Hermes Web UI 中编辑",
   });
@@ -287,7 +292,7 @@ export function ProviderActions({
           size="icon"
           variant="ghost"
           onClick={onTest || undefined}
-          disabled={isTesting}
+          disabled={isTesting || !onTest}
           title={t("modelTest.testProvider", "测试模型")}
           className={cn(
             iconButtonClass,
@@ -305,6 +310,7 @@ export function ProviderActions({
           size="icon"
           variant="ghost"
           onClick={onConfigureUsage || undefined}
+          disabled={!onConfigureUsage}
           title={t("provider.configureUsage")}
           className={cn(
             iconButtonClass,
@@ -319,11 +325,19 @@ export function ProviderActions({
           <Button
             size="icon"
             variant="ghost"
-            onClick={onOpenTerminal}
-            title={t("provider.openTerminal", "打开终端")}
+            onClick={canOpenTerminal ? onOpenTerminal : undefined}
+            disabled={!canOpenTerminal}
+            title={
+              canOpenTerminal
+                ? t("provider.openTerminal", "打开终端")
+                : desktopOnlyHint
+            }
             className={cn(
               iconButtonClass,
-              "hover:text-emerald-600 dark:hover:text-emerald-400",
+              canOpenTerminal &&
+                "hover:text-emerald-600 dark:hover:text-emerald-400",
+              !canOpenTerminal &&
+                "opacity-40 cursor-not-allowed text-muted-foreground",
             )}
           >
             <Terminal className="h-4 w-4" />

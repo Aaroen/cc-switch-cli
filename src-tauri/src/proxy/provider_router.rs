@@ -642,13 +642,13 @@ mod tests {
         // 创建三个供应商，权重分别为 1, 2, 3
         let mut provider_a =
             Provider::with_id("a".to_string(), "Provider A".to_string(), json!({}), None);
-        provider_a.weight = 1; // 每轮都使用
+        provider_a.weight = 1; // 参与频率 1/1
         let mut provider_b =
             Provider::with_id("b".to_string(), "Provider B".to_string(), json!({}), None);
-        provider_b.weight = 2; // 每2轮使用一次
+        provider_b.weight = 2; // 参与频率 1/2
         let mut provider_c =
             Provider::with_id("c".to_string(), "Provider C".to_string(), json!({}), None);
-        provider_c.weight = 3; // 每3轮使用一次
+        provider_c.weight = 3; // 参与频率 1/3
 
         db.save_provider("claude", &provider_a).unwrap();
         db.save_provider("claude", &provider_b).unwrap();
@@ -661,22 +661,21 @@ mod tests {
 
         let router = ProviderRouter::new(db.clone());
 
-        // 连续调用 6 次，验证轮询行为
-        // 由于 weight=1 的 Provider A 每轮都会被选中，所以应该总是返回 A
-        // 但负载均衡器会按频率控制选择
+        // 连续调用 6 次，验证基于硬全轮询槽位的频率控制行为。
         let mut selected_ids = Vec::new();
         for _ in 0..6 {
             let providers = router.select_providers("claude").await.unwrap();
             assert!(!providers.is_empty());
             selected_ids.push(providers[0].id.clone());
         }
+        assert_eq!(selected_ids, vec!["a", "b", "c", "a", "b", "c"]);
 
         // 验证负载均衡器计数器在增加
         let round = router.get_load_balancer_round("claude").await;
         assert!(round.is_some());
         assert_eq!(round.unwrap(), 6);
 
-        // 验证 Provider A (weight=1) 被选中的次数最多
+        // 验证 Provider A (weight=1) 在周期内参与次数最多。
         let a_count = selected_ids.iter().filter(|id| *id == "a").count();
         assert!(a_count >= 1, "Provider A (weight=1) 应该被选中至少1次");
     }

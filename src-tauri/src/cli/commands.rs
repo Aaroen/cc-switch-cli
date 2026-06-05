@@ -309,7 +309,11 @@ pub async fn provider_list(app: &str, verbose: bool) -> Result<(), String> {
                 ("ID", id.clone()),
                 (
                     "权重",
-                    format!("{} (频率: 1/{})", provider.weight, provider.weight),
+                    if provider.weight == 0 {
+                        "0 (禁用)".to_string()
+                    } else {
+                        format!("{} (频率: 1/{})", provider.weight, provider.weight)
+                    },
                 ),
                 (
                     "类别",
@@ -554,7 +558,7 @@ pub async fn provider_set_weight(app: &str, id: &str, weight: u32) -> Result<(),
     if weight == 0 {
         output::warning("权重为0，此供应商已禁用");
     } else {
-        output::info(&format!("频率: 每{}轮使用一次", weight));
+        output::info(&format!("频率: 1/{weight}（按轮询槽位参与）"));
     }
 
     Ok(())
@@ -755,7 +759,11 @@ pub async fn provider_show(app: &str, id: &str) -> Result<(), String> {
         ("名称", provider.name.clone()),
         (
             "权重",
-            format!("{} (频率: 1/{})", provider.weight, provider.weight),
+            if provider.weight == 0 {
+                "0 (禁用)".to_string()
+            } else {
+                format!("{} (频率: 1/{})", provider.weight, provider.weight)
+            },
         ),
         (
             "类别",
@@ -1427,8 +1435,10 @@ pub async fn config_loadbalance(
             parsed.as_str()
         ));
         match parsed {
-            LbS::WeightedRandom => output::hint("加权随机为正向权重：权重越大流量越多"),
-            LbS::Frequency => output::hint("频率控制为反向权重：权重越小越频繁（1/N）"),
+            LbS::WeightedRandom => output::hint("加权随机：权重越大流量越多"),
+            LbS::Frequency => {
+                output::hint("频率控制：基于硬全轮询按 1/N 分配轮询槽位，权重越小参与越频繁")
+            }
             LbS::HardRoundRobin => output::hint("硬全轮询：忽略权重大小，在启用供应商间等概率轮转"),
         }
     }
@@ -1489,7 +1499,7 @@ pub async fn config_loadbalance(
                 .map(|(_, p)| p.weight)
                 .sum();
             let last_col = match config.load_balance_strategy {
-                LbS::Frequency => "频率",
+                LbS::Frequency => "参与频率",
                 LbS::WeightedRandom => "流量占比",
                 LbS::HardRoundRobin => "轮转",
             };

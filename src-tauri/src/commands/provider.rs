@@ -453,7 +453,7 @@ fn resolve_coding_plan_credentials(
     }
 }
 
-async fn query_provider_usage_inner(
+pub(crate) async fn query_provider_usage_inner(
     state: &AppState,
     copilot_state: &CopilotAuthState,
     app_type: AppType,
@@ -791,7 +791,7 @@ pub fn sync_universal_provider(
 /// * `state` - 应用状态
 /// * `app` - 应用类型（"claude" | "codex" | "gemini"）
 /// * `id` - 供应商ID
-/// * `weight` - 权重值 (0-100, 0表示禁用, 1表示每轮都使用)
+/// * `weight` - 权重值 (0-100, 0 表示禁用, N 表示按 1/N 参与轮询槽位)
 ///
 /// # Returns
 /// 成功返回 `true`，失败返回错误信息

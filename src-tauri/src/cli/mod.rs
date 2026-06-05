@@ -4,6 +4,7 @@
 
 pub mod commands;
 mod entry;
+pub mod headless_log;
 pub mod output;
 pub mod server;
 
@@ -69,8 +70,8 @@ pub enum Commands {
         #[arg(long)]
         web_port: Option<u16>,
 
-        /// Web 控制台监听地址（默认 127.0.0.1）
-        #[arg(long, default_value = "127.0.0.1")]
+        /// Web 控制台监听地址（默认 0.0.0.0，允许局域网访问；首次访问需设置密码）
+        #[arg(long, default_value = "0.0.0.0")]
         web_bind: String,
     },
 
@@ -124,8 +125,8 @@ pub enum ServerCommands {
         #[arg(long)]
         web_port: Option<u16>,
 
-        /// Web 控制台监听地址（默认 127.0.0.1）
-        #[arg(long, default_value = "127.0.0.1")]
+        /// Web 控制台监听地址（默认 0.0.0.0，允许局域网访问；首次访问需设置密码）
+        #[arg(long, default_value = "0.0.0.0")]
         web_bind: String,
     },
 
@@ -215,7 +216,7 @@ pub enum ProviderCommands {
         #[arg(short, long)]
         id: String,
 
-        /// 权重值（0-100，0=禁用，1=每轮使用）
+        /// 权重值（0-100，0=禁用，N=按 1/N 参与轮询槽位）
         #[arg(short, long)]
         weight: u32,
     },

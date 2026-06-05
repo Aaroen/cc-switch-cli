@@ -40,7 +40,8 @@
     "deleting": "删除中...",
     "auto": "自动",
     "enabled": "已开启",
-    "notSet": "未设置"
+    "notSet": "未设置",
+    "desktopOnly": "此功能仅在桌面端可用"
   },
   "firstRunNotice": {
     "title": "欢迎使用 CC Switch",
@@ -2322,6 +2323,7 @@
       "addFailed": "添加失败",
       "removeSuccess": "已从故障转移队列移除",
       "removeFailed": "移除失败",
+      "remove": "移除",
       "reorderSuccess": "队列顺序已更新",
       "reorderFailed": "更新顺序失败",
       "toggleFailed": "状态更新失败"
@@ -2378,10 +2380,10 @@
       "description": "按供应商权重分配请求频率，并保留同一请求内的故障转移回退。",
       "enabled": "启用权重轮询",
       "enabledDescription": "开启后，请求将优先按供应商权重分配；同一请求内仍保留故障转移回退。",
-      "info": "权重 0 表示禁用该供应商，1 表示每轮都使用，2 表示每 2 轮使用一次。数值越小，请求频率越高。",
+      "info": "频率控制在硬全轮询基础上按 1/N 分配轮询槽位。权重 0 表示禁用，数值越小参与轮询越频繁。",
       "configUnavailable": "代理配置尚未加载完成",
       "providersTitle": "供应商权重",
-      "providerWeightHint": "输入 0-100 的整数。0 = 禁用，1 = 每轮都使用，数值越小频率越高。",
+      "providerWeightHint": "输入 0-100 的整数。0 = 禁用；频率控制按 1/N 分配轮询槽位，数值越小参与越频繁。",
       "weight": "权重",
       "frequency": "频率",
       "frequencyDisabled": "已禁用",
@@ -2391,6 +2393,7 @@
       "badgeFrequency": "轮询 1/{{weight}}",
       "empty": "当前应用暂无可配置的供应商。",
       "validationFailed": "以下供应商权重无效: {{providers}}",
+      "weightSaved": "{{provider}} 权重已保存",
       "strategyTitle": "轮询策略",
       "metricShare": "流量占比",
       "metricRotation": "轮转",
@@ -2400,12 +2403,12 @@
       "infoForward": "加权随机：权重 0 表示禁用，数值越大被选中的流量占比越高（占比 = 权重 / 总权重）。",
       "infoEqual": "硬全轮询：权重 0 表示禁用，其余供应商忽略权重大小，按顺序等概率轮转。",
       "strategy": {
-        "frequency": "频率控制（反向权重）",
-        "frequencyDesc": "权重越小越频繁（1/N），保持历史行为；适合主备分级。",
-        "weightedRandom": "加权随机（正向权重）",
+        "frequency": "频率控制",
+        "frequencyDesc": "基于硬全轮询按 1/N 频率分配槽位，权重越小参与轮询越频繁。",
+        "weightedRandom": "加权随机",
         "weightedRandomDesc": "权重越大流量越多，按权重占比随机分配；推荐多供应商分摊。",
         "hardRoundRobin": "硬全轮询",
-        "hardRoundRobinDesc": "忽略权重大小，在启用的供应商间等概率轮转；确保人人有份。"
+        "hardRoundRobinDesc": "权重 0 表示禁用，其余供应商忽略权重大小，按顺序等概率轮转。"
       }
     }
   },

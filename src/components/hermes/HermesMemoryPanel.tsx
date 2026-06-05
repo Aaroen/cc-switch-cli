@@ -16,6 +16,7 @@ import {
 import { useDarkMode } from "@/hooks/useDarkMode";
 import type { HermesMemoryKind } from "@/types";
 import { cn } from "@/lib/utils";
+import { isTauri } from "@/lib/platform/isTauri";
 
 interface MemoryTabPaneProps {
   kind: HermesMemoryKind;
@@ -130,6 +131,7 @@ const HermesMemoryPanel: React.FC = () => {
   const { t } = useTranslation();
   const [activeTab, setActiveTab] = useState<HermesMemoryKind>("memory");
   const openHermesWebUI = useOpenHermesWebUI();
+  const canOpenHermesWebUI = isTauri();
   const { data: limits } = useHermesMemoryLimits(true);
 
   const memoryLimit = limits?.memory ?? 2200;
@@ -154,7 +156,19 @@ const HermesMemoryPanel: React.FC = () => {
           <Button
             variant="outline"
             size="sm"
-            onClick={() => void openHermesWebUI("/config")}
+            onClick={
+              canOpenHermesWebUI
+                ? () => void openHermesWebUI("/config")
+                : undefined
+            }
+            disabled={!canOpenHermesWebUI}
+            title={
+              canOpenHermesWebUI
+                ? t("hermes.memory.openConfig")
+                : t("common.desktopOnly", {
+                    defaultValue: "此功能仅在桌面端可用",
+                  })
+            }
           >
             <ExternalLink className="w-3.5 h-3.5 mr-1" />
             {t("hermes.memory.openConfig")}

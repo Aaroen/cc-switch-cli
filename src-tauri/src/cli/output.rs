@@ -124,7 +124,11 @@ pub fn info(msg: &str) {
 /// 输出表格（非 TTY/NO_COLOR 时降级为纯 ASCII，便于管道处理）
 pub fn table(headers: Vec<&str>, rows: Vec<Vec<String>>) {
     let mut table = Table::new();
-    let preset = if color_enabled() { UTF8_FULL } else { ASCII_FULL };
+    let preset = if color_enabled() {
+        UTF8_FULL
+    } else {
+        ASCII_FULL
+    };
     table
         .load_preset(preset)
         .set_content_arrangement(ContentArrangement::Dynamic)
@@ -245,12 +249,12 @@ pub fn weight_help() {
     info("权重说明（默认频率控制策略）:");
     let mut o = out();
     let _ = writeln!(o, "  0 = 禁用供应商");
-    let _ = writeln!(o, "  1 = 每轮都使用（默认）");
-    let _ = writeln!(o, "  2 = 每2轮使用一次");
-    let _ = writeln!(o, "  N = 每N轮使用一次（频率=1/N）");
+    let _ = writeln!(o, "  1 = 参与频率 1/1（默认）");
+    let _ = writeln!(o, "  2 = 参与频率 1/2");
+    let _ = writeln!(o, "  N = 按 1/N 参与轮询槽位");
     let _ = writeln!(
         o,
-        "  其它策略：weighted_random 正向权重（越大越多）；hard_round_robin 等概率轮转"
+        "  其它策略：weighted_random 按权重占比随机分配；hard_round_robin 等概率轮转"
     );
 }
 
@@ -266,7 +270,10 @@ pub fn service_status(name: &str, running: bool, pid: Option<u32>) {
     let pid_text = pid.map(|p| format!(" (PID: {})", p)).unwrap_or_default();
     let mut o = out();
     if running {
-        let _ = writeln!(o, "{S_GREEN}●{S_GREEN:#} {name} {S_OK}运行中{S_OK:#}{pid_text}");
+        let _ = writeln!(
+            o,
+            "{S_GREEN}●{S_GREEN:#} {name} {S_OK}运行中{S_OK:#}{pid_text}"
+        );
     } else {
         let _ = writeln!(o, "{S_DIM}○ {name} 已停止{pid_text}{S_DIM:#}");
     }
@@ -293,9 +300,7 @@ pub fn confirm(prompt: &str) -> bool {
 /// 估算字符串的终端显示宽度（中日韩全角字符计 2，其余计 1）。
 /// 自包含实现，避免引入 unicode-width 依赖（仓库内存在 0.2/1.x 双版本）。
 fn display_width(s: &str) -> usize {
-    s.chars()
-        .map(|c| if is_wide_char(c) { 2 } else { 1 })
-        .sum()
+    s.chars().map(|c| if is_wide_char(c) { 2 } else { 1 }).sum()
 }
 
 fn is_wide_char(c: char) -> bool {

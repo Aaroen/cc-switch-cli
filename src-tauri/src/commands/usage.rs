@@ -20,6 +20,12 @@ pub fn get_usage_summary(
         .get_usage_summary(start_date, end_date, app_type.as_deref())
 }
 
+/// 获取用量数据时间边界（前端首屏自适应日期范围用）
+#[tauri::command]
+pub fn get_usage_date_bounds(state: State<'_, AppState>) -> Result<UsageDateBounds, AppError> {
+    state.db.get_usage_date_bounds()
+}
+
 /// 获取按 app_type 拆分的使用量汇总
 #[tauri::command]
 pub fn get_usage_summary_by_app(

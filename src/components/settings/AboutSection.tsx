@@ -40,7 +40,9 @@ import { APP_ICON_MAP } from "@/config/appConfig";
 import type { AppId } from "@/lib/api/types";
 import { extractErrorMessage } from "@/utils/errorUtils";
 import { isWindows } from "@/lib/platform";
+import { isTauri } from "@/lib/platform/isTauri";
 import { isUpdateAvailable } from "@/lib/version";
+import { cn } from "@/lib/utils";
 import { ToolUpgradeConfirmDialog } from "./ToolUpgradeConfirmDialog";
 import { ToolInstallRow } from "./ToolInstallRow";
 
@@ -182,6 +184,7 @@ const TOOL_APP_IDS: Record<ToolName, AppId> = {
 export function AboutSection({ isPortable }: AboutSectionProps) {
   // ... (use hooks as before) ...
   const { t } = useTranslation();
+  const canCheckUpdates = isTauri();
   const [version, setVersion] = useState<string | null>(null);
   const [isLoadingVersion, setIsLoadingVersion] = useState(true);
   const [isDownloading, setIsDownloading] = useState(false);
@@ -833,9 +836,19 @@ export function AboutSection({ isPortable }: AboutSectionProps) {
             <Button
               type="button"
               size="sm"
-              onClick={handleCheckUpdate}
-              disabled={isChecking || isDownloading}
-              className="h-8 gap-1.5 text-xs"
+              onClick={canCheckUpdates ? handleCheckUpdate : undefined}
+              disabled={!canCheckUpdates || isChecking || isDownloading}
+              title={
+                canCheckUpdates
+                  ? undefined
+                  : t("common.desktopOnly", {
+                      defaultValue: "此功能仅在桌面端可用",
+                    })
+              }
+              className={cn(
+                "h-8 gap-1.5 text-xs",
+                !canCheckUpdates && "opacity-40 cursor-not-allowed",
+              )}
             >
               {isDownloading ? (
                 <>

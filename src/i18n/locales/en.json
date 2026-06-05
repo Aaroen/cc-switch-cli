@@ -40,7 +40,8 @@
     "deleting": "Deleting...",
     "auto": "Auto",
     "enabled": "Enabled",
-    "notSet": "Not Set"
+    "notSet": "Not Set",
+    "desktopOnly": "This feature is available in the desktop app only"
   },
   "firstRunNotice": {
     "title": "Welcome to CC Switch",
@@ -2322,6 +2323,7 @@
       "addFailed": "Failed to add",
       "removeSuccess": "Removed from failover queue",
       "removeFailed": "Failed to remove",
+      "remove": "Remove",
       "reorderSuccess": "Queue order updated",
       "reorderFailed": "Failed to update order",
       "toggleFailed": "Failed to update status"
@@ -2378,10 +2380,10 @@
       "description": "Distribute requests by provider weight while preserving same-request failover fallback.",
       "enabled": "Enable Weighted Round Robin",
       "enabledDescription": "When enabled, requests are distributed by provider weight first, while same-request failover fallback remains available.",
-      "info": "Weight 0 disables a provider, 1 uses it every round, and 2 uses it once every 2 rounds. Lower values mean higher request frequency.",
+      "info": "Frequency control allocates polling slots on top of hard round robin by 1/N. Weight 0 disables a provider; smaller values participate more often.",
       "configUnavailable": "Proxy config is not loaded yet",
       "providersTitle": "Provider Weights",
-      "providerWeightHint": "Enter an integer from 0 to 100. 0 = disabled, 1 = every round, smaller values mean higher frequency.",
+      "providerWeightHint": "Enter an integer from 0 to 100. 0 = disabled; frequency control allocates polling slots by 1/N, so smaller values participate more often.",
       "weight": "Weight",
       "frequency": "Frequency",
       "frequencyDisabled": "Disabled",
@@ -2391,6 +2393,7 @@
       "badgeFrequency": "Routing 1/{{weight}}",
       "empty": "No providers are available for this app.",
       "validationFailed": "Invalid weights for: {{providers}}",
+      "weightSaved": "Saved weight for {{provider}}",
       "strategyTitle": "Strategy",
       "metricShare": "Traffic share",
       "metricRotation": "Rotation",
@@ -2400,12 +2403,12 @@
       "infoForward": "Weighted random: weight 0 disables a provider; a higher value gives a larger traffic share (share = weight / total weight).",
       "infoEqual": "Hard round robin: weight 0 disables a provider; the rest ignore weight magnitude and rotate equally in order.",
       "strategy": {
-        "frequency": "Frequency control (inverse weight)",
-        "frequencyDesc": "Smaller weight = more frequent (1/N); keeps historical behavior, good for primary/backup tiers.",
-        "weightedRandom": "Weighted random (forward weight)",
+        "frequency": "Frequency control",
+        "frequencyDesc": "Allocates polling slots on top of hard round robin by 1/N; smaller weights participate more often.",
+        "weightedRandom": "Weighted random",
         "weightedRandomDesc": "Larger weight = more traffic, distributed randomly by weight share; recommended for sharing across providers.",
         "hardRoundRobin": "Hard round robin",
-        "hardRoundRobinDesc": "Ignores weight magnitude and rotates equally among enabled providers; ensures everyone is used."
+        "hardRoundRobinDesc": "Weight 0 disables a provider; the rest ignore weight magnitude and rotate equally in order."
       }
     }
   },

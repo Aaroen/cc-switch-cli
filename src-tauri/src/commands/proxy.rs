@@ -190,9 +190,8 @@ pub fn set_load_balance_strategy(
         .map_err(|e| e.to_string())?
         .unwrap_or_default();
     if parsed != current {
-        // 权重语义反转告警：frequency 反向、weighted_random 正向
         log::warn!(
-            "[{app_type}] 负载均衡策略 {} → {}：frequency 为反向频率（权重越小越频繁），weighted_random 为正向权重（权重越大流量越多），切换后请按新语义重新核对各供应商权重",
+            "[{app_type}] 负载均衡策略 {} → {}：frequency 基于硬全轮询按 1/N 频率分配槽位，weighted_random 按权重占比随机分配；切换后请核对各供应商权重",
             current.as_str(),
             parsed.as_str()
         );

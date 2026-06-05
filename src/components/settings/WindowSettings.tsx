@@ -4,6 +4,7 @@ import { AppWindow, MonitorUp, Power, EyeOff } from "lucide-react";
 import { ToggleRow } from "@/components/ui/toggle-row";
 import { AnimatePresence, motion } from "framer-motion";
 import { isLinux } from "@/lib/platform";
+import { isTauri } from "@/lib/platform/isTauri";
 
 interface WindowSettingsProps {
   settings: SettingsFormState;
@@ -12,6 +13,7 @@ interface WindowSettingsProps {
 
 export function WindowSettings({ settings, onChange }: WindowSettingsProps) {
   const { t } = useTranslation();
+  const canUseDesktopStartup = isTauri();
 
   return (
     <section className="space-y-4">
@@ -27,6 +29,7 @@ export function WindowSettings({ settings, onChange }: WindowSettingsProps) {
           description={t("settings.launchOnStartupDescription")}
           checked={!!settings.launchOnStartup}
           onCheckedChange={(value) => onChange({ launchOnStartup: value })}
+          disabled={!canUseDesktopStartup}
         />
 
         <AnimatePresence initial={false}>
@@ -44,6 +47,7 @@ export function WindowSettings({ settings, onChange }: WindowSettingsProps) {
                 description={t("settings.silentStartupDescription")}
                 checked={!!settings.silentStartup}
                 onCheckedChange={(value) => onChange({ silentStartup: value })}
+                disabled={!canUseDesktopStartup}
               />
             </motion.div>
           )}

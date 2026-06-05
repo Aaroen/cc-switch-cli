@@ -342,6 +342,9 @@ impl Database {
             "in_failover_queue",
             "BOOLEAN NOT NULL DEFAULT 0",
         )?;
+        // 确保 weight 列存在。旧库可能已经持有 meta.routingWeight，但缺少
+        // providers.weight；写入权重时需保持两处存储同步。
+        Self::add_column_if_missing(conn, "providers", "weight", "INTEGER NOT NULL DEFAULT 1")?;
 
         // 删除旧的 failover_queue 表（如果存在）
         let _ = conn.execute("DROP INDEX IF EXISTS idx_failover_queue_order", []);
@@ -440,6 +443,13 @@ impl Database {
                         Self::migrate_v10_to_v11(conn)?;
                         Self::set_user_version(conn, 11)?;
                     }
+                    11 => {
+                        log::info!(
+                            "迁移数据库从 v11 到 v12（协调 fork 与官方迁移历史分叉：补齐 proxy_config.weight_round_robin_enabled）"
+                        );
+                        Self::migrate_v11_to_v12(conn)?;
+                        Self::set_user_version(conn, 12)?;
+                    }
                     _ => {
                         return Err(AppError::Database(format!(
                             "未知的数据库版本 {version}，无法迁移到 {SCHEMA_VERSION}"
@@ -498,6 +508,26 @@ impl Database {
                 "skills",
                 "enabled_hermes",
                 "BOOLEAN NOT NULL DEFAULT 0",
+            )?;
+        }
+        Ok(())
+    }
+
+    /// v11 -> v12 迁移：协调 fork 与官方迁移历史分叉导致的 proxy_config 缺失列。
+    ///
+    /// 官方在 v4->v5 迁移中为 proxy_config 追加 `weight_round_robin_enabled`，而本 fork
+    /// 的 DB 走的是自身的 v4->v5，导致 user_version 已达 11 时该列仍缺失。运行期虽已通过
+    /// dao/proxy.rs 的 has_column 回退容忍缺列（权重轮询开关实际落在 settings 表），但表结构
+    /// 与 create_tables 长期不一致。add_column_if_missing 幂等：官方/全新 schema 的库为
+    /// no-op，fork-DB 自愈。
+    fn migrate_v11_to_v12(conn: &Connection) -> Result<(), AppError> {
+        // 生产流程 create_tables 先行建表；隔离迁移场景下 proxy_config 可能尚未建立，缺表则跳过。
+        if Self::table_exists(conn, "proxy_config")? {
+            Self::add_column_if_missing(
+                conn,
+                "proxy_config",
+                "weight_round_robin_enabled",
+                "INTEGER NOT NULL DEFAULT 0",
             )?;
         }
         Ok(())

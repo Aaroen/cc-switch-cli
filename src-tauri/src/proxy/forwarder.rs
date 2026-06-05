@@ -333,11 +333,50 @@ impl RequestForwarder {
             s.total_requests = s.total_requests.saturating_add(1);
             s.last_request_at = Some(chrono::Utc::now().to_rfc3339());
         }
+        // 运维摘要上下文：在 body 被 inner 消费前取出上游模型名，并起算端到端延迟。
+        let summary_model = body
+            .get("model")
+            .and_then(Value::as_str)
+            .unwrap_or("")
+            .to_string();
+        let summary_app_type = app_type.as_str();
+        let summary_started = std::time::Instant::now();
+
         let result = self
             .forward_with_retry_inner(
                 app_type, method, endpoint, body, headers, extensions, providers,
             )
             .await;
+
+        // 恢复运维可读的请求摘要（“正常/错误”行写入 server.log）。
+        // 旧 layered_forwarder 已随上游合并下线，本汇聚点统一记录；与 DB 用量写入解耦，
+        // 互不重复（log_forward_error 仅写 proxy_request_logs，不写文件摘要）。
+        let summary_latency = summary_started.elapsed().as_millis() as u64;
+        match &result {
+            Ok(fr) => {
+                super::file_logger::get_file_logger().log_success(
+                    summary_app_type,
+                    fr.response.status().as_u16(),
+                    &fr.provider.name,
+                    summary_latency,
+                    &summary_model,
+                );
+            }
+            Err(fe) => {
+                let status_code = super::error_mapper::map_proxy_error_to_status(&fe.error);
+                let detail = super::error_mapper::get_error_message(&fe.error);
+                let provider_name = fe.provider.as_ref().map(|p| p.name.as_str()).unwrap_or("-");
+                super::file_logger::get_file_logger().log_error(
+                    summary_app_type,
+                    status_code,
+                    provider_name,
+                    summary_latency,
+                    &summary_model,
+                    &detail,
+                );
+            }
+        }
+
         // 把 guard 注入到 Ok 结果，让它随响应一起流转到 response_processor，
         // 在流式 body 的 future 内才真正 drop。
         // Err 路径：guard 在函数 scope 内随返回值落地时自动 drop。

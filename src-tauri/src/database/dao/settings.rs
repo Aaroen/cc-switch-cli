@@ -153,6 +153,19 @@ impl Database {
         self.set_setting("web_panel_port", &port.to_string())
     }
 
+    /// 获取 Web 控制台监听地址（持久化于 settings 表；None=未配置）
+    pub fn get_web_panel_bind(&self) -> Result<Option<String>, AppError> {
+        Ok(self
+            .get_setting("web_panel_bind")?
+            .map(|v| v.trim().to_string())
+            .filter(|v| !v.is_empty()))
+    }
+
+    /// 设置 Web 控制台监听地址（持久化，供 restart/后台子进程继承）
+    pub fn set_web_panel_bind(&self, bind: &str) -> Result<(), AppError> {
+        self.set_setting("web_panel_bind", bind.trim())
+    }
+
     // --- 通用配置片段 (Common Config Snippet) ---
 
     /// 获取通用配置片段

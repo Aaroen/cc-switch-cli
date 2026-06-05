@@ -1,6 +1,12 @@
 //! 分层转发器
 //!
 //! 实现核心的分层轮询机制，支持按priority分组、Base URL分组等优化策略
+//!
+//! 【已废弃 / DEAD CODE】本模块在合并上游官方转发架构后已下线：未在 `proxy/mod.rs`
+//! 中声明 `mod layered_forwarder`，不参与编译。实际转发由 `forwarder.rs`
+//! (`forward_with_retry`) + `response_processor.rs` (`process_response`) 承担，
+//! 运维摘要日志（file_logger 的“正常/错误”行）已迁移至 `forward_with_retry`。
+//! 保留文件仅为历史参考，请勿据此判断现网行为。
 
 use super::{
     body_filter::filter_private_params_with_whitelist,

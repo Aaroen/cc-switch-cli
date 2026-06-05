@@ -20,6 +20,8 @@ import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { ToggleRow } from "@/components/ui/toggle-row";
 import { useProxyStatus } from "@/hooks/useProxyStatus";
 import type { SettingsFormState } from "@/hooks/useSettings";
+import type { AppId } from "@/lib/api";
+import type { LoadBalanceStrategy } from "@/types/proxy";
 
 interface ProxyTabContentProps {
   settings: SettingsFormState;
@@ -33,6 +35,9 @@ export function ProxyTabContent({
   const { t } = useTranslation();
   const [showProxyConfirm, setShowProxyConfirm] = useState(false);
   const [showFailoverConfirm, setShowFailoverConfirm] = useState(false);
+  const [weightRoundRobinDrafts, setWeightRoundRobinDrafts] = useState<
+    Partial<Record<AppId, { enabled: boolean; strategy: LoadBalanceStrategy }>>
+  >({});
 
   const {
     isRunning,
@@ -181,6 +186,7 @@ export function ProxyTabContent({
                 {(["claude", "codex", "gemini"] as const).map((appType) => {
                   const failoverDisabled =
                     !isRunning || !(takeoverStatus?.[appType] ?? false);
+                  const weightRoundRobinDraft = weightRoundRobinDrafts[appType];
                   return (
                     <TabsContent
                       key={appType}
@@ -199,6 +205,10 @@ export function ProxyTabContent({
                         <FailoverQueueManager
                           appType={appType}
                           disabled={failoverDisabled}
+                          weightRoundRobinEnabled={
+                            weightRoundRobinDraft?.enabled
+                          }
+                          loadBalanceStrategy={weightRoundRobinDraft?.strategy}
                         />
                       </div>
                       <div className="border-t border-border/50 pt-6">
@@ -211,6 +221,18 @@ export function ProxyTabContent({
                         <WeightRoundRobinConfigPanel
                           appType={appType}
                           disabled={failoverDisabled}
+                          onDraftChange={(draft) =>
+                            setWeightRoundRobinDrafts((prev) => {
+                              const current = prev[appType];
+                              if (
+                                current?.enabled === draft.enabled &&
+                                current?.strategy === draft.strategy
+                              ) {
+                                return prev;
+                              }
+                              return { ...prev, [appType]: draft };
+                            })
+                          }
                         />
                       </div>
                     </TabsContent>

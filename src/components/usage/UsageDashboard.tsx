@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { UsageHero } from "./UsageHero";
 import { UsageTrendChart } from "./UsageTrendChart";
@@ -19,8 +19,9 @@ import {
   Coins,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { usageKeys } from "@/lib/query/usage";
+import { usageApi } from "@/lib/api/usage";
 import { useUsageEventBridge } from "@/hooks/useUsageEventBridge";
 import {
   Accordion,
@@ -47,6 +48,40 @@ export function UsageDashboard() {
   // 后端写入新日志时 emit `usage-log-recorded`，本 hook 立刻 invalidate 所有
   // usage 查询，实现实时刷新（仅在 Dashboard 挂载时生效，离开页面自动取消监听）
   useUsageEventBridge();
+
+  // 首屏自适应日期范围：默认窗口为"当天"，但历史数据（归档）可能远早于今天。
+  // 挂载时查询数据时间边界，若最新数据早于今天，则一次性把范围定位到已有数据跨度，
+  // 避免"明明有数据却首屏空白"。仅自动定位一次，不覆盖用户后续手动选择。
+  const rangeSeededRef = useRef(false);
+  const { data: usageBounds } = useQuery({
+    queryKey: ["usage-date-bounds"],
+    queryFn: () => usageApi.getDateBounds(),
+    staleTime: 60_000,
+  });
+  useEffect(() => {
+    if (rangeSeededRef.current) return;
+    if (
+      !usageBounds ||
+      usageBounds.maxDate == null ||
+      usageBounds.minDate == null
+    ) {
+      return;
+    }
+    rangeSeededRef.current = true;
+    const now = new Date();
+    const todayStart = Math.floor(
+      new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime() /
+        1000,
+    );
+    // 仅当最新数据早于"当天"窗口时才自动定位；否则保持默认（当天）以展示实时用量。
+    if (usageBounds.maxDate < todayStart) {
+      setRange({
+        preset: "custom",
+        customStartDate: usageBounds.minDate,
+        customEndDate: usageBounds.maxDate,
+      });
+    }
+  }, [usageBounds]);
 
   const refreshIntervalOptionsMs = [0, 5000, 10000, 30000, 60000] as const;
   const changeRefreshInterval = () => {

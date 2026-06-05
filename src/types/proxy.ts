@@ -124,8 +124,8 @@ export interface GlobalProxyConfig {
 }
 
 // 负载均衡策略
-// - frequency: 频率控制（反向权重，权重越小越频繁，1/N）
-// - weighted_random: 加权随机（正向权重，权重越大流量越多）
+// - frequency: 频率控制，权重越小越频繁，1/N
+// - weighted_random: 加权随机，权重越大流量越多
 // - hard_round_robin: 硬全轮询（忽略权重大小，启用供应商间等概率轮转）
 export type LoadBalanceStrategy =
   | "frequency"

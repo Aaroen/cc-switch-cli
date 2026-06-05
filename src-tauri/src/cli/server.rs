@@ -21,6 +21,15 @@ pub async fn start_headless_server(
         return start_headless_server_daemon(host, port, web_port, web_bind).await;
     }
 
+    // 防御性：确保 rustls CryptoProvider 已安装。run_from_env 已在入口安装，此处幂等兜底，
+    // 避免未来重构改变入口调度时上游 HTTPS 连接因缺省 provider 而 panic。
+    crate::ensure_rustls_crypto_provider();
+
+    // 无头模式先以临时级别（info）安装 log facade 后端：否则 log::warn!（含 USG-001 用量
+    // 写入失败）、log::info! 等会被静默丢弃，守护进程下无法诊断。提前到 Database::init() 之前
+    // 安装，确保数据库迁移/启动日志亦可见；待 DB 就绪后再按 LogConfig 调整级别。
+    crate::cli::headless_log::init(log::LevelFilter::Info);
+
     crate::cli::output::info(&format!("正在启动代理服务器 {}:{}...", host, port));
 
     // 初始化数据库（使用默认路径）
@@ -31,6 +40,11 @@ pub async fn start_headless_server(
             return Err(e.to_string());
         }
     };
+
+    // 按 DB LogConfig 调整日志级别（headless_log::init 幂等：已安装后端时仅 set_max_level）。
+    if let Ok(cfg) = db.get_log_config() {
+        crate::cli::headless_log::init(cfg.to_level_filter());
+    }
 
     // 创建AppState
     let app_state = Arc::new(AppState::new(db));
@@ -75,6 +89,61 @@ pub async fn start_headless_server(
                 "代理服务器已启动: {}:{}",
                 info.address, info.port
             ));
+
+            // Session 日志用量同步：启动同步一次，之后每 60 秒（与桌面端 setup 对齐）。
+            // CLI/headless 此前缺失该任务，导致 session 来源（claude/codex/gemini 本地日志）
+            // 用量在纯命令行部署下不回填，仪表盘缺少该维度数据。
+            {
+                let db_for_session_sync = app_state.db.clone();
+                tokio::spawn(async move {
+                    const SESSION_SYNC_INTERVAL_SECS: u64 = 60;
+
+                    fn run_step<T>(name: &str, result: Result<T, crate::error::AppError>) {
+                        if let Err(e) = result {
+                            log::warn!("{name} failed: {e}");
+                        }
+                    }
+
+                    let db = &db_for_session_sync;
+
+                    run_step(
+                        "Usage cost startup backfill",
+                        db.backfill_missing_usage_costs(),
+                    );
+                    run_step(
+                        "Session usage initial sync",
+                        crate::services::session_usage::sync_claude_session_logs(db),
+                    );
+                    run_step(
+                        "Codex usage initial sync",
+                        crate::services::session_usage_codex::sync_codex_usage(db),
+                    );
+                    run_step(
+                        "Gemini usage initial sync",
+                        crate::services::session_usage_gemini::sync_gemini_usage(db),
+                    );
+
+                    let mut interval = tokio::time::interval(Duration::from_secs(
+                        SESSION_SYNC_INTERVAL_SECS,
+                    ));
+                    interval.tick().await; // 跳过立即触发的首个 tick（启动同步已完成）
+                    loop {
+                        interval.tick().await;
+                        run_step(
+                            "Session usage periodic sync",
+                            crate::services::session_usage::sync_claude_session_logs(db),
+                        );
+                        run_step(
+                            "Codex usage periodic sync",
+                            crate::services::session_usage_codex::sync_codex_usage(db),
+                        );
+                        run_step(
+                            "Gemini usage periodic sync",
+                            crate::services::session_usage_gemini::sync_gemini_usage(db),
+                        );
+                    }
+                });
+            }
 
             // 保存PID文件
             save_pid_file().map_err(|e| format!("保存PID失败: {}", e))?;
@@ -254,17 +323,19 @@ pub async fn restart_server(port: u16) -> Result<(), String> {
     }
 
     // 再启动（继承已持久化的 Web 控制台端口）
-    let web_port = crate::database::Database::init()
+    let (web_port, web_bind) = crate::database::Database::init()
         .ok()
-        .and_then(|db| db.get_web_panel_port().ok().flatten());
-    start_headless_server(
-        "127.0.0.1".to_string(),
-        port,
-        true,
-        web_port,
-        "127.0.0.1".to_string(),
-    )
-    .await
+        .map(|db| {
+            let web_port = db.get_web_panel_port().ok().flatten();
+            let web_bind = db
+                .get_web_panel_bind()
+                .ok()
+                .flatten()
+                .unwrap_or_else(|| "0.0.0.0".to_string());
+            (web_port, web_bind)
+        })
+        .unwrap_or_else(|| (None, "0.0.0.0".to_string()));
+    start_headless_server("127.0.0.1".to_string(), port, true, web_port, web_bind).await
 }
 
 // ============================================================================
@@ -313,12 +384,21 @@ async fn start_headless_server_daemon(
 
     let exe = std::env::current_exe().map_err(|e| format!("获取可执行文件路径失败: {}", e))?;
 
-    // 解析有效 Web 端口（CLI 优先，其次持久化），显式转发给子进程
-    let eff_web_port = web_port.or_else(|| {
-        crate::database::Database::init()
-            .ok()
-            .and_then(|db| db.get_web_panel_port().ok().flatten())
+    // 解析有效 Web 配置（CLI 端口优先；未显式指定端口时继承持久化绑定地址）
+    let persisted_web = crate::database::Database::init().ok().map(|db| {
+        (
+            db.get_web_panel_port().ok().flatten(),
+            db.get_web_panel_bind().ok().flatten(),
+        )
     });
+    let eff_web_port = web_port.or_else(|| persisted_web.as_ref().and_then(|(port, _)| *port));
+    let eff_web_bind = if web_port.is_some() {
+        web_bind.clone()
+    } else {
+        persisted_web
+            .and_then(|(_, bind)| bind)
+            .unwrap_or_else(|| web_bind.clone())
+    };
 
     let mut cmd = Command::new(exe);
     let mut cmd_args: Vec<String> = vec![
@@ -333,7 +413,7 @@ async fn start_headless_server_daemon(
         cmd_args.push("--web-port".to_string());
         cmd_args.push(wp.to_string());
         cmd_args.push("--web-bind".to_string());
-        cmd_args.push(web_bind.clone());
+        cmd_args.push(eff_web_bind.clone());
     }
     cmd.args(&cmd_args)
         .env("CC_SWITCH_DAEMON_CHILD", "1")
@@ -399,24 +479,30 @@ async fn start_headless_server_daemon(
                 );
             }
             if let Some(wp) = eff_web_port {
-                // 等待子进程写入令牌文件，再向用户终端打印完整访问地址（令牌不入后台日志）
-                let mut token = None;
+                // 等待子进程完成 Web 面板监听，再向用户终端打印访问地址。
+                let probe_addr = panel_probe_addr(&eff_web_bind, wp);
+                let mut panel_ready = false;
                 for _ in 0..25 {
-                    if let Some(t) = read_panel_token() {
-                        token = Some(t);
+                    if timeout(
+                        Duration::from_millis(300),
+                        tokio::net::TcpStream::connect(&probe_addr),
+                    )
+                    .await
+                    .is_ok()
+                    {
+                        panel_ready = true;
                         break;
                     }
                     sleep(Duration::from_millis(80)).await;
                 }
-                let url = format!("http://{}:{}", web_bind, wp);
-                match token {
-                    Some(t) => {
-                        crate::cli::output::success(&format!("Web 控制台: {url}/?token={t}"))
-                    }
-                    None => crate::cli::output::warning(&format!(
-                        "Web 控制台: {url}（令牌见 {}）",
-                        get_panel_token_path().display()
-                    )),
+                if panel_ready {
+                    print_web_panel_urls(&eff_web_bind, wp);
+                    crate::cli::output::hint("首次访问 Web 控制台时请设置访问密码");
+                } else {
+                    crate::cli::output::warning(&format!(
+                        "Web 控制台尚未在预期时间内响应，请查看日志: {}",
+                        log_path.display()
+                    ));
                 }
             }
             crate::cli::output::hint("使用 'ccs server stop' 停止服务");
@@ -443,6 +529,16 @@ async fn start_web_panel_if_configured(
 ) -> Option<crate::web_panel::WebPanelServer> {
     // 解析有效端口：CLI 指定优先；否则读取持久化端口
     let eff_port = web_port.or_else(|| app_state.db.get_web_panel_port().ok().flatten())?;
+    let eff_bind = if web_port.is_some() {
+        web_bind
+    } else {
+        app_state
+            .db
+            .get_web_panel_bind()
+            .ok()
+            .flatten()
+            .unwrap_or(web_bind)
+    };
 
     // 端口冲突保护：绝不与代理端口相同
     if eff_port == proxy_port {
@@ -455,32 +551,18 @@ async fn start_web_panel_if_configured(
     // CLI 显式指定则持久化，供 restart/后台子进程继承
     if let Some(p) = web_port {
         let _ = app_state.db.set_web_panel_port(p);
+        let _ = app_state.db.set_web_panel_bind(&eff_bind);
     }
 
-    // 生成强制 Bearer 令牌并写入 0600 文件
-    let token = uuid::Uuid::new_v4().simple().to_string();
-    if let Err(e) = write_panel_token(&token) {
-        crate::cli::output::warning(&format!("写入面板令牌文件失败: {e}"));
-    }
-
-    let mut server = crate::web_panel::WebPanelServer::new(
-        app_state.clone(),
-        web_bind.clone(),
-        eff_port,
-        token.clone(),
-    );
+    let mut server =
+        crate::web_panel::WebPanelServer::new(app_state.clone(), eff_bind.clone(), eff_port);
     match server.start().await {
         Ok(()) => {
-            let url = format!("http://{}:{}", web_bind, eff_port);
             if daemon {
-                // 后台：stdout 重定向至日志，令牌不入日志；父进程会读 panel.token 打印完整 URL
-                crate::cli::output::info(&format!(
-                    "Web 控制台已启动: {url}（令牌见 {}）",
-                    get_panel_token_path().display()
-                ));
+                crate::cli::output::info("Web 控制台已启动");
             } else {
-                crate::cli::output::success(&format!("Web 控制台: {url}/?token={token}"));
-                crate::cli::output::hint("在浏览器打开上述链接即可访问（令牌已包含在链接中）");
+                print_web_panel_urls(&eff_bind, eff_port);
+                crate::cli::output::hint("首次访问 Web 控制台时请设置访问密码");
             }
             Some(server)
         }
@@ -491,26 +573,112 @@ async fn start_web_panel_if_configured(
     }
 }
 
-fn get_panel_token_path() -> PathBuf {
-    get_config_dir().join("panel.token")
+fn panel_probe_addr(bind: &str, port: u16) -> String {
+    let host = match bind.trim() {
+        "0.0.0.0" | "::" => "127.0.0.1",
+        other => other,
+    };
+    format_socket_addr(host, port)
 }
 
-fn write_panel_token(token: &str) -> Result<(), String> {
-    let path = get_panel_token_path();
-    std::fs::write(&path, token).map_err(|e| format!("写入失败: {e}"))?;
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::PermissionsExt;
-        let _ = std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o600));
+fn format_socket_addr(host: &str, port: u16) -> String {
+    let host = host.trim();
+    if host.starts_with('[') || !host.contains(':') {
+        format!("{host}:{port}")
+    } else {
+        format!("[{host}]:{port}")
     }
-    Ok(())
 }
 
-fn read_panel_token() -> Option<String> {
-    std::fs::read_to_string(get_panel_token_path())
-        .ok()
-        .map(|s| s.trim().to_string())
-        .filter(|s| !s.is_empty())
+fn format_url_host(host: &str) -> String {
+    let host = host.trim();
+    if host.starts_with('[') || !host.contains(':') {
+        host.to_string()
+    } else {
+        format!("[{host}]")
+    }
+}
+
+fn detect_lan_ip() -> Option<String> {
+    detect_lan_ip_from_interfaces().or_else(detect_lan_ip_from_route)
+}
+
+#[cfg(unix)]
+fn detect_lan_ip_from_interfaces() -> Option<String> {
+    let output = Command::new("ip")
+        .args(["-4", "addr", "show", "scope", "global"])
+        .output()
+        .ok()?;
+    if !output.status.success() {
+        return None;
+    }
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    stdout
+        .lines()
+        .filter_map(|line| {
+            let addr = line
+                .split_whitespace()
+                .collect::<Vec<_>>()
+                .windows(2)
+                .find_map(|pair| (pair[0] == "inet").then_some(pair[1]))?;
+            let ip = addr.split('/').next()?.to_string();
+            lan_ip_rank(&ip).map(|rank| (rank, ip))
+        })
+        .min_by_key(|(rank, _)| *rank)
+        .map(|(_, ip)| ip)
+}
+
+#[cfg(not(unix))]
+fn detect_lan_ip_from_interfaces() -> Option<String> {
+    None
+}
+
+fn detect_lan_ip_from_route() -> Option<String> {
+    let socket = std::net::UdpSocket::bind("0.0.0.0:0").ok()?;
+    socket.connect("8.8.8.8:80").ok()?;
+    let ip = socket.local_addr().ok()?.ip();
+    let ip = ip.to_string();
+    lan_ip_rank(&ip).map(|_| ip)
+}
+
+fn lan_ip_rank(ip: &str) -> Option<u8> {
+    let ip: std::net::Ipv4Addr = ip.parse().ok()?;
+    let octets = ip.octets();
+    if ip.is_loopback() || ip.is_link_local() || ip.is_multicast() || ip.is_unspecified() {
+        return None;
+    }
+    match octets {
+        [192, 168, _, _] => Some(0),
+        [10, _, _, _] => Some(1),
+        [172, b, _, _] if (16..=31).contains(&b) => Some(2),
+        [100, b, _, _] if (64..=127).contains(&b) => Some(3),
+        [198, b, _, _] if b == 18 || b == 19 => None,
+        _ => Some(4),
+    }
+}
+
+fn web_panel_urls(bind: &str, port: u16) -> Vec<(&'static str, String)> {
+    match bind.trim() {
+        "0.0.0.0" | "::" => {
+            let mut urls = vec![("本机访问", format!("http://127.0.0.1:{port}"))];
+            let lan_url = detect_lan_ip()
+                .map(|ip| format!("http://{}:{port}", format_url_host(&ip)))
+                .unwrap_or_else(|| format!("http://<本机局域网IP>:{port}"));
+            urls.push(("局域网访问", lan_url));
+            urls
+        }
+        host => vec![(
+            "Web 控制台",
+            format!("http://{}:{port}", format_url_host(host)),
+        )],
+    }
+}
+
+fn print_web_panel_urls(bind: &str, port: u16) {
+    for (label, url) in web_panel_urls(bind, port) {
+        crate::cli::output::success(&format!("{label}: {url}"));
+    }
 }
 
 fn get_config_dir() -> PathBuf {

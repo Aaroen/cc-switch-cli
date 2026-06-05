@@ -265,8 +265,9 @@ impl Database {
                     .get_weight_round_robin_enabled(app_type)?
                     .or(legacy_weight_round_robin_enabled)
                     .unwrap_or(false);
-                config.load_balance_strategy =
-                    self.get_load_balance_strategy(app_type)?.unwrap_or_default();
+                config.load_balance_strategy = self
+                    .get_load_balance_strategy(app_type)?
+                    .unwrap_or_default();
                 Ok(config)
             }
             Err(rusqlite::Error::QueryReturnedNoRows) => {

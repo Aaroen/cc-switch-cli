@@ -331,7 +331,31 @@ async fn handle_claude_transform(
                             .await;
                         });
                     } else {
-                        log::debug!("[Claude] OpenRouter 流式响应缺少 usage 统计，跳过消费记录");
+                        // 与 create_usage_collector / codex 转换采集器保持一致：usage 缺失时
+                        // 仍记录一条零用量行，保留 latency/status/session 维度，避免该路径漏计。
+                        log::debug!("[Claude] OpenRouter 流式响应缺少 usage 统计，记录零用量行");
+                        let latency_ms = start_time.elapsed().as_millis() as u64;
+                        let state = state.clone();
+                        let provider_id = provider_id.clone();
+                        let model = model.clone();
+                        let session_id = session_id.clone();
+
+                        tokio::spawn(async move {
+                            log_usage(
+                                &state,
+                                &provider_id,
+                                "claude",
+                                &model,
+                                &model,
+                                TokenUsage::default(),
+                                latency_ms,
+                                first_token_ms,
+                                true,
+                                status_code,
+                                Some(session_id),
+                            )
+                            .await;
+                        });
                     }
                 },
             ))
