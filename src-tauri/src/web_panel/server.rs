@@ -14,8 +14,9 @@ use crate::web_panel::assets::WebAssets;
 use crate::web_panel::dispatch;
 use axum::{
     body::{Body, Bytes},
-    extract::{Path, State},
+    extract::{Path, Query, State},
     http::{header, HeaderMap, StatusCode, Uri},
+    response::sse::{Event, KeepAlive, Sse},
     response::{IntoResponse, Response},
     routing::{get, post},
     Json, Router,
@@ -23,7 +24,7 @@ use axum::{
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use sha2::{Digest, Sha256};
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::net::SocketAddr;
 use std::sync::{Arc, Mutex};
 use tokio::net::TcpListener;
@@ -132,10 +133,54 @@ fn build_router(state: WebState) -> Router {
         .route("/api/panel/setup", post(panel_setup_handler))
         .route("/api/panel/login", post(panel_login_handler))
         .route("/api/panel/logout", post(panel_logout_handler))
+        .route("/api/panel/usage-stream", get(usage_stream_handler))
         .route("/api/invoke/:command", post(invoke_handler))
         .route("/healthz", get(|| async { "ok" }))
         .fallback(get(static_handler))
         .with_state(state)
+}
+
+/// 用量实时推送（Server-Sent Events）。
+///
+/// 浏览器 `EventSource` 无法自定义请求头,故会话令牌经 `?token=` 传入(同源 LAN 面板可接受),
+/// 同时兼容 `Authorization: Bearer`。每当有新用量日志写入(代理转发、会话同步、归档)即推送一个
+/// `usage` 事件,前端据此立即 invalidate 用量查询,实现近实时刷新(替代 30s 轮询)。
+async fn usage_stream_handler(
+    State(st): State<WebState>,
+    headers: HeaderMap,
+    Query(params): Query<HashMap<String, String>>,
+) -> Response {
+    let token = params
+        .get("token")
+        .map(|s| s.as_str())
+        .or_else(|| bearer_token(&headers));
+    let authed = token.map(|t| session_valid(&st, t)).unwrap_or(false);
+    if !authed {
+        return (StatusCode::UNAUTHORIZED, "unauthorized").into_response();
+    }
+
+    let mut rx = crate::usage_events::subscribe();
+    let stream = async_stream::stream! {
+        loop {
+            match rx.recv().await {
+                Ok(()) => {
+                    yield Ok::<Event, std::convert::Infallible>(
+                        Event::default().event("usage").data("tick"),
+                    );
+                }
+                // 消费滞后:合并为一次 tick(前端无论如何都会重查)。
+                Err(tokio::sync::broadcast::error::RecvError::Lagged(_)) => {
+                    yield Ok(Event::default().event("usage").data("tick"));
+                }
+                // 发送端关闭(进程退出):结束流。
+                Err(tokio::sync::broadcast::error::RecvError::Closed) => break,
+            }
+        }
+    };
+
+    Sse::new(stream)
+        .keep_alive(KeepAlive::default())
+        .into_response()
 }
 
 #[derive(Debug, Serialize)]

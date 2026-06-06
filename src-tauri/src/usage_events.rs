@@ -27,6 +27,21 @@ static APP_HANDLE: OnceLock<AppHandle> = OnceLock::new();
 /// 防抖标记：true 表示已有调度任务在等待 emit，后续通知合并到该任务。
 static EMIT_SCHEDULED: AtomicBool = AtomicBool::new(false);
 
+/// Web 控制台 SSE 用的进程内广播通道。
+///
+/// 每次有新用量日志写入广播一个 tick，**不依赖 Tauri AppHandle**，因此在 headless /
+/// Web 控制台模式下同样工作（Tauri 事件在那里收不到）。容量有限，消费滞后时接收端会
+/// 收到 `Lagged`，处理端按一次 tick 处理即可（前端无论如何都会 invalidate 重查）。
+fn usage_tx() -> &'static tokio::sync::broadcast::Sender<()> {
+    static USAGE_TX: OnceLock<tokio::sync::broadcast::Sender<()>> = OnceLock::new();
+    USAGE_TX.get_or_init(|| tokio::sync::broadcast::channel(64).0)
+}
+
+/// 订阅用量写入 tick（Web 控制台 SSE 推送用）。
+pub fn subscribe() -> tokio::sync::broadcast::Receiver<()> {
+    usage_tx().subscribe()
+}
+
 /// 在应用 setup 阶段调用一次，注入 AppHandle。
 ///
 /// 重复调用是无害的（OnceLock 仅首次写入生效），但应用启动期只该被
@@ -44,7 +59,11 @@ pub fn init(handle: AppHandle) {
 /// 调用方**不**需要持有 AppHandle，可以从任意线程/任意写入路径调用。
 /// 内部 200ms 防抖合并，绝不阻塞调用线程。
 pub fn notify_log_recorded() {
-    // AppHandle 未注入（典型出现在单元测试或 setup 之前）：直接放弃。
+    // Web 控制台 SSE：始终广播 tick（不依赖 AppHandle）。无订阅者时 send 返回 Err，忽略。
+    let _ = usage_tx().send(());
+
+    // AppHandle 未注入（典型出现在单元测试、headless/Web 模式或 setup 之前）：
+    // 桌面端 Tauri 事件到此为止，SSE 路径已在上方完成广播。
     let Some(handle) = APP_HANDLE.get() else {
         return;
     };

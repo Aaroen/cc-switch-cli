@@ -7,6 +7,7 @@ import {
 } from "@/lib/api/webPanelAuth";
 import {
   clearPanelToken,
+  getPanelToken,
   PANEL_AUTH_REQUIRED_EVENT,
 } from "@/lib/api/transport";
 import { isTauri } from "@/lib/platform/isTauri";
@@ -38,10 +39,11 @@ export function WebPanelAuthGate({ children }: WebPanelAuthGateProps) {
       const state = await getWebPanelAuthState();
       if (state.authenticated) {
         setMode("ready");
-      } else if (state.setupRequired) {
-        setMode("setup");
       } else {
-        setMode("login");
+        // 未认证：清理可能残留的失效 token（如守护进程重启后内存会话被清空），
+        // 避免后续请求带着旧 token 触发 401，从而在登录页误报“会话已失效”。
+        clearPanelToken();
+        setMode(state.setupRequired ? "setup" : "login");
       }
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
@@ -54,11 +56,15 @@ export function WebPanelAuthGate({ children }: WebPanelAuthGateProps) {
 
     void refreshAuthState();
     const handleAuthRequired = () => {
+      // 仅当确实持有过会话 token 时才提示“会话已失效”，避免首次访问/无会话时误报。
+      const hadSession = getPanelToken() !== null;
       clearPanelToken();
       setPassword("");
       setConfirmPassword("");
-      setError("会话已失效，请重新登录");
       setMode("login");
+      if (hadSession) {
+        setError("会话已失效，请重新登录");
+      }
     };
     window.addEventListener(PANEL_AUTH_REQUIRED_EVENT, handleAuthRequired);
     return () => {

@@ -450,6 +450,13 @@ impl Database {
                         Self::migrate_v11_to_v12(conn)?;
                         Self::set_user_version(conn, 12)?;
                     }
+                    12 => {
+                        log::info!(
+                            "迁移数据库从 v12 到 v13（协调早期 DB 跳过 v4→v5 导致 proxy_request_logs.request_model 等缺失，使用量写入失败）"
+                        );
+                        Self::migrate_v12_to_v13(conn)?;
+                        Self::set_user_version(conn, 13)?;
+                    }
                     _ => {
                         return Err(AppError::Database(format!(
                             "未知的数据库版本 {version}，无法迁移到 {SCHEMA_VERSION}"
@@ -523,6 +530,45 @@ impl Database {
     fn migrate_v11_to_v12(conn: &Connection) -> Result<(), AppError> {
         // 生产流程 create_tables 先行建表；隔离迁移场景下 proxy_config 可能尚未建立，缺表则跳过。
         if Self::table_exists(conn, "proxy_config")? {
+            Self::add_column_if_missing(
+                conn,
+                "proxy_config",
+                "weight_round_robin_enabled",
+                "INTEGER NOT NULL DEFAULT 0",
+            )?;
+        }
+        Ok(())
+    }
+
+    /// v12 -> v13 迁移：协调早期 DB（如 3.13.0 升级而来）在 user_version 已越过 v5 时
+    /// 跳过 v4→v5 迁移，导致 proxy_request_logs.request_model / proxy_config 计费列缺失的问题。
+    ///
+    /// 其中 `proxy_request_logs.request_model` 缺失会使用量写入 INSERT 全部失败
+    /// （`no such column: request_model`），表现为统计无任何代理/会话数据。本迁移用
+    /// add_column_if_missing 幂等补齐这些列（已具备的 DB 为 no-op），覆盖所有历史分叉。
+    fn migrate_v12_to_v13(conn: &Connection) -> Result<(), AppError> {
+        if Self::table_exists(conn, "proxy_request_logs")? {
+            Self::add_column_if_missing(conn, "proxy_request_logs", "request_model", "TEXT")?;
+            Self::add_column_if_missing(
+                conn,
+                "proxy_request_logs",
+                "data_source",
+                "TEXT NOT NULL DEFAULT 'proxy'",
+            )?;
+        }
+        if Self::table_exists(conn, "proxy_config")? {
+            Self::add_column_if_missing(
+                conn,
+                "proxy_config",
+                "default_cost_multiplier",
+                "TEXT NOT NULL DEFAULT '1'",
+            )?;
+            Self::add_column_if_missing(
+                conn,
+                "proxy_config",
+                "pricing_model_source",
+                "TEXT NOT NULL DEFAULT 'response'",
+            )?;
             Self::add_column_if_missing(
                 conn,
                 "proxy_config",
