@@ -193,25 +193,7 @@ export function ProxyTabContent({
                       value={appType}
                       className="mt-4 space-y-6"
                     >
-                      <div className="space-y-4">
-                        <div>
-                          <h4 className="text-sm font-semibold">
-                            {t("proxy.failoverQueue.title")}
-                          </h4>
-                          <p className="text-xs text-muted-foreground">
-                            {t("proxy.failoverQueue.description")}
-                          </p>
-                        </div>
-                        <FailoverQueueManager
-                          appType={appType}
-                          disabled={failoverDisabled}
-                          weightRoundRobinEnabled={
-                            weightRoundRobinDraft?.enabled
-                          }
-                          loadBalanceStrategy={weightRoundRobinDraft?.strategy}
-                        />
-                      </div>
-                      <div className="border-t border-border/50 pt-6">
+                      <div>
                         <AutoFailoverConfigPanel
                           appType={appType}
                           disabled={failoverDisabled}
@@ -233,6 +215,24 @@ export function ProxyTabContent({
                               return { ...prev, [appType]: draft };
                             })
                           }
+                        />
+                      </div>
+                      <div className="border-t border-border/50 pt-6 space-y-4">
+                        <div>
+                          <h4 className="text-sm font-semibold">
+                            {t("proxy.failoverQueue.title")}
+                          </h4>
+                          <p className="text-xs text-muted-foreground">
+                            {t("proxy.failoverQueue.description")}
+                          </p>
+                        </div>
+                        <FailoverQueueManager
+                          appType={appType}
+                          disabled={failoverDisabled}
+                          weightRoundRobinEnabled={
+                            weightRoundRobinDraft?.enabled
+                          }
+                          loadBalanceStrategy={weightRoundRobinDraft?.strategy}
                         />
                       </div>
                     </TabsContent>
