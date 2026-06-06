@@ -170,16 +170,31 @@ fn schema_migration_sets_user_version_when_missing() {
 }
 
 #[test]
-fn schema_migration_rejects_future_version() {
+fn schema_migration_rejects_unknown_future_version() {
     let conn = Connection::open_in_memory().expect("open memory db");
     Database::create_tables_on_conn(&conn).expect("create tables");
-    Database::set_user_version(&conn, SCHEMA_VERSION + 1).expect("set future version");
+    // 远超本 fork 早期版本上限（13）的未知版本：仍拒绝，避免旧应用误开真正更新的库。
+    Database::set_user_version(&conn, 99).expect("set future version");
 
-    let err =
-        Database::apply_schema_migrations_on_conn(&conn).expect_err("should reject higher version");
+    let err = Database::apply_schema_migrations_on_conn(&conn)
+        .expect_err("should reject unknown future version");
     assert!(
         err.to_string().contains("数据库版本过新"),
         "unexpected error: {err}"
+    );
+}
+
+#[test]
+fn schema_migration_relabels_fork_legacy_version_to_current() {
+    let conn = Connection::open_in_memory().expect("open memory db");
+    Database::create_tables_on_conn(&conn).expect("create tables");
+    // 本 fork 早期内部构建曾写入 11–13；启动时应回贴为 SCHEMA_VERSION(=官方 10) 而非报错。
+    Database::set_user_version(&conn, 13).expect("set fork legacy version");
+
+    Database::apply_schema_migrations_on_conn(&conn).expect("should relabel, not reject");
+    assert_eq!(
+        Database::get_user_version(&conn).expect("read version"),
+        SCHEMA_VERSION
     );
 }
 

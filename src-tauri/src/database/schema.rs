@@ -373,12 +373,30 @@ impl Database {
 
         let mut version = Self::get_user_version(conn)?;
 
+        // 与官方对齐：官方 SCHEMA_VERSION=10。本 fork 早期内部构建曾把 user_version 抬到
+        // 11–13（为补缺列），现回退到 10 并改用无版本号的幂等列自愈（reconcile_schema_drift）。
+        // 本 fork 的 schema 是官方 v10 的超集、且列自愈保证齐全，故把这些早期版本回贴为
+        // SCHEMA_VERSION，使导出的 user_version 与官方一致、可被官方端导入。真正更高的未知
+        // 版本（> FORK_LEGACY_MAX_VERSION）仍拒绝，避免旧应用误开新库。
+        const FORK_LEGACY_MAX_VERSION: i32 = 13;
         if version > SCHEMA_VERSION {
-            conn.execute("ROLLBACK TO schema_migration;", []).ok();
-            conn.execute("RELEASE schema_migration;", []).ok();
-            return Err(AppError::Database(format!(
-                "数据库版本过新（{version}），当前应用仅支持 {SCHEMA_VERSION}，请升级应用后再尝试。"
-            )));
+            if version <= FORK_LEGACY_MAX_VERSION {
+                log::warn!(
+                    "检测到本 fork 早期 user_version={version}，回贴为 {SCHEMA_VERSION} 以与官方对齐"
+                );
+                if let Err(e) = Self::set_user_version(conn, SCHEMA_VERSION) {
+                    conn.execute("ROLLBACK TO schema_migration;", []).ok();
+                    conn.execute("RELEASE schema_migration;", []).ok();
+                    return Err(e);
+                }
+                version = SCHEMA_VERSION;
+            } else {
+                conn.execute("ROLLBACK TO schema_migration;", []).ok();
+                conn.execute("RELEASE schema_migration;", []).ok();
+                return Err(AppError::Database(format!(
+                    "数据库版本过新（{version}），当前应用仅支持 {SCHEMA_VERSION}，请升级应用后再尝试。"
+                )));
+            }
         }
 
         let result = (|| {
@@ -436,27 +454,6 @@ impl Database {
                         Self::migrate_v9_to_v10(conn)?;
                         Self::set_user_version(conn, 10)?;
                     }
-                    10 => {
-                        log::info!(
-                            "迁移数据库从 v10 到 v11（协调 fork 与官方迁移历史分叉导致的缺失列）"
-                        );
-                        Self::migrate_v10_to_v11(conn)?;
-                        Self::set_user_version(conn, 11)?;
-                    }
-                    11 => {
-                        log::info!(
-                            "迁移数据库从 v11 到 v12（协调 fork 与官方迁移历史分叉：补齐 proxy_config.weight_round_robin_enabled）"
-                        );
-                        Self::migrate_v11_to_v12(conn)?;
-                        Self::set_user_version(conn, 12)?;
-                    }
-                    12 => {
-                        log::info!(
-                            "迁移数据库从 v12 到 v13（协调早期 DB 跳过 v4→v5 导致 proxy_request_logs.request_model 等缺失，使用量写入失败）"
-                        );
-                        Self::migrate_v12_to_v13(conn)?;
-                        Self::set_user_version(conn, 13)?;
-                    }
                     _ => {
                         return Err(AppError::Database(format!(
                             "未知的数据库版本 {version}，无法迁移到 {SCHEMA_VERSION}"
@@ -465,6 +462,11 @@ impl Database {
                 }
                 version = Self::get_user_version(conn)?;
             }
+            // 与官方对齐后（SCHEMA_VERSION=10），补列改为无版本号的幂等自愈：补齐早期 fork DB
+            // 因版本跳跃而缺失的列（mcp_servers/skills 的 enabled_opencode/hermes、proxy_config
+            // 的权重轮询/计费列、proxy_request_logs 的 request_model/data_source 等），但不抬高
+            // user_version。官方/全新库均为 no-op（add_column_if_missing 幂等）。
+            Self::reconcile_schema_drift(conn)?;
             Ok(())
         })();
 
@@ -482,11 +484,22 @@ impl Database {
         }
     }
 
-    /// v10 -> v11 迁移：协调 fork 与官方迁移历史分叉导致的缺失列。
+    /// 无版本号的幂等"列漂移自愈"：在每次迁移末尾运行，补齐早期 fork DB 因版本跳跃而缺失的列，
+    /// 但**不抬高 user_version**（与官方 SCHEMA_VERSION=10 对齐，使导出可被官方端导入）。
     ///
-    /// 官方将 OpenCode 支持追加进既有的 v3->v4 迁移，而本 fork 的 DB 走的是自身的
-    /// v3->v4（仅权重），因此 fork-DB 在 user_version 已达 10 时仍缺 `enabled_opencode`。
-    /// add_column_if_missing 幂等：官方 schema 的库为 no-op，fork-DB 自愈。
+    /// 复用下方三个补列函数（均为 add_column_if_missing，幂等；官方/全新库为 no-op）：
+    /// - mcp_servers / skills: enabled_opencode / enabled_hermes
+    /// - proxy_config: weight_round_robin_enabled / default_cost_multiplier / pricing_model_source
+    /// - proxy_request_logs: request_model / data_source
+    fn reconcile_schema_drift(conn: &Connection) -> Result<(), AppError> {
+        Self::migrate_v10_to_v11(conn)?;
+        Self::migrate_v11_to_v12(conn)?;
+        Self::migrate_v12_to_v13(conn)?;
+        Ok(())
+    }
+
+    /// 补列（OpenCode / Hermes，mcp_servers + skills）。历史上作为 v10->v11 迁移，
+    /// 现由 reconcile_schema_drift 无版本号调用。
     fn migrate_v10_to_v11(conn: &Connection) -> Result<(), AppError> {
         // 生产流程 create_tables 先行建表；隔离迁移场景下表可能尚未建立，缺表则跳过。
         if Self::table_exists(conn, "mcp_servers")? {
