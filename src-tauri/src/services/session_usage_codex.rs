@@ -182,6 +182,9 @@ pub fn sync_codex_usage(db: &Database) -> Result<SessionSyncResult, AppError> {
         );
     }
 
+    // 把会话占位 provider 归并到当前供应商，避免显示 “Codex (Session)”
+    crate::services::session_usage::reattribute_session_rows(db, "codex", "_codex_session");
+
     Ok(result)
 }
 

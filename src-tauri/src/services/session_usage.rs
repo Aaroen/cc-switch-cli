@@ -57,6 +57,37 @@ struct ParsedAssistantUsage {
     session_id: Option<String>,
 }
 
+/// 将指定 app 的“会话占位”用量行归并到当前激活供应商，使统计显示具体供应商名而非
+/// “X (Session)”。
+///
+/// 会话日志（Claude Code / Codex / Gemini CLI 的本地记录）只含模型与 token，不含代理
+/// 实际路由到的上游供应商，故以当前 `is_current` 供应商归因；无当前供应商时保持占位
+/// （前端回退显示 “(Session)”）。每次同步末尾调用，幂等：无匹配行即 no-op。
+pub(crate) fn reattribute_session_rows(db: &Database, app_type: &str, placeholder_id: &str) {
+    let conn = match db.conn.lock() {
+        Ok(c) => c,
+        Err(_) => return,
+    };
+    let current: Option<String> = conn
+        .query_row(
+            "SELECT id FROM providers WHERE app_type = ?1 AND is_current = 1 LIMIT 1",
+            [app_type],
+            |row| row.get(0),
+        )
+        .ok();
+    if let Some(current_id) = current {
+        if current_id != placeholder_id {
+            if let Err(e) = conn.execute(
+                "UPDATE proxy_request_logs SET provider_id = ?1 \
+                 WHERE provider_id = ?2 AND app_type = ?3",
+                rusqlite::params![current_id, placeholder_id, app_type],
+            ) {
+                log::warn!("[session-reattribute] {app_type} 会话用量归并当前供应商失败: {e}");
+            }
+        }
+    }
+}
+
 /// 同步 Claude Code 会话日志到使用统计数据库
 pub fn sync_claude_session_logs(db: &Database) -> Result<SessionSyncResult, AppError> {
     let projects_dir = get_claude_config_dir().join("projects");
@@ -103,6 +134,9 @@ pub fn sync_claude_session_logs(db: &Database) -> Result<SessionSyncResult, AppE
             result.files_scanned
         );
     }
+
+    // 把会话占位 provider 归并到当前供应商，避免显示 “Claude (Session)”
+    reattribute_session_rows(db, "claude", "_session");
 
     Ok(result)
 }

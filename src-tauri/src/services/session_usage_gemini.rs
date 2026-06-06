@@ -76,6 +76,9 @@ pub fn sync_gemini_usage(db: &Database) -> Result<SessionSyncResult, AppError> {
         );
     }
 
+    // 把会话占位 provider 归并到当前供应商，避免显示 “Gemini (Session)”
+    crate::services::session_usage::reattribute_session_rows(db, "gemini", "_gemini_session");
+
     Ok(result)
 }
 
