@@ -588,11 +588,8 @@ jobs:
     name: Publish GitHub Release
     runs-on: ubuntu-22.04
     needs: build-release
-<<<<<<< HEAD
     # 仅在推送 v* tag 时发布；workflow_dispatch 验收构建只产出可下载产物，不创建公开 Release
     if: startsWith(github.ref, 'refs/tags/')
-=======
->>>>>>> origin/cc-switch-cli
     permissions:
       contents: write
     steps:
