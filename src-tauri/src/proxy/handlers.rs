@@ -16,28 +16,17 @@ use super::{
     },
     handler_context::RequestContext,
     providers::{
-<<<<<<< HEAD
         codex_chat_history::record_responses_sse_stream, get_adapter, get_claude_api_format,
         streaming::create_anthropic_sse_stream,
         streaming_codex_chat::create_responses_sse_stream_from_chat_with_context,
         streaming_gemini::create_anthropic_sse_stream_from_gemini,
         streaming_responses::create_anthropic_sse_stream_from_responses, transform,
         transform_codex_chat, transform_gemini, transform_responses,
-=======
-        get_adapter, get_claude_api_format, streaming::create_anthropic_sse_stream,
-        streaming_gemini::create_anthropic_sse_stream_from_gemini,
-        streaming_responses::create_anthropic_sse_stream_from_responses, transform,
-        transform_gemini, transform_responses,
->>>>>>> origin/cc-switch-cli
     },
     response_processor::{
         create_logged_passthrough_stream, process_response, read_decoded_body,
         strip_entity_headers_for_rebuilt_body, strip_hop_by_hop_response_headers,
-<<<<<<< HEAD
         usage_logging_enabled, SseUsageCollector,
-=======
-        SseUsageCollector,
->>>>>>> origin/cc-switch-cli
     },
     server::ProxyState,
     sse::{strip_sse_field, take_sse_block},
@@ -86,7 +75,6 @@ pub async fn handle_messages(
     State(state): State<ProxyState>,
     request: axum::extract::Request,
 ) -> Result<axum::response::Response, ProxyError> {
-<<<<<<< HEAD
     handle_messages_for_app(state, request, AppType::Claude, "Claude", "claude", None).await
 }
 
@@ -132,9 +120,6 @@ async fn handle_messages_for_app(
 ) -> Result<axum::response::Response, ProxyError> {
     let (parts, body) = request.into_parts();
     let method = parts.method.clone();
-=======
-    let (parts, body) = request.into_parts();
->>>>>>> origin/cc-switch-cli
     let uri = parts.uri;
     let headers = parts.headers;
     let extensions = parts.extensions;
@@ -157,11 +142,6 @@ async fn handle_messages_for_app(
         .and_then(|prefix| raw_endpoint.strip_prefix(prefix))
         .unwrap_or(raw_endpoint);
 
-    let endpoint = uri
-        .path_and_query()
-        .map(|path_and_query| path_and_query.as_str())
-        .unwrap_or(uri.path());
-
     let is_stream = body
         .get("stream")
         .and_then(|s| s.as_bool())
@@ -171,12 +151,8 @@ async fn handle_messages_for_app(
     let forwarder = ctx.create_forwarder(&state);
     let mut result = match forwarder
         .forward_with_retry(
-<<<<<<< HEAD
             &app_type,
             method,
-=======
-            &AppType::Claude,
->>>>>>> origin/cc-switch-cli
             endpoint,
             body.clone(),
             headers,
@@ -210,7 +186,6 @@ async fn handle_messages_for_app(
 
     // Claude 特有：格式转换处理
     if needs_transform {
-<<<<<<< HEAD
         return handle_claude_transform(
             response,
             &ctx,
@@ -221,10 +196,6 @@ async fn handle_messages_for_app(
             connection_guard,
         )
         .await;
-=======
-        return handle_claude_transform(response, &ctx, &state, &body, is_stream, &api_format)
-            .await;
->>>>>>> origin/cc-switch-cli
     }
 
     // 通用响应处理（透传模式）
@@ -275,7 +246,6 @@ async fn handle_claude_transform(
     original_body: &Value,
     is_stream: bool,
     api_format: &str,
-<<<<<<< HEAD
     connection_guard: Option<ActiveConnectionGuard>,
 ) -> Result<axum::response::Response, ProxyError> {
     let status = response.status();
@@ -306,14 +276,6 @@ async fn handle_claude_transform(
     let tool_schema_hints = (!tool_schema_hints.is_empty()).then_some(tool_schema_hints);
 
     if use_streaming {
-=======
-) -> Result<axum::response::Response, ProxyError> {
-    let status = response.status();
-    let tool_schema_hints = transform_gemini::extract_anthropic_tool_schema_hints(original_body);
-    let tool_schema_hints = (!tool_schema_hints.is_empty()).then_some(tool_schema_hints);
-
-    if is_stream {
->>>>>>> origin/cc-switch-cli
         // 根据 api_format 选择流式转换器
         let stream = response.bytes_stream();
         let sse_stream: Box<
@@ -438,7 +400,6 @@ async fn handle_claude_transform(
 
     let body_str = String::from_utf8_lossy(&body_bytes);
 
-<<<<<<< HEAD
     let upstream_response: Value = if aggregate_codex_oauth_responses_sse {
         responses_sse_to_response_value(&body_str)?
     } else {
@@ -447,12 +408,6 @@ async fn handle_claude_transform(
             ProxyError::TransformError(format!("Failed to parse upstream response: {e}"))
         })?
     };
-=======
-    let upstream_response: Value = serde_json::from_slice(&body_bytes).map_err(|e| {
-        log::error!("[Claude] 解析上游响应失败: {e}, body: {body_str}");
-        ProxyError::TransformError(format!("Failed to parse upstream response: {e}"))
-    })?;
->>>>>>> origin/cc-switch-cli
 
     // 根据 api_format 选择非流式转换器
     let anthropic_response = if api_format == "openai_responses" {
@@ -510,11 +465,8 @@ async fn handle_claude_transform(
     let mut builder = axum::response::Response::builder().status(status);
     strip_entity_headers_for_rebuilt_body(&mut response_headers);
     strip_hop_by_hop_response_headers(&mut response_headers);
-<<<<<<< HEAD
     // Builder::header 是 append 语义；不先 remove 会和上游 Content-Type 双发。
     response_headers.remove(axum::http::header::CONTENT_TYPE);
-=======
->>>>>>> origin/cc-switch-cli
 
     for (key, value) in response_headers.iter() {
         builder = builder.header(key, value);
@@ -554,10 +506,7 @@ pub async fn handle_chat_completions(
     request: axum::extract::Request,
 ) -> Result<axum::response::Response, ProxyError> {
     let (parts, req_body) = request.into_parts();
-<<<<<<< HEAD
     let method = parts.method.clone();
-=======
->>>>>>> origin/cc-switch-cli
     let uri = parts.uri;
     let headers = parts.headers;
     let extensions = parts.extensions;
@@ -582,10 +531,7 @@ pub async fn handle_chat_completions(
     let mut result = match forwarder
         .forward_with_retry(
             &AppType::Codex,
-<<<<<<< HEAD
             method,
-=======
->>>>>>> origin/cc-switch-cli
             &endpoint,
             body,
             headers,
@@ -624,10 +570,7 @@ pub async fn handle_responses(
     request: axum::extract::Request,
 ) -> Result<axum::response::Response, ProxyError> {
     let (parts, req_body) = request.into_parts();
-<<<<<<< HEAD
     let method = parts.method.clone();
-=======
->>>>>>> origin/cc-switch-cli
     let uri = parts.uri;
     let headers = parts.headers;
     let extensions = parts.extensions;
@@ -653,10 +596,7 @@ pub async fn handle_responses(
     let mut result = match forwarder
         .forward_with_retry(
             &AppType::Codex,
-<<<<<<< HEAD
             method,
-=======
->>>>>>> origin/cc-switch-cli
             &endpoint,
             body,
             headers,
@@ -707,10 +647,7 @@ pub async fn handle_responses_compact(
     request: axum::extract::Request,
 ) -> Result<axum::response::Response, ProxyError> {
     let (parts, req_body) = request.into_parts();
-<<<<<<< HEAD
     let method = parts.method.clone();
-=======
->>>>>>> origin/cc-switch-cli
     let uri = parts.uri;
     let headers = parts.headers;
     let extensions = parts.extensions;
@@ -736,10 +673,7 @@ pub async fn handle_responses_compact(
     let mut result = match forwarder
         .forward_with_retry(
             &AppType::Codex,
-<<<<<<< HEAD
             method,
-=======
->>>>>>> origin/cc-switch-cli
             &endpoint,
             body,
             headers,
@@ -1224,10 +1158,7 @@ pub async fn handle_gemini(
     request: axum::extract::Request,
 ) -> Result<axum::response::Response, ProxyError> {
     let (parts, req_body) = request.into_parts();
-<<<<<<< HEAD
     let method = parts.method.clone();
-=======
->>>>>>> origin/cc-switch-cli
     let headers = parts.headers;
     let extensions = parts.extensions;
     let body_bytes = req_body
@@ -1235,7 +1166,6 @@ pub async fn handle_gemini(
         .await
         .map_err(|e| ProxyError::Internal(format!("Failed to read request body: {e}")))?
         .to_bytes();
-<<<<<<< HEAD
     // GET 类只读端点（/v1beta/models、/v1beta/models/<model> 等）没有请求体，
     // 不能强制 parse 为 JSON —— 否则空 body 会被拒绝。
     let body: Value = if body_bytes.is_empty() {
@@ -1244,10 +1174,6 @@ pub async fn handle_gemini(
         serde_json::from_slice(&body_bytes)
             .map_err(|e| ProxyError::Internal(format!("Failed to parse request body: {e}")))?
     };
-=======
-    let body: Value = serde_json::from_slice(&body_bytes)
-        .map_err(|e| ProxyError::Internal(format!("Failed to parse request body: {e}")))?;
->>>>>>> origin/cc-switch-cli
 
     // Gemini 的模型名称在 URI 中
     let mut ctx = RequestContext::new(&state, &body, &headers, AppType::Gemini, "Gemini", "gemini")

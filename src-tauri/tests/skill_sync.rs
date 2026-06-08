@@ -53,15 +53,8 @@ fn import_from_apps_respects_explicit_app_selection() {
         vec![ImportSkillSelection {
             directory: "shared-skill".to_string(),
             apps: SkillApps {
-<<<<<<< HEAD
                 opencode: true,
                 ..Default::default()
-=======
-                claude: false,
-                codex: false,
-                gemini: false,
-                opencode: true,
->>>>>>> origin/cc-switch-cli
             },
         }],
     )
@@ -80,7 +73,6 @@ fn import_from_apps_respects_explicit_app_selection() {
 }
 
 #[test]
-<<<<<<< HEAD
 fn import_from_apps_does_not_rewrite_selected_app_directory() {
     let _guard = test_mutex().lock().expect("acquire test mutex");
     reset_test_fs();
@@ -128,8 +120,6 @@ fn import_from_apps_does_not_rewrite_selected_app_directory() {
 }
 
 #[test]
-=======
->>>>>>> origin/cc-switch-cli
 fn sync_to_app_removes_disabled_and_orphaned_ssot_symlinks() {
     let _guard = test_mutex().lock().expect("acquire test mutex");
     reset_test_fs();
@@ -158,16 +148,7 @@ fn sync_to_app_removes_disabled_and_orphaned_ssot_symlinks() {
             repo_name: None,
             repo_branch: None,
             readme_url: None,
-<<<<<<< HEAD
             apps: SkillApps::default(),
-=======
-            apps: SkillApps {
-                claude: false,
-                codex: false,
-                gemini: false,
-                opencode: false,
-            },
->>>>>>> origin/cc-switch-cli
             installed_at: 0,
             content_hash: None,
             updated_at: 0,
@@ -210,13 +191,7 @@ fn uninstall_skill_creates_backup_before_removing_ssot() {
             readme_url: None,
             apps: SkillApps {
                 claude: true,
-<<<<<<< HEAD
                 ..Default::default()
-=======
-                codex: false,
-                gemini: false,
-                opencode: false,
->>>>>>> origin/cc-switch-cli
             },
             installed_at: 123,
             content_hash: None,
@@ -284,13 +259,7 @@ fn restore_skill_backup_restores_files_to_ssot_and_current_app() {
             readme_url: None,
             apps: SkillApps {
                 claude: true,
-<<<<<<< HEAD
                 ..Default::default()
-=======
-                codex: false,
-                gemini: false,
-                opencode: false,
->>>>>>> origin/cc-switch-cli
             },
             installed_at: 456,
             content_hash: None,
@@ -371,13 +340,7 @@ fn delete_skill_backup_removes_backup_directory() {
             readme_url: None,
             apps: SkillApps {
                 claude: true,
-<<<<<<< HEAD
                 ..Default::default()
-=======
-                codex: false,
-                gemini: false,
-                opencode: false,
->>>>>>> origin/cc-switch-cli
             },
             installed_at: 789,
             content_hash: None,

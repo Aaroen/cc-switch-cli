@@ -6,11 +6,7 @@
 
 use serde_json::Value;
 use std::collections::{HashMap, VecDeque};
-<<<<<<< HEAD
 use std::sync::{RwLock, RwLockReadGuard, RwLockWriteGuard};
-=======
-use std::sync::RwLock;
->>>>>>> origin/cc-switch-cli
 
 /// Composite key for a Gemini shadow session.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -149,11 +145,7 @@ impl GeminiShadowStore {
         let key = GeminiShadowKey::new(provider_id, session_id);
         let turn = GeminiAssistantTurn::new(assistant_content, tool_calls);
 
-<<<<<<< HEAD
         let mut inner = self.write_inner();
-=======
-        let mut inner = self.inner.write().expect("gemini shadow lock poisoned");
->>>>>>> origin/cc-switch-cli
         Self::touch_session_order(&mut inner.session_order, &key);
 
         let snapshot = {
@@ -201,11 +193,7 @@ impl GeminiShadowStore {
         session_id: &str,
     ) -> Option<GeminiShadowSessionSnapshot> {
         let key = GeminiShadowKey::new(provider_id, session_id);
-<<<<<<< HEAD
         let mut inner = self.write_inner();
-=======
-        let mut inner = self.inner.write().expect("gemini shadow lock poisoned");
->>>>>>> origin/cc-switch-cli
         let snapshot = inner
             .sessions
             .get(&key)
@@ -220,11 +208,7 @@ impl GeminiShadowStore {
     #[allow(dead_code)]
     pub fn clear_session(&self, provider_id: &str, session_id: &str) -> bool {
         let key = GeminiShadowKey::new(provider_id, session_id);
-<<<<<<< HEAD
         let mut inner = self.write_inner();
-=======
-        let mut inner = self.inner.write().expect("gemini shadow lock poisoned");
->>>>>>> origin/cc-switch-cli
         let removed = inner.sessions.remove(&key).is_some();
         if removed {
             Self::remove_key_from_order(&mut inner.session_order, &key);
@@ -235,11 +219,7 @@ impl GeminiShadowStore {
     /// Remove all sessions for a provider.
     #[allow(dead_code)]
     pub fn clear_provider(&self, provider_id: &str) -> usize {
-<<<<<<< HEAD
         let mut inner = self.write_inner();
-=======
-        let mut inner = self.inner.write().expect("gemini shadow lock poisoned");
->>>>>>> origin/cc-switch-cli
         let keys: Vec<_> = inner
             .sessions
             .keys()
@@ -256,7 +236,6 @@ impl GeminiShadowStore {
     /// Number of tracked sessions.
     #[allow(dead_code)]
     pub fn session_count(&self) -> usize {
-<<<<<<< HEAD
         self.read_inner().sessions.len()
     }
 
@@ -272,13 +251,6 @@ impl GeminiShadowStore {
             log::warn!("[GeminiShadow] recovering poisoned write lock");
             poisoned.into_inner()
         })
-=======
-        self.inner
-            .read()
-            .expect("gemini shadow lock poisoned")
-            .sessions
-            .len()
->>>>>>> origin/cc-switch-cli
     }
 
     fn snapshot_session(

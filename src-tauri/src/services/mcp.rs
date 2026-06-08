@@ -181,11 +181,7 @@ impl McpService {
         let servers = Self::get_all_servers(state)?;
 
         for app in AppType::all() {
-<<<<<<< HEAD
             if matches!(app, AppType::OpenClaw | AppType::ClaudeDesktop) {
-=======
-            if matches!(app, AppType::OpenClaw) {
->>>>>>> origin/cc-switch-cli
                 continue;
             }
 

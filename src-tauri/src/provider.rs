@@ -373,7 +373,6 @@ pub struct AuthBinding {
     pub account_id: Option<String>,
 }
 
-<<<<<<< HEAD
 /// Claude Desktop 3P 写入模式。
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "lowercase")]
@@ -416,8 +415,6 @@ pub struct CodexChatReasoningConfig {
     pub output_format: Option<String>,
 }
 
-=======
->>>>>>> origin/cc-switch-cli
 /// 供应商元数据
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct ProviderMeta {
@@ -430,7 +427,6 @@ pub struct ProviderMeta {
         skip_serializing_if = "Option::is_none"
     )]
     pub common_config_enabled: Option<bool>,
-<<<<<<< HEAD
     /// Claude Desktop 3P 写入模式：direct（直连）或 proxy（预留）
     #[serde(rename = "claudeDesktopMode", skip_serializing_if = "Option::is_none")]
     pub claude_desktop_mode: Option<ClaudeDesktopMode>,
@@ -441,8 +437,6 @@ pub struct ProviderMeta {
         skip_serializing_if = "HashMap::is_empty"
     )]
     pub claude_desktop_model_routes: HashMap<String, ClaudeDesktopModelRoute>,
-=======
->>>>>>> origin/cc-switch-cli
     /// 用量查询脚本配置
     #[serde(skip_serializing_if = "Option::is_none")]
     pub usage_script: Option<UsageScript>,
@@ -501,7 +495,6 @@ pub struct ProviderMeta {
     pub is_full_url: Option<bool>,
     /// Prompt cache key for OpenAI Responses-compatible endpoints.
     /// When set, injected into converted Responses requests to improve cache hit rate.
-<<<<<<< HEAD
     /// If not set, Claude -> Responses conversions use a client-provided session/thread
     /// identity when available; generated session IDs are not sent upstream.
     #[serde(rename = "promptCacheKey", skip_serializing_if = "Option::is_none")]
@@ -512,11 +505,6 @@ pub struct ProviderMeta {
     /// Codex Responses -> Chat Completions reasoning capability metadata.
     #[serde(rename = "codexChatReasoning", skip_serializing_if = "Option::is_none")]
     pub codex_chat_reasoning: Option<CodexChatReasoningConfig>,
-=======
-    /// If not set, provider ID is used automatically during Claude -> Responses conversion.
-    #[serde(rename = "promptCacheKey", skip_serializing_if = "Option::is_none")]
-    pub prompt_cache_key: Option<String>,
->>>>>>> origin/cc-switch-cli
     /// 累加模式应用中，该 provider 是否已写入 live config。
     /// `None` 表示旧数据/未知状态，`Some(false)` 表示明确仅存在于数据库中。
     #[serde(rename = "liveConfigManaged", skip_serializing_if = "Option::is_none")]
@@ -532,15 +520,12 @@ pub struct ProviderMeta {
 }
 
 impl ProviderMeta {
-<<<<<<< HEAD
     /// Codex OAuth FAST mode 是否启用。默认关闭，因为 `service_tier="priority"`
     /// 会按更高速率消耗 ChatGPT 订阅配额，用户需显式开启以换取更低延迟。
     pub fn codex_fast_mode_enabled(&self) -> bool {
         self.codex_fast_mode.unwrap_or(false)
     }
 
-=======
->>>>>>> origin/cc-switch-cli
     /// 解析指定托管认证供应商绑定的账号 ID。
     ///
     /// 新版优先读取 authBinding，旧版继续兼容 githubAccountId。

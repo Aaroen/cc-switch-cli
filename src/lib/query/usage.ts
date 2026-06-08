@@ -158,6 +158,12 @@ export function useUsageSummaryByApp(
     queryFn: () => {
       const { startDate, endDate } = resolveUsageRange(range);
       return usageApi.getUsageSummaryByApp(startDate, endDate);
+    },
+    refetchInterval: options?.refetchInterval ?? DEFAULT_REFETCH_INTERVAL_MS,
+    refetchIntervalInBackground: options?.refetchIntervalInBackground ?? false,
+  });
+}
+
 export function useUsageTrends(
   range: UsageRangeSelection,
   appType?: string,
@@ -180,7 +186,6 @@ export function useUsageTrends(
   });
 }
 
-export function useUsageTrends(
 export function useProviderStats(
   range: UsageRangeSelection,
   appType?: string,
@@ -188,7 +193,6 @@ export function useProviderStats(
 ) {
   const effectiveAppType = appType === "all" ? undefined : appType;
   return useQuery({
-    queryKey: usageKeys.trends(
     queryKey: usageKeys.providerStats(
       range.preset,
       range.customStartDate,
@@ -197,33 +201,7 @@ export function useProviderStats(
     ),
     queryFn: () => {
       const { startDate, endDate } = resolveUsageRange(range);
-      return usageApi.getUsageTrends(startDate, endDate, effectiveAppType);
       return usageApi.getProviderStats(startDate, endDate, effectiveAppType);
-    },
-    refetchInterval: options?.refetchInterval ?? DEFAULT_REFETCH_INTERVAL_MS,
-    refetchIntervalInBackground: options?.refetchIntervalInBackground ?? false,
-  });
-}
-
-export function useProviderStats(
-export function useModelStats(
-  range: UsageRangeSelection,
-  appType?: string,
-  options?: UsageQueryOptions,
-) {
-  const effectiveAppType = appType === "all" ? undefined : appType;
-  return useQuery({
-    queryKey: usageKeys.providerStats(
-    queryKey: usageKeys.modelStats(
-      range.preset,
-      range.customStartDate,
-      range.customEndDate,
-      appType,
-    ),
-    queryFn: () => {
-      const { startDate, endDate } = resolveUsageRange(range);
-      return usageApi.getProviderStats(startDate, endDate, effectiveAppType);
-      return usageApi.getModelStats(startDate, endDate, effectiveAppType);
     },
     refetchInterval: options?.refetchInterval ?? DEFAULT_REFETCH_INTERVAL_MS,
     refetchIntervalInBackground: options?.refetchIntervalInBackground ?? false,

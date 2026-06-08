@@ -223,27 +223,18 @@ impl RequestContext {
             state.status.clone(),
             state.current_providers.clone(),
             state.gemini_shadow.clone(),
-<<<<<<< HEAD
             state.codex_chat_history.clone(),
-=======
->>>>>>> origin/cc-switch-cli
             state.failover_manager.clone(),
             state.app_handle.clone(),
             self.current_provider_id.clone(),
             self.session_id.clone(),
-<<<<<<< HEAD
             self.session_client_provided,
-=======
->>>>>>> origin/cc-switch-cli
             first_byte_timeout,
             idle_timeout,
             self.rectifier_config.clone(),
             self.optimizer_config.clone(),
             self.copilot_optimizer_config.clone(),
-<<<<<<< HEAD
             max_retries,
-=======
->>>>>>> origin/cc-switch-cli
         )
     }
 

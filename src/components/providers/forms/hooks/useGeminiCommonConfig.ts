@@ -256,9 +256,6 @@ export function useGeminiCommonConfig({
         !inferredHasCommon &&
         Object.keys(parsed.env).length > 0
       ) {
-      const hasCommon = initialEnabled ?? inferredHasCommon;
-
-      if (hasCommon && !inferredHasCommon) {
         const currentEnv = envStringToObj(envValue);
         const merged = applySnippetToEnv(currentEnv, parsed.env);
         const nextEnvString = envObjToString(merged);

@@ -7,21 +7,12 @@ use super::{
     body_filter::filter_private_params_with_whitelist,
     error::*,
     failover_switch::FailoverSwitchManager,
-<<<<<<< HEAD
     json_canonical::{canonicalize_value, short_value_hash},
     log_codes::fwd as log_fwd,
     provider_router::ProviderRouter,
     providers::{
         codex_chat_history::CodexChatHistoryStore, gemini_shadow::GeminiShadowStore, get_adapter,
         AuthInfo, AuthStrategy, ProviderAdapter, ProviderType,
-=======
-    file_logger::get_file_logger,
-    log_codes::fwd as log_fwd,
-    provider_router::ProviderRouter,
-    providers::{
-        gemini_shadow::GeminiShadowStore, get_adapter, AuthInfo, AuthStrategy, ProviderAdapter,
-        ProviderType,
->>>>>>> origin/cc-switch-cli
     },
     thinking_budget_rectifier::{rectify_thinking_budget, should_rectify_thinking_budget},
     thinking_rectifier::{
@@ -34,31 +25,22 @@ use crate::commands::{CodexOAuthState, CopilotAuthState};
 use crate::proxy::providers::codex_oauth_auth::CodexOAuthManager;
 use crate::proxy::providers::copilot_auth::CopilotAuthManager;
 use crate::{app_config::AppType, provider::Provider};
-<<<<<<< HEAD
 use futures::StreamExt;
-=======
->>>>>>> origin/cc-switch-cli
 use http::Extensions;
 use serde_json::Value;
 use std::sync::Arc;
 use tauri::Manager;
 use tokio::sync::RwLock;
 
-<<<<<<< HEAD
 const PROXY_AUTH_PLACEHOLDER: &str = "PROXY_MANAGED";
 
-=======
->>>>>>> origin/cc-switch-cli
 pub struct ForwardResult {
     pub response: ProxyResponse,
     pub provider: Provider,
     pub claude_api_format: Option<String>,
-<<<<<<< HEAD
     /// 活跃连接 RAII guard：随响应一起流转到 response_processor / handle_claude_transform，
     /// 最终被 move 进流式 body future（或非流式响应作用域），覆盖整个响应生命周期。
     pub(crate) connection_guard: Option<ActiveConnectionGuard>,
-=======
->>>>>>> origin/cc-switch-cli
 }
 
 pub struct ForwardError {
@@ -110,10 +92,7 @@ pub struct RequestForwarder {
     status: Arc<RwLock<ProxyStatus>>,
     current_providers: Arc<RwLock<std::collections::HashMap<String, (String, String)>>>,
     gemini_shadow: Arc<GeminiShadowStore>,
-<<<<<<< HEAD
     codex_chat_history: Arc<CodexChatHistoryStore>,
-=======
->>>>>>> origin/cc-switch-cli
     /// 故障转移切换管理器
     failover_manager: Arc<FailoverSwitchManager>,
     /// AppHandle，用于发射事件和更新托盘
@@ -122,11 +101,8 @@ pub struct RequestForwarder {
     current_provider_id_at_start: String,
     /// 代理会话 ID（用于 Gemini Native shadow replay）
     session_id: String,
-<<<<<<< HEAD
     /// Session ID 是否由客户端提供；生成值不能作为上游缓存身份。
     session_client_provided: bool,
-=======
->>>>>>> origin/cc-switch-cli
     /// 整流器配置
     rectifier_config: RectifierConfig,
     /// 优化器配置
@@ -198,28 +174,18 @@ impl RequestForwarder {
         status: Arc<RwLock<ProxyStatus>>,
         current_providers: Arc<RwLock<std::collections::HashMap<String, (String, String)>>>,
         gemini_shadow: Arc<GeminiShadowStore>,
-<<<<<<< HEAD
         codex_chat_history: Arc<CodexChatHistoryStore>,
-=======
->>>>>>> origin/cc-switch-cli
         failover_manager: Arc<FailoverSwitchManager>,
         app_handle: Option<tauri::AppHandle>,
         current_provider_id_at_start: String,
         session_id: String,
-<<<<<<< HEAD
         session_client_provided: bool,
         streaming_first_byte_timeout: u64,
-=======
-        _streaming_first_byte_timeout: u64,
->>>>>>> origin/cc-switch-cli
         _streaming_idle_timeout: u64,
         rectifier_config: RectifierConfig,
         optimizer_config: OptimizerConfig,
         copilot_optimizer_config: CopilotOptimizerConfig,
-<<<<<<< HEAD
         max_retries: u32,
-=======
->>>>>>> origin/cc-switch-cli
     ) -> Self {
         // max_retries 是「失败后重试次数」语义，attempt 上限 = retries + 1。
         // saturating_add 防止 u32::MAX + 1 溢出。
@@ -229,18 +195,12 @@ impl RequestForwarder {
             status,
             current_providers,
             gemini_shadow,
-<<<<<<< HEAD
             codex_chat_history,
-=======
->>>>>>> origin/cc-switch-cli
             failover_manager,
             app_handle,
             current_provider_id_at_start,
             session_id,
-<<<<<<< HEAD
             session_client_provided,
-=======
->>>>>>> origin/cc-switch-cli
             rectifier_config,
             optimizer_config,
             copilot_optimizer_config,
@@ -515,22 +475,6 @@ impl RequestForwarder {
                     body.clone()
                 };
 
-            // PRE-SEND 优化器：每个 provider 独立决定是否优化
-            // clone body 以避免 Bedrock 优化字段泄漏到非 Bedrock provider（failover 场景）
-            let mut provider_body =
-                if self.optimizer_config.enabled && is_bedrock_provider(provider) {
-                    let mut b = body.clone();
-                    if self.optimizer_config.thinking_optimizer {
-                        super::thinking_optimizer::optimize(&mut b, &self.optimizer_config);
-                    }
-                    if self.optimizer_config.cache_injection {
-                        super::cache_injector::inject(&mut b, &self.optimizer_config);
-                    }
-                    b
-                } else {
-                    body.clone()
-                };
-
             attempted_providers += 1;
 
             // 更新状态中的当前 Provider 信息（per-attempt 维度的标识）
@@ -546,13 +490,9 @@ impl RequestForwarder {
 
             // 转发请求（每个 Provider 只尝试一次，重试由客户端控制）
             match self
-<<<<<<< HEAD
                 .forward(
                     app_type,
                     &method,
-=======
-                .forward_with_resilience(
->>>>>>> origin/cc-switch-cli
                     provider,
                     endpoint,
                     &provider_body,
@@ -563,22 +503,9 @@ impl RequestForwarder {
                 .await
             {
                 Ok((response, claude_api_format)) => {
-<<<<<<< HEAD
                     // 成功：普通闭合熔断状态异步记录，避免阻塞流式首包返回；
                     // HalfOpen 探测仍同步等待，保证 permit 与熔断状态及时释放。
                     self.record_success_result(&provider.id, app_type_str, used_half_open_permit)
-=======
-                    // 成功：记录成功并更新熔断器
-                    let _ = self
-                        .router
-                        .record_result(
-                            &provider.id,
-                            app_type_str,
-                            used_half_open_permit,
-                            true,
-                            None,
-                        )
->>>>>>> origin/cc-switch-cli
                         .await;
 
                     // 更新当前应用类型使用的 provider
@@ -623,10 +550,7 @@ impl RequestForwarder {
                         response,
                         provider: provider.clone(),
                         claude_api_format,
-<<<<<<< HEAD
                         connection_guard: None,
-=======
->>>>>>> origin/cc-switch-cli
                     });
                 }
                 Err(e) => {
@@ -876,10 +800,7 @@ impl RequestForwarder {
                                             response,
                                             provider: provider.clone(),
                                             claude_api_format,
-<<<<<<< HEAD
                                             connection_guard: None,
-=======
->>>>>>> origin/cc-switch-cli
                                         });
                                     }
                                     Err(retry_err) => {
@@ -1038,10 +959,7 @@ impl RequestForwarder {
                                         response,
                                         provider: provider.clone(),
                                         claude_api_format,
-<<<<<<< HEAD
                                         connection_guard: None,
-=======
->>>>>>> origin/cc-switch-cli
                                     });
                                 }
                                 Err(retry_err) => {
@@ -1185,16 +1103,6 @@ impl RequestForwarder {
             }
         }
 
-<<<<<<< HEAD
-=======
-        // 日志：所有供应商均失败
-        log::error!(
-            "[{}] ╚═══ 所有供应商均失败 ({}/{}) ═══",
-            app_type_str,
-            attempted_providers,
-            providers.len()
-        );
->>>>>>> origin/cc-switch-cli
         if let Some((log_code, log_message)) =
             build_terminal_failure_log(attempted_providers, providers.len(), last_error.as_ref())
         {
@@ -1207,144 +1115,12 @@ impl RequestForwarder {
         })
     }
 
-<<<<<<< HEAD
-=======
-    /// 转发单个请求（带出站兜底）
-    ///
-    /// 背景：在启用 Clash/系统代理时，显式出站代理 + 系统代理可能叠加，或代理链路偶发断流，
-    /// 会产生 `error sending request` 这类 reqwest 发送阶段错误。
-    ///
-    /// 策略：
-    /// - 默认使用当前全局出站配置（可能是代理/直连）
-    /// - 若为网络类错误（Timeout/ForwardFailed），且当前启用了代理：再用“强制直连”重试 1 次
-    /// - 若当前为直连，且检测到环境代理（HTTP(S)_PROXY/ALL_PROXY）：用环境代理重试 1 次
-    async fn forward_with_resilience(
-        &self,
-        provider: &Provider,
-        endpoint: &str,
-        body: &Value,
-        headers: &axum::http::HeaderMap,
-        extensions: &Extensions,
-        adapter: &dyn ProviderAdapter,
-    ) -> Result<(ProxyResponse, Option<String>), ProxyError> {
-        use super::http_client;
-
-        let provider_proxy = provider.meta.as_ref().and_then(|m| m.proxy_config.as_ref());
-        let provider_proxy_url = provider_proxy.and_then(http_client::build_proxy_url_from_config);
-        let current_proxy = http_client::get_current_proxy_url();
-        let primary_proxy_url = provider_proxy_url.clone().or(current_proxy.clone());
-        let primary_client = http_client::get_for_provider(provider_proxy);
-
-        let primary_result = self
-            .forward_with_client(
-                primary_client,
-                primary_proxy_url.as_deref(),
-                provider,
-                endpoint,
-                body,
-                headers,
-                extensions,
-                adapter,
-            )
-            .await;
-
-        let primary_err = match primary_result {
-            Ok(resp) => return Ok(resp),
-            Err(e) => e,
-        };
-
-        // 只对网络类错误做兜底，避免对确定性的 4xx/配置错误重复请求
-        let is_network_error = matches!(
-            primary_err,
-            ProxyError::Timeout(_) | ProxyError::ForwardFailed(_)
-        );
-        if !is_network_error {
-            return Err(primary_err);
-        }
-
-        // 1) 当前请求使用了代理（供应商级或全局）：用直连兜底
-        if let Some(proxy_url) = primary_proxy_url {
-            log::warn!(
-                "[Forwarder] Upstream request failed via proxy {}, retrying direct once: {}",
-                http_client::mask_url(&proxy_url),
-                primary_err
-            );
-            let direct_client = http_client::build_ephemeral_client(None).unwrap_or_else(|_| {
-                log::warn!("[Forwarder] Failed to build ephemeral direct client, using cached direct client");
-                http_client::get_direct()
-            });
-            let direct_result = self
-                .forward_with_client(
-                    direct_client,
-                    None,
-                    provider,
-                    endpoint,
-                    body,
-                    headers,
-                    extensions,
-                    adapter,
-                )
-                .await;
-            if direct_result.is_ok() {
-                log::info!(
-                    "[Forwarder] Direct fallback succeeded (previous proxy was {})",
-                    http_client::mask_url(&proxy_url)
-                );
-            }
-            return direct_result;
-        }
-
-        // 2) 当前为直连：仅在未设置供应商单独代理且 Auto 策略下允许读取环境变量代理做兜底
-        if provider_proxy_url.is_none()
-            && http_client::get_policy() == http_client::ProxyPolicy::Auto
-        {
-            let Some(env_proxy) = http_client::detect_env_proxy_url() else {
-                return Err(primary_err);
-            };
-            log::warn!(
-                "[Forwarder] Upstream request failed in direct mode, retrying via env proxy {} once: {}",
-                http_client::mask_url(&env_proxy),
-                primary_err
-            );
-            if let Ok(env_client) = http_client::build_ephemeral_client(Some(&env_proxy)) {
-                let env_result = self
-                    .forward_with_client(
-                        env_client,
-                        Some(&env_proxy),
-                        provider,
-                        endpoint,
-                        body,
-                        headers,
-                        extensions,
-                        adapter,
-                    )
-                    .await;
-                if env_result.is_ok() {
-                    log::info!(
-                        "[Forwarder] Env proxy fallback succeeded ({})",
-                        http_client::mask_url(&env_proxy)
-                    );
-                }
-                return env_result;
-            }
-            return Err(primary_err);
-        }
-
-        Err(primary_err)
-    }
-
->>>>>>> origin/cc-switch-cli
     /// 转发单个请求（使用适配器）
     #[allow(clippy::too_many_arguments)]
     async fn forward(
         &self,
-<<<<<<< HEAD
         app_type: &AppType,
         method: &http::Method,
-=======
-        client: reqwest::Client,
-        proxy_url: Option<&str>,
->>>>>>> origin/cc-switch-cli
         provider: &Provider,
         endpoint: &str,
         body: &Value,
@@ -1360,7 +1136,6 @@ impl RequestForwarder {
             .as_ref()
             .and_then(|meta| meta.is_full_url)
             .unwrap_or(false);
-<<<<<<< HEAD
 
         // GitHub Copilot API 使用 /chat/completions（无 /v1 前缀）
         let is_copilot = provider
@@ -1369,8 +1144,6 @@ impl RequestForwarder {
             .and_then(|m| m.provider_type.as_deref())
             == Some("github_copilot")
             || base_url.contains("githubcopilot.com");
-=======
->>>>>>> origin/cc-switch-cli
 
         // 应用模型映射（独立于格式转换）
         // Claude Desktop proxy 模式必须先把 Desktop 可见的 claude-* route
@@ -1387,7 +1160,6 @@ impl RequestForwarder {
         // 与 CCH 对齐：请求前不做 thinking 主动改写（仅保留兼容入口）
         let mut mapped_body = normalize_thinking_type(mapped_body);
 
-<<<<<<< HEAD
         if is_copilot {
             mapped_body =
                 super::providers::copilot_model_map::apply_copilot_model_normalization(mapped_body);
@@ -1397,16 +1169,6 @@ impl RequestForwarder {
             mapped_body =
                 super::model_mapper::strip_one_m_suffix_for_upstream_from_body(mapped_body);
         }
-=======
-        // 确定有效端点
-        // GitHub Copilot API 使用 /chat/completions（无 /v1 前缀）
-        let is_copilot = provider
-            .meta
-            .as_ref()
-            .and_then(|m| m.provider_type.as_deref())
-            == Some("github_copilot")
-            || base_url.contains("githubcopilot.com");
->>>>>>> origin/cc-switch-cli
 
         // --- Copilot 优化器：分类 + 请求体优化（在格式转换之前执行） ---
         // 注意：确定性 ID 也在此处计算，因为 mapped_body 在格式转换时会被 move
@@ -1443,15 +1205,12 @@ impl RequestForwarder {
                 mapped_body = super::copilot_optimizer::merge_tool_results(mapped_body);
             }
 
-<<<<<<< HEAD
             // 3.5. 主动剥离 thinking block — Copilot 走 OpenAI 兼容端点不识别该块
             //      避免上游拒绝后由 rectifier 反应式重试（首次请求已消耗 quota）
             if self.copilot_optimizer_config.strip_thinking {
                 mapped_body = super::copilot_optimizer::strip_thinking_blocks(mapped_body);
             }
 
-=======
->>>>>>> origin/cc-switch-cli
             // 4. Warmup 小模型降级
             if self.copilot_optimizer_config.warmup_downgrade && classification.is_warmup {
                 log::info!(
@@ -1550,7 +1309,6 @@ impl RequestForwarder {
         } else {
             None
         };
-<<<<<<< HEAD
         if adapter.name() == "Claude" {
             if let Some(api_format) = resolved_claude_api_format.as_deref() {
                 super::providers::normalize_anthropic_tool_thinking_history_for_provider(
@@ -1561,13 +1319,10 @@ impl RequestForwarder {
                 self.apply_media_prevention(&mut mapped_body, provider);
             }
         }
-=======
->>>>>>> origin/cc-switch-cli
         let needs_transform = match resolved_claude_api_format.as_deref() {
             Some(api_format) => super::providers::claude_api_format_needs_transform(api_format),
             None => adapter.needs_transform(provider),
         };
-<<<<<<< HEAD
         let codex_responses_to_chat = matches!(app_type, AppType::Codex)
             && super::providers::should_convert_codex_responses_to_chat(provider, endpoint);
         let (effective_endpoint, passthrough_query) = if codex_responses_to_chat {
@@ -1591,22 +1346,6 @@ impl RequestForwarder {
                 .trim_end_matches('/')
                 .to_ascii_lowercase()
                 .ends_with("/chat/completions");
-=======
-        let (effective_endpoint, passthrough_query) =
-            if needs_transform && adapter.name() == "Claude" {
-                let api_format = resolved_claude_api_format
-                    .as_deref()
-                    .unwrap_or_else(|| super::providers::get_claude_api_format(provider));
-                rewrite_claude_transform_endpoint(endpoint, api_format, is_copilot, &mapped_body)
-            } else {
-                (
-                    endpoint.to_string(),
-                    split_endpoint_and_query(endpoint)
-                        .1
-                        .map(ToString::to_string),
-                )
-            };
->>>>>>> origin/cc-switch-cli
 
         let url = if matches!(resolved_claude_api_format.as_deref(), Some("gemini_native")) {
             super::gemini_url::resolve_gemini_native_url(
@@ -1614,18 +1353,13 @@ impl RequestForwarder {
                 &effective_endpoint,
                 is_full_url,
             )
-<<<<<<< HEAD
         } else if is_full_url || codex_chat_base_is_full_endpoint {
-=======
-        } else if is_full_url {
->>>>>>> origin/cc-switch-cli
             append_query_to_full_url(&base_url, passthrough_query.as_deref())
         } else {
             adapter.build_url(&base_url, &effective_endpoint)
         };
 
         // 转换请求体（如果需要）
-<<<<<<< HEAD
         let request_body = if codex_responses_to_chat {
             let mut mapped_body = mapped_body;
             let restored = self
@@ -1645,9 +1379,6 @@ impl RequestForwarder {
                 reasoning_config.as_ref(),
             )?
         } else if needs_transform {
-=======
-        let request_body = if needs_transform {
->>>>>>> origin/cc-switch-cli
             if adapter.name() == "Claude" {
                 let api_format = resolved_claude_api_format
                     .as_deref()
@@ -1656,12 +1387,8 @@ impl RequestForwarder {
                     mapped_body,
                     provider,
                     api_format,
-<<<<<<< HEAD
                     self.session_client_provided
                         .then_some(self.session_id.as_str()),
-=======
-                    Some(&self.session_id),
->>>>>>> origin/cc-switch-cli
                     Some(self.gemini_shadow.as_ref()),
                 )?
             } else {
@@ -1673,7 +1400,6 @@ impl RequestForwarder {
 
         // 过滤私有参数（以 `_` 开头的字段），防止内部信息泄露到上游
         // 默认使用空白名单，过滤所有 _ 前缀字段
-<<<<<<< HEAD
         let filtered_body = prepare_upstream_request_body(request_body);
         log_prompt_cache_trace(
             app_type,
@@ -1687,17 +1413,11 @@ impl RequestForwarder {
             is_streaming_request(&effective_endpoint, &filtered_body, headers);
         let force_identity_encoding =
             needs_transform || codex_responses_to_chat || request_is_streaming;
-=======
-        let filtered_body = filter_private_params_with_whitelist(request_body, &[]);
-        let force_identity_encoding = needs_transform
-            || should_force_identity_encoding(&effective_endpoint, &filtered_body, headers);
->>>>>>> origin/cc-switch-cli
 
         // Codex OAuth 需要注入的 ChatGPT-Account-Id（在动态 token 获取期间填充）
         let mut codex_oauth_account_id: Option<String> = None;
         let mut should_send_codex_oauth_session_headers = false;
 
-<<<<<<< HEAD
         // 获取认证头（提前准备，用于内联替换）
         let mut auth_headers = if let Some(mut auth) = adapter.extract_auth(provider) {
             // GitHub Copilot 特殊处理：从 CopilotAuthManager 获取真实 token
@@ -1713,34 +1433,6 @@ impl RequestForwarder {
                         .as_ref()
                         .and_then(|m| m.managed_account_id_for("github_copilot"));
 
-=======
-        // 调试日志：打印工具定义以诊断 input_schema 问题
-        if let Some(tools) = filtered_body.get("tools") {
-            log::info!(
-                "[Forwarder] 发送到上游的工具定义: {}",
-                serde_json::to_string_pretty(tools).unwrap_or_default()
-            );
-        }
-
-        // Codex OAuth 需要注入的 ChatGPT-Account-Id（在动态 token 获取期间填充）
-        let mut codex_oauth_account_id: Option<String> = None;
-
-        // 获取认证头（提前准备，用于内联替换）
-        let mut auth_headers = if let Some(mut auth) = adapter.extract_auth(provider) {
-            // GitHub Copilot 特殊处理：从 CopilotAuthManager 获取真实 token
-            if auth.strategy == AuthStrategy::GitHubCopilot {
-                if let Some(app_handle) = &self.app_handle {
-                    let copilot_state = app_handle.state::<CopilotAuthState>();
-                    let copilot_auth: tokio::sync::RwLockReadGuard<'_, CopilotAuthManager> =
-                        copilot_state.0.read().await;
-
-                    // 从 provider.meta 获取关联的 GitHub 账号 ID（多账号支持）
-                    let account_id = provider
-                        .meta
-                        .as_ref()
-                        .and_then(|m| m.managed_account_id_for("github_copilot"));
-
->>>>>>> origin/cc-switch-cli
                     // 根据账号 ID 获取对应 token（向后兼容：无账号 ID 时使用第一个账号）
                     let token_result = match &account_id {
                         Some(id) => {
@@ -1806,10 +1498,7 @@ impl RequestForwarder {
                     match token_result {
                         Ok(token) => {
                             auth = AuthInfo::new(token, AuthStrategy::CodexOAuth);
-<<<<<<< HEAD
                             should_send_codex_oauth_session_headers = true;
-=======
->>>>>>> origin/cc-switch-cli
                             // 解析使用的 account_id（用于注入 ChatGPT-Account-Id header）
                             codex_oauth_account_id = match account_id {
                                 Some(id) => Some(id),
@@ -1835,11 +1524,7 @@ impl RequestForwarder {
                 }
             }
 
-<<<<<<< HEAD
             adapter.get_auth_headers(&auth)?
-=======
-            adapter.get_auth_headers(&auth)
->>>>>>> origin/cc-switch-cli
         } else {
             Vec::new()
         };
@@ -1851,7 +1536,6 @@ impl RequestForwarder {
             }
         }
 
-<<<<<<< HEAD
         let codex_oauth_session_headers =
             if should_send_codex_oauth_session_headers && self.session_client_provided {
                 build_codex_oauth_session_headers(&self.session_id)
@@ -1859,8 +1543,6 @@ impl RequestForwarder {
                 Vec::new()
             };
 
-=======
->>>>>>> origin/cc-switch-cli
         // --- Copilot 优化器：动态 header 注入 ---
         if let Some((ref classification, ref det_request_id, ref interaction_id)) =
             copilot_optimization
@@ -2091,29 +1773,6 @@ impl RequestForwarder {
                     ordered_headers.append("anthropic-beta", hv);
                 }
             }
-<<<<<<< HEAD
-=======
-        }
-
-        // anthropic-version：仅在缺失时补充默认值
-        if should_send_anthropic_headers && !saw_anthropic_version {
-            ordered_headers.append(
-                "anthropic-version",
-                http::HeaderValue::from_static("2023-06-01"),
-            );
-        }
-
-        // 序列化请求体
-        let body_bytes = serde_json::to_vec(&filtered_body)
-            .map_err(|e| ProxyError::Internal(format!("Failed to serialize request body: {e}")))?;
-
-        // 确保 content-type 存在
-        if !ordered_headers.contains_key(http::header::CONTENT_TYPE) {
-            ordered_headers.insert(
-                http::header::CONTENT_TYPE,
-                http::HeaderValue::from_static("application/json"),
-            );
->>>>>>> origin/cc-switch-cli
         }
 
         // anthropic-version：仅在缺失时补充默认值
@@ -2174,7 +1833,6 @@ impl RequestForwarder {
             self.non_streaming_timeout
         };
 
-<<<<<<< HEAD
         // 获取全局代理 URL
         let upstream_proxy_url: Option<String> = super::http_client::get_current_proxy_url();
 
@@ -2205,27 +1863,11 @@ impl RequestForwarder {
                 // 的首包/静默期超时控制，避免长流被总时长误杀。
                 request = request.timeout(std::time::Duration::from_secs(24 * 60 * 60));
             } else if !self.non_streaming_timeout.is_zero() {
-=======
-        // SOCKS5 代理不支持 CONNECT 隧道，需要用 reqwest
-        let is_socks_proxy = proxy_url.is_some_and(|url| url.starts_with("socks5"));
-
-        let uri: http::Uri = url
-            .parse()
-            .map_err(|e| ProxyError::ForwardFailed(format!("Invalid URL '{url}': {e}")))?;
-
-        // 发送请求
-        let response = if is_socks_proxy {
-            // SOCKS5 代理：只能走 reqwest（不支持 header case 保留）
-            log::debug!("[Forwarder] Using reqwest for SOCKS5 proxy");
-            let mut request = client.post(&url);
-            if !self.non_streaming_timeout.is_zero() {
->>>>>>> origin/cc-switch-cli
                 request = request.timeout(self.non_streaming_timeout);
             }
             for (key, value) in &ordered_headers {
                 request = request.header(key, value);
             }
-<<<<<<< HEAD
             let send = request.body(body_bytes).send();
             let send_result = if request_is_streaming {
                 let header_timeout = if self.streaming_first_byte_timeout.is_zero() {
@@ -2245,42 +1887,21 @@ impl RequestForwarder {
                 send.await
             };
             let reqwest_resp = send_result.map_err(map_reqwest_send_error)?;
-=======
-            let reqwest_resp = request.body(body_bytes).send().await.map_err(|e| {
-                if e.is_timeout() {
-                    ProxyError::Timeout(format!("请求超时: {e}"))
-                } else if e.is_connect() {
-                    ProxyError::ForwardFailed(format!("连接失败: {e}"))
-                } else {
-                    ProxyError::ForwardFailed(e.to_string())
-                }
-            })?;
->>>>>>> origin/cc-switch-cli
             ProxyResponse::Reqwest(reqwest_resp)
         } else {
             // HTTP 代理或直连：走 hyper raw write（保持 header 大小写）
             // 如果有 HTTP 代理，hyper_client 会用 CONNECT 隧道穿过代理
-<<<<<<< HEAD
             let uri: http::Uri = url
                 .parse()
                 .map_err(|e| ProxyError::ForwardFailed(format!("Invalid URL '{url}': {e}")))?;
             super::hyper_client::send_request(
                 uri,
                 method.clone(),
-=======
-            super::hyper_client::send_request(
-                uri,
-                http::Method::POST,
->>>>>>> origin/cc-switch-cli
                 ordered_headers,
                 extensions.clone(),
                 body_bytes,
                 timeout,
-<<<<<<< HEAD
                 upstream_proxy_url.as_deref(),
-=======
-                proxy_url,
->>>>>>> origin/cc-switch-cli
             )
             .await?
         };
@@ -2289,21 +1910,13 @@ impl RequestForwarder {
         let status = response.status();
 
         if status.is_success() {
-<<<<<<< HEAD
             let response = self
                 .prepare_success_response_for_failover(response, request_is_streaming)
                 .await?;
-=======
->>>>>>> origin/cc-switch-cli
             Ok((response, resolved_claude_api_format))
         } else {
             let status_code = status.as_u16();
             let body_text = String::from_utf8(response.bytes().await?.to_vec()).ok();
-<<<<<<< HEAD
-=======
-
-            // NOTE: 去除调试期的冗余日志（request trace / invalid_claude_config 额外打印）
->>>>>>> origin/cc-switch-cli
 
             Err(ProxyError::UpstreamError {
                 status: status_code,
@@ -2312,7 +1925,6 @@ impl RequestForwarder {
         }
     }
 
-<<<<<<< HEAD
     /// 故障转移开启时，成功不能只看上游响应头。
     ///
     /// - 非流式：先把完整 body 读到内存，读超时/连接中断会回到 retry loop 尝试下一家。
@@ -2380,8 +1992,6 @@ impl RequestForwarder {
         Ok(ProxyResponse::streamed(status, headers, replay))
     }
 
-=======
->>>>>>> origin/cc-switch-cli
     async fn resolve_claude_api_format(
         &self,
         provider: &Provider,
@@ -2405,7 +2015,6 @@ impl RequestForwarder {
         "openai_chat".to_string()
     }
 
-<<<<<<< HEAD
     /// 用 Copilot live `/models` 列表确认 model ID 真实可用，找不到时按 family 降级。
     /// 命中缓存后是同步的；首次请求或 5 min 缓存过期后会触发一次 HTTP。
     async fn apply_copilot_live_model_resolution(
@@ -2449,8 +2058,6 @@ impl RequestForwarder {
         }
     }
 
-=======
->>>>>>> origin/cc-switch-cli
     async fn is_copilot_openai_vendor_model(&self, provider: &Provider, model_id: &str) -> bool {
         let Some(app_handle) = &self.app_handle else {
             log::debug!("[Copilot] AppHandle unavailable, fallback to chat/completions");
@@ -2673,7 +2280,6 @@ fn is_claude_messages_path(path: &str) -> bool {
     matches!(path, "/v1/messages" | "/claude/v1/messages")
 }
 
-<<<<<<< HEAD
 fn rewrite_codex_responses_endpoint_to_chat(endpoint: &str) -> (String, Option<String>) {
     let (_path, query) = split_endpoint_and_query(endpoint);
     let passthrough_query = query.map(ToString::to_string);
@@ -2686,8 +2292,6 @@ fn rewrite_codex_responses_endpoint_to_chat(endpoint: &str) -> (String, Option<S
     (rewritten, passthrough_query)
 }
 
-=======
->>>>>>> origin/cc-switch-cli
 fn rewrite_claude_transform_endpoint(
     endpoint: &str,
     api_format: &str,
@@ -2786,7 +2390,6 @@ fn append_query_to_full_url(base_url: &str, query: Option<&str>) -> String {
     }
 }
 
-<<<<<<< HEAD
 fn build_codex_oauth_session_headers(
     session_id: &str,
 ) -> Vec<(http::HeaderName, http::HeaderValue)> {
@@ -2864,13 +2467,6 @@ fn should_preserve_exact_header_case(
 }
 
 fn is_streaming_request(endpoint: &str, body: &Value, headers: &axum::http::HeaderMap) -> bool {
-=======
-fn should_force_identity_encoding(
-    endpoint: &str,
-    body: &Value,
-    headers: &axum::http::HeaderMap,
-) -> bool {
->>>>>>> origin/cc-switch-cli
     if body
         .get("stream")
         .and_then(|value| value.as_bool())
@@ -2890,7 +2486,6 @@ fn should_force_identity_encoding(
         .unwrap_or(false)
 }
 
-<<<<<<< HEAD
 #[cfg(test)]
 fn should_force_identity_encoding(
     endpoint: &str,
@@ -2910,8 +2505,6 @@ fn map_reqwest_send_error(error: reqwest::Error) -> ProxyError {
     }
 }
 
-=======
->>>>>>> origin/cc-switch-cli
 fn summarize_text_for_log(text: &str, max_chars: usize) -> String {
     let normalized = text.split_whitespace().collect::<Vec<_>>().join(" ");
     let trimmed = normalized.trim();
@@ -2925,7 +2518,6 @@ fn summarize_text_for_log(text: &str, max_chars: usize) -> String {
     format!("{truncated}...")
 }
 
-<<<<<<< HEAD
 fn prepare_upstream_request_body(request_body: Value) -> Value {
     canonicalize_value(filter_private_params_with_whitelist(request_body, &[]))
 }
@@ -3043,14 +2635,6 @@ mod tests {
             max_attempts: 1,
         }
     }
-=======
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use axum::http::header::{HeaderValue, ACCEPT};
-    use axum::http::HeaderMap;
-    use serde_json::json;
->>>>>>> origin/cc-switch-cli
 
     #[test]
     fn single_provider_retryable_log_uses_single_provider_code() {
@@ -3118,7 +2702,6 @@ mod tests {
     }
 
     #[test]
-<<<<<<< HEAD
     fn canonical_json_sorts_object_keys_for_cache_trace_hashes() {
         let left = json!({
             "tools": [
@@ -3409,8 +2992,6 @@ mod tests {
     }
 
     #[test]
-=======
->>>>>>> origin/cc-switch-cli
     fn rewrite_claude_transform_endpoint_strips_beta_for_chat_completions() {
         let (endpoint, passthrough_query) = rewrite_claude_transform_endpoint(
             "/v1/messages?beta=true&foo=bar",
@@ -3437,7 +3018,6 @@ mod tests {
     }
 
     #[test]
-<<<<<<< HEAD
     fn rewrite_codex_responses_endpoint_to_chat_preserves_query() {
         let (endpoint, passthrough_query) =
             rewrite_codex_responses_endpoint_to_chat("/v1/responses?foo=bar");
@@ -3456,8 +3036,6 @@ mod tests {
     }
 
     #[test]
-=======
->>>>>>> origin/cc-switch-cli
     fn rewrite_claude_transform_endpoint_uses_copilot_path() {
         let (endpoint, passthrough_query) = rewrite_claude_transform_endpoint(
             "/v1/messages?beta=true&x-id=1",
@@ -3597,7 +3175,6 @@ mod tests {
     }
 
     #[test]
-<<<<<<< HEAD
     fn streaming_request_detects_gemini_sse_without_body_stream_flag() {
         let headers = HeaderMap::new();
 
@@ -3609,8 +3186,6 @@ mod tests {
     }
 
     #[test]
-=======
->>>>>>> origin/cc-switch-cli
     fn force_identity_for_sse_accept_header() {
         let mut headers = HeaderMap::new();
         headers.insert(ACCEPT, HeaderValue::from_static("text/event-stream"));
@@ -3737,7 +3312,6 @@ mod tests {
             assert_eq!(will_replace, should_replace, "{desc}");
         }
     }
-<<<<<<< HEAD
 
     // ===== P3: forwarder 层 media 开关回归测试 =====
     // 验证 gate 在 forwarder 这一层的"接线"，而非 media_sanitizer 纯函数本身。
@@ -3894,6 +3468,4 @@ mod tests {
         let body = body_with_image("any-model");
         assert!(fwd.media_retry_should_trigger("Claude", false, &body, &image_unsupported_error()));
     }
-=======
->>>>>>> origin/cc-switch-cli
 }

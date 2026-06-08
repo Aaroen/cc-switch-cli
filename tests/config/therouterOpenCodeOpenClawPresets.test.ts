@@ -1,23 +1,15 @@
 import { describe, expect, it } from "vitest";
-<<<<<<< HEAD
 import {
   OPENCODE_PRESET_MODEL_VARIANTS,
   opencodeProviderPresets,
 } from "@/config/opencodeProviderPresets";
-=======
-import { opencodeProviderPresets } from "@/config/opencodeProviderPresets";
->>>>>>> origin/cc-switch-cli
 import { openclawProviderPresets } from "@/config/openclawProviderPresets";
 
 describe("TheRouter OpenCode and OpenClaw presets", () => {
   it("uses OpenAI-compatible config for OpenCode", () => {
-<<<<<<< HEAD
     const preset = opencodeProviderPresets.find(
       (item) => item.name === "TheRouter",
     );
-=======
-    const preset = opencodeProviderPresets.find((item) => item.name === "TheRouter");
->>>>>>> origin/cc-switch-cli
     const models = preset?.settingsConfig.models ?? {};
 
     expect(preset).toBeDefined();
@@ -31,7 +23,6 @@ describe("TheRouter OpenCode and OpenClaw presets", () => {
     expect(preset?.settingsConfig.options?.setCacheKey).toBe(true);
     expect(models).toHaveProperty("openai/gpt-5.3-codex");
     expect(models).toHaveProperty("anthropic/claude-sonnet-4.6");
-<<<<<<< HEAD
     expect(models).toHaveProperty("google/gemini-3.5-flash");
     expect(models["google/gemini-3.5-flash"]?.name).toBe("Gemini 3.5 Flash");
   });
@@ -42,14 +33,6 @@ describe("TheRouter OpenCode and OpenClaw presets", () => {
     );
     const openClawModels = preset?.settingsConfig.models ?? [];
     const modelIds = openClawModels.map((model) => model.id);
-=======
-    expect(models).toHaveProperty("google/gemini-3-flash-preview");
-  });
-
-  it("uses OpenAI completions config for OpenClaw", () => {
-    const preset = openclawProviderPresets.find((item) => item.name === "TheRouter");
-    const modelIds = (preset?.settingsConfig.models ?? []).map((model) => model.id);
->>>>>>> origin/cc-switch-cli
 
     expect(preset).toBeDefined();
     expect(preset?.websiteUrl).toBe("https://therouter.ai");
@@ -62,7 +45,6 @@ describe("TheRouter OpenCode and OpenClaw presets", () => {
         "anthropic/claude-sonnet-4.6",
         "openai/gpt-5.3-codex",
         "openai/gpt-5.2",
-<<<<<<< HEAD
         "google/gemini-3.5-flash",
       ]),
     );
@@ -72,16 +54,10 @@ describe("TheRouter OpenCode and OpenClaw presets", () => {
       name: "Gemini 3.5 Flash",
       cost: { input: 1.5, output: 9, cacheRead: 0.15 },
     });
-=======
-        "google/gemini-3-flash-preview",
-      ]),
-    );
->>>>>>> origin/cc-switch-cli
     expect(preset?.suggestedDefaults?.model).toEqual({
       primary: "therouter/anthropic/claude-sonnet-4.6",
       fallbacks: [
         "therouter/openai/gpt-5.2",
-<<<<<<< HEAD
         "therouter/google/gemini-3.5-flash",
       ],
     });
@@ -106,10 +82,4 @@ describe("TheRouter OpenCode and OpenClaw presets", () => {
       },
     });
   });
-=======
-        "therouter/google/gemini-3-flash-preview",
-      ],
-    });
-  });
->>>>>>> origin/cc-switch-cli
 });

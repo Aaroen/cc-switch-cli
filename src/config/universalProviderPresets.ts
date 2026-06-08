@@ -48,7 +48,6 @@ const NEWAPI_DEFAULT_MODELS: UniversalProviderModels = {
   },
   codex: {
     model: "gpt-5.5",
-    model: "gpt-5.4",
     reasoningEffort: "high",
   },
   gemini: {

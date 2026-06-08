@@ -2,12 +2,8 @@
 //!
 //! 负责系统托盘图标和菜单的创建、更新和事件处理。
 
-<<<<<<< HEAD
 use once_cell::sync::Lazy;
 use tauri::menu::{CheckMenuItem, Menu, MenuBuilder, MenuItem, Submenu, SubmenuBuilder};
-=======
-use tauri::menu::{CheckMenuItem, Menu, MenuBuilder, MenuItem, SubmenuBuilder};
->>>>>>> origin/cc-switch-cli
 use tauri::{Emitter, Manager};
 use tauri_plugin_opener::OpenerExt;
 
@@ -25,10 +21,7 @@ static TRAY_SECTION_SUBMENUS: Lazy<
 #[derive(Clone, Copy)]
 pub struct TrayTexts {
     pub show_main: &'static str,
-<<<<<<< HEAD
     pub open_website: &'static str,
-=======
->>>>>>> origin/cc-switch-cli
     pub no_providers_label: &'static str,
     pub lightweight_mode: &'static str,
     pub quit: &'static str,
@@ -40,10 +33,7 @@ impl TrayTexts {
         match language {
             "en" => Self {
                 show_main: "Open main window",
-<<<<<<< HEAD
                 open_website: "Open Official Website",
-=======
->>>>>>> origin/cc-switch-cli
                 no_providers_label: "(no providers)",
                 lightweight_mode: "Lightweight Mode",
                 quit: "Quit",
@@ -51,10 +41,7 @@ impl TrayTexts {
             },
             "ja" => Self {
                 show_main: "メインウィンドウを開く",
-<<<<<<< HEAD
                 open_website: "公式サイトを開く",
-=======
->>>>>>> origin/cc-switch-cli
                 no_providers_label: "(プロバイダーなし)",
                 lightweight_mode: "軽量モード",
                 quit: "終了",
@@ -70,10 +57,7 @@ impl TrayTexts {
             },
             _ => Self {
                 show_main: "打开主界面",
-<<<<<<< HEAD
                 open_website: "打开官方网站",
-=======
->>>>>>> origin/cc-switch-cli
                 no_providers_label: "(无供应商)",
                 lightweight_mode: "轻量模式",
                 quit: "退出",
@@ -120,7 +104,6 @@ pub const TRAY_SECTIONS: [TrayAppSection; 3] = [
     },
 ];
 
-<<<<<<< HEAD
 /// 配色阈值（与前端 `utilizationColor` 语义一致）。
 const UTIL_WARN_PCT: f64 = 70.0;
 const UTIL_DANGER_PCT: f64 = 90.0;
@@ -297,8 +280,6 @@ fn format_usage_suffix(
     None
 }
 
-=======
->>>>>>> origin/cc-switch-cli
 /// 对供应商列表排序：sort_index → created_at → name
 fn sort_providers(
     providers: &indexmap::IndexMap<String, crate::provider::Provider>,
@@ -547,7 +528,6 @@ pub fn create_tray_menu(
                 })?;
             menu_builder = menu_builder.item(&empty_item);
         } else {
-<<<<<<< HEAD
             let current_provider = providers.get(&current_id);
             let submenu_label = match current_provider {
                 Some(p) => {
@@ -555,12 +535,6 @@ pub fn create_tray_menu(
                         .unwrap_or_default();
                     format!("{} · {}{}", section.header_label, p.name, suffix)
                 }
-=======
-            // 有供应商：构建子菜单
-            let current_name = providers.get(&current_id).map(|p| p.name.as_str());
-            let submenu_label = match current_name {
-                Some(name) => format!("{} · {}", section.header_label, name),
->>>>>>> origin/cc-switch-cli
                 None => section.header_label.to_string(),
             };
             let submenu_id = format!("submenu_{}", app_type_str);
@@ -603,10 +577,7 @@ pub fn create_tray_menu(
             let submenu = submenu_builder.build().map_err(|e| {
                 AppError::Message(format!("构建{}子菜单失败: {e}", section.log_name))
             })?;
-<<<<<<< HEAD
             section_handles.insert(section.app_type.clone(), submenu.clone());
-=======
->>>>>>> origin/cc-switch-cli
             menu_builder = menu_builder.item(&submenu);
         }
 
@@ -692,20 +663,6 @@ pub fn refresh_tray_menu(app: &tauri::AppHandle) {
     }
 }
 
-pub fn refresh_tray_menu(app: &tauri::AppHandle) {
-    use crate::store::AppState;
-
-    if let Some(state) = app.try_state::<AppState>() {
-        if let Ok(new_menu) = create_tray_menu(app, state.inner()) {
-            if let Some(tray) = app.tray_by_id("main") {
-                if let Err(e) = tray.set_menu(Some(new_menu)) {
-                    log::error!("刷新托盘菜单失败: {e}");
-                }
-            }
-        }
-    }
-}
-
 #[cfg(target_os = "macos")]
 pub fn apply_tray_policy(app: &tauri::AppHandle, dock_visible: bool) {
     use tauri::ActivationPolicy;
@@ -753,14 +710,11 @@ pub fn handle_tray_menu_event(app: &tauri::AppHandle, event_id: &str) {
                 }
             }
         }
-<<<<<<< HEAD
         "open_website" => {
             if let Err(e) = app.opener().open_url("https://ccswitch.io", None::<String>) {
                 log::error!("打开官方网站失败: {e}");
             }
         }
-=======
->>>>>>> origin/cc-switch-cli
         "lightweight_mode" => {
             if crate::lightweight::is_lightweight_mode() {
                 if let Err(e) = crate::lightweight::exit_lightweight_mode(app) {
@@ -772,13 +726,11 @@ pub fn handle_tray_menu_event(app: &tauri::AppHandle, event_id: &str) {
         }
         "quit" => {
             log::info!("退出应用");
-            // 先关闭所有窗口,避免 Tao 事件循环 "Destroyed state" 竞态
-            if let Some(window) = app.get_webview_window("main") {
-                let _ = window.close();
-            }
-            // 短暂延迟让窗口销毁完成
-            std::thread::sleep(std::time::Duration::from_millis(100));
-            app.exit(0);
+            // 先执行 Tauri 清理(移除托盘图标等),消除托盘 subclass 窗口的消息源,
+            // 再用 process::exit 直接终止进程,绕过 Tao 0.34 事件循环销毁时
+            // "cannot move state from Destroyed" 的竞态崩溃(Windows)。
+            app.cleanup_before_exit();
+            std::process::exit(0);
         }
         _ => {
             if handle_provider_tray_event(app, event_id) {

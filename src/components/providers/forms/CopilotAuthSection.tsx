@@ -78,7 +78,6 @@ export const CopilotAuthSection: React.FC<CopilotAuthSectionProps> = ({
     cancelAuth,
     logout,
   } = useCopilotAuth(effectiveGithubDomain);
-  } = useCopilotAuth();
 
   // 复制用户码
   const copyUserCode = async () => {
@@ -297,7 +296,6 @@ export const CopilotAuthSection: React.FC<CopilotAuthSectionProps> = ({
             isAddingAccount ||
             (deploymentType === "enterprise" && !enterpriseDomain.trim())
           }
-          disabled={isAddingAccount}
         >
           <Plus className="mr-2 h-4 w-4" />
           {t("copilot.addAnotherAccount", "添加其他账号")}

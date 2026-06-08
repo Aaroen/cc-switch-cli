@@ -41,11 +41,6 @@ function parseModelsFromConfig(settingsConfig: string) {
     const env = cfg?.env || {};
     const model =
       typeof env.ANTHROPIC_MODEL === "string" ? env.ANTHROPIC_MODEL : "";
-    const explicitReasoning =
-      typeof env.ANTHROPIC_REASONING_MODEL === "string"
-        ? env.ANTHROPIC_REASONING_MODEL
-        : "";
-    const reasoning = explicitReasoning || model;
     const small =
       typeof env.ANTHROPIC_SMALL_FAST_MODEL === "string"
         ? env.ANTHROPIC_SMALL_FAST_MODEL
@@ -139,41 +134,6 @@ export function useModelState({
     setDefaultSonnetModelName(parsed.sonnetName);
     setDefaultOpusModel(parsed.opus);
     setDefaultOpusModelName(parsed.opusName);
-    try {
-      const cfg = settingsConfig ? JSON.parse(settingsConfig) : {};
-      const env = cfg?.env || {};
-      const model =
-        typeof env.ANTHROPIC_MODEL === "string" ? env.ANTHROPIC_MODEL : "";
-      const explicitReasoning =
-        typeof env.ANTHROPIC_REASONING_MODEL === "string"
-          ? env.ANTHROPIC_REASONING_MODEL
-          : "";
-      const reasoning = explicitReasoning || model;
-      const small =
-        typeof env.ANTHROPIC_SMALL_FAST_MODEL === "string"
-          ? env.ANTHROPIC_SMALL_FAST_MODEL
-          : "";
-      const haiku =
-        typeof env.ANTHROPIC_DEFAULT_HAIKU_MODEL === "string"
-          ? env.ANTHROPIC_DEFAULT_HAIKU_MODEL
-          : small || model;
-      const sonnet =
-        typeof env.ANTHROPIC_DEFAULT_SONNET_MODEL === "string"
-          ? env.ANTHROPIC_DEFAULT_SONNET_MODEL
-          : model || small;
-      const opus =
-        typeof env.ANTHROPIC_DEFAULT_OPUS_MODEL === "string"
-          ? env.ANTHROPIC_DEFAULT_OPUS_MODEL
-          : model || small;
-
-      setClaudeModel(model || "");
-      setReasoningModel(reasoning || "");
-      setDefaultHaikuModel(haiku || "");
-      setDefaultSonnetModel(sonnet || "");
-      setDefaultOpusModel(opus || "");
-    } catch {
-      // ignore
-    }
   }, [settingsConfig]);
 
   const handleModelChange = useCallback(

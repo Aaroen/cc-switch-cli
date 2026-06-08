@@ -210,10 +210,6 @@ export function useImportSkillsFromApps() {
       queryClient.setQueryData<InstalledSkill[]>(
         ["skills", "installed"],
         (oldData) => mergeImportedSkills(oldData, importedSkills),
-        (oldData) => {
-          if (!oldData) return importedSkills;
-          return [...oldData, ...importedSkills];
-        },
       );
       // 刷新 unmanaged 列表（已被导入的应该移除）
       queryClient.invalidateQueries({ queryKey: ["skills", "unmanaged"] });

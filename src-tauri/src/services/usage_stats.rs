@@ -4,11 +4,8 @@
 
 use crate::database::{lock_conn, Database};
 use crate::error::AppError;
-<<<<<<< HEAD
 use crate::proxy::usage::calculator::ModelPricing;
 use crate::services::sql_helpers::fresh_input_sql;
-=======
->>>>>>> origin/cc-switch-cli
 use chrono::{Local, NaiveDate, TimeZone, Timelike};
 use rusqlite::{params, Connection, OptionalExtension};
 use serde::{Deserialize, Serialize};
@@ -154,7 +151,6 @@ pub struct RequestLogDetail {
     pub data_source: Option<String>,
 }
 
-<<<<<<< HEAD
 /// 把 24 列的查询结果映射为 `RequestLogDetail`。
 ///
 /// 调用方的 SELECT **必须**按以下顺序返回 24 列：
@@ -201,11 +197,6 @@ fn row_to_request_log_detail(row: &rusqlite::Row<'_>) -> rusqlite::Result<Reques
 /// Session logs use placeholder provider_ids (e.g., `_session`, `_<app>_session`)
 /// that don't exist in the providers table — the CASE expression below is the
 /// authoritative mapping from placeholder to readable name.
-=======
-/// SQL fragment: resolve provider_name with fallback for session-based entries.
-/// Session logs use placeholder provider_ids (_session, _codex_session, _gemini_session)
-/// that don't exist in the providers table — this COALESCE gives them readable names.
->>>>>>> origin/cc-switch-cli
 fn provider_name_coalesce(log_alias: &str, provider_alias: &str) -> String {
     format!(
         "COALESCE({provider_alias}.name, CASE {log_alias}.provider_id \
@@ -216,7 +207,6 @@ fn provider_name_coalesce(log_alias: &str, provider_alias: &str) -> String {
     )
 }
 
-<<<<<<< HEAD
 pub(crate) const SESSION_PROXY_DEDUP_WINDOW_SECONDS: i64 = 10 * 60;
 
 /// SQL 片段：把指定别名的 `data_source` 包成 COALESCE，NULL 视作 'proxy'。
@@ -350,8 +340,6 @@ pub(crate) fn has_matching_proxy_usage_log(
     .map_err(|e| AppError::Database(format!("查询重复代理用量日志失败: {e}")))
 }
 
-=======
->>>>>>> origin/cc-switch-cli
 #[derive(Debug, Clone, Default)]
 struct RollupDateBounds {
     start: Option<String>,
@@ -440,7 +428,6 @@ fn local_day_start_rfc3339(day: NaiveDate) -> String {
         .unwrap_or_else(Local::now);
 
     local_midnight.to_rfc3339()
-<<<<<<< HEAD
 }
 
 /// 用量数据时间边界（跨 proxy_request_logs 明细与 usage_daily_rollups 归档）。
@@ -454,8 +441,6 @@ pub struct UsageDateBounds {
     pub min_date: Option<i64>,
     /// 最新数据时间（Unix 秒）；无任何数据时为 None。
     pub max_date: Option<i64>,
-=======
->>>>>>> origin/cc-switch-cli
 }
 
 impl Database {
@@ -493,7 +478,6 @@ impl Database {
         let conn = lock_conn!(self.conn);
 
         // Build detail WHERE clause
-<<<<<<< HEAD
         let mut conditions = vec![effective_usage_log_filter("l")];
         let mut params_vec: Vec<Box<dyn rusqlite::ToSql>> = Vec::new();
 
@@ -507,21 +491,6 @@ impl Database {
         }
         if let Some(at) = app_type {
             conditions.push("l.app_type = ?".to_string());
-=======
-        let mut conditions = Vec::new();
-        let mut params_vec: Vec<Box<dyn rusqlite::ToSql>> = Vec::new();
-
-        if let Some(start) = start_date {
-            conditions.push("created_at >= ?");
-            params_vec.push(Box::new(start));
-        }
-        if let Some(end) = end_date {
-            conditions.push("created_at <= ?");
-            params_vec.push(Box::new(end));
-        }
-        if let Some(at) = app_type {
-            conditions.push("app_type = ?");
->>>>>>> origin/cc-switch-cli
             params_vec.push(Box::new(at.to_string()));
         }
 
@@ -529,31 +498,6 @@ impl Database {
             String::new()
         } else {
             format!("WHERE {}", conditions.join(" AND "))
-<<<<<<< HEAD
-=======
-        };
-
-        // Only include rolled-up rows for full local days that are fully covered by the range.
-        let mut rollup_conditions: Vec<String> = Vec::new();
-        let mut rollup_params: Vec<Box<dyn rusqlite::ToSql>> = Vec::new();
-        let rollup_bounds = compute_rollup_date_bounds(start_date, end_date)?;
-
-        push_rollup_date_filters(
-            &mut rollup_conditions,
-            &mut rollup_params,
-            "date",
-            &rollup_bounds,
-        );
-        if let Some(at) = app_type {
-            rollup_conditions.push("app_type = ?".to_string());
-            rollup_params.push(Box::new(at.to_string()));
-        }
-
-        let rollup_where = if rollup_conditions.is_empty() {
-            String::new()
-        } else {
-            format!("WHERE {}", rollup_conditions.join(" AND "))
->>>>>>> origin/cc-switch-cli
         };
 
         // Only include rolled-up rows for full local days that are fully covered by the range.
@@ -592,7 +536,6 @@ impl Database {
             FROM
                 (SELECT
                     COUNT(*) as total_requests,
-<<<<<<< HEAD
                     COALESCE(SUM(CAST(l.total_cost_usd AS REAL)), 0) as total_cost,
                     COALESCE(SUM({fresh_input_detail}), 0) as total_input_tokens,
                     COALESCE(SUM(l.output_tokens), 0) as total_output_tokens,
@@ -604,19 +547,6 @@ impl Database {
                     COALESCE(SUM(request_count), 0) as total_requests,
                     COALESCE(SUM(CAST(total_cost_usd AS REAL)), 0) as total_cost,
                     COALESCE(SUM({fresh_input_rollup}), 0) as total_input_tokens,
-=======
-                    COALESCE(SUM(CAST(total_cost_usd AS REAL)), 0) as total_cost,
-                    COALESCE(SUM(input_tokens), 0) as total_input_tokens,
-                    COALESCE(SUM(output_tokens), 0) as total_output_tokens,
-                    COALESCE(SUM(cache_creation_tokens), 0) as total_cache_creation_tokens,
-                    COALESCE(SUM(cache_read_tokens), 0) as total_cache_read_tokens,
-                    COALESCE(SUM(CASE WHEN status_code >= 200 AND status_code < 300 THEN 1 ELSE 0 END), 0) as success_count
-                 FROM proxy_request_logs {where_clause}) d,
-                (SELECT
-                    COALESCE(SUM(request_count), 0) as total_requests,
-                    COALESCE(SUM(CAST(total_cost_usd AS REAL)), 0) as total_cost,
-                    COALESCE(SUM(input_tokens), 0) as total_input_tokens,
->>>>>>> origin/cc-switch-cli
                     COALESCE(SUM(output_tokens), 0) as total_output_tokens,
                     COALESCE(SUM(cache_creation_tokens), 0) as total_cache_creation_tokens,
                     COALESCE(SUM(cache_read_tokens), 0) as total_cache_read_tokens,
@@ -833,16 +763,11 @@ impl Database {
             }
 
             let app_type_filter = if app_type.is_some() {
-<<<<<<< HEAD
                 "AND l.app_type = ?4"
-=======
-                "AND app_type = ?4"
->>>>>>> origin/cc-switch-cli
             } else {
                 ""
             };
 
-<<<<<<< HEAD
             let effective_filter = effective_usage_log_filter("l");
             let fresh_input = fresh_input_sql("l");
             let sql = format!(
@@ -858,20 +783,6 @@ impl Database {
                 FROM proxy_request_logs l
                 WHERE l.created_at >= ?1 AND l.created_at <= ?2
                   AND {effective_filter} {app_type_filter}
-=======
-            let sql = format!(
-                "SELECT
-                    CAST((created_at - ?1) / ?3 AS INTEGER) as bucket_idx,
-                    COUNT(*) as request_count,
-                    COALESCE(SUM(CAST(total_cost_usd AS REAL)), 0) as total_cost,
-                    COALESCE(SUM(input_tokens + output_tokens), 0) as total_tokens,
-                    COALESCE(SUM(input_tokens), 0) as total_input_tokens,
-                    COALESCE(SUM(output_tokens), 0) as total_output_tokens,
-                    COALESCE(SUM(cache_creation_tokens), 0) as total_cache_creation_tokens,
-                    COALESCE(SUM(cache_read_tokens), 0) as total_cache_read_tokens
-                FROM proxy_request_logs
-                WHERE created_at >= ?1 AND created_at <= ?2 {app_type_filter}
->>>>>>> origin/cc-switch-cli
                 GROUP BY bucket_idx
                 ORDER BY bucket_idx ASC"
             );
@@ -942,16 +853,11 @@ impl Database {
         let bucket_count = (end_day.signed_duration_since(start_day).num_days() + 1) as usize;
 
         let app_type_filter = if app_type.is_some() {
-<<<<<<< HEAD
             "AND l.app_type = ?3"
-=======
-            "AND app_type = ?3"
->>>>>>> origin/cc-switch-cli
         } else {
             ""
         };
 
-<<<<<<< HEAD
         let effective_filter = effective_usage_log_filter("l");
         let fresh_input = fresh_input_sql("l");
         let detail_sql = format!(
@@ -967,20 +873,6 @@ impl Database {
             FROM proxy_request_logs l
             WHERE l.created_at >= ?1 AND l.created_at <= ?2
               AND {effective_filter} {app_type_filter}
-=======
-        let detail_sql = format!(
-            "SELECT
-                date(created_at, 'unixepoch', 'localtime') as bucket_date,
-                COUNT(*) as request_count,
-                COALESCE(SUM(CAST(total_cost_usd AS REAL)), 0) as total_cost,
-                COALESCE(SUM(input_tokens + output_tokens), 0) as total_tokens,
-                COALESCE(SUM(input_tokens), 0) as total_input_tokens,
-                COALESCE(SUM(output_tokens), 0) as total_output_tokens,
-                COALESCE(SUM(cache_creation_tokens), 0) as total_cache_creation_tokens,
-                COALESCE(SUM(cache_read_tokens), 0) as total_cache_read_tokens
-            FROM proxy_request_logs
-            WHERE created_at >= ?1 AND created_at <= ?2 {app_type_filter}
->>>>>>> origin/cc-switch-cli
             GROUP BY bucket_date
             ORDER BY bucket_date ASC"
         );
@@ -1036,22 +928,14 @@ impl Database {
             format!("WHERE {}", rollup_conditions.join(" AND "))
         };
 
-<<<<<<< HEAD
         let fresh_input_rollup = fresh_input_sql("");
-=======
->>>>>>> origin/cc-switch-cli
         let rollup_sql = format!(
             "SELECT
                 date,
                 COALESCE(SUM(request_count), 0),
                 COALESCE(SUM(CAST(total_cost_usd AS REAL)), 0),
-<<<<<<< HEAD
                 COALESCE(SUM({fresh_input_rollup} + output_tokens), 0),
                 COALESCE(SUM({fresh_input_rollup}), 0),
-=======
-                COALESCE(SUM(input_tokens + output_tokens), 0),
-                COALESCE(SUM(input_tokens), 0),
->>>>>>> origin/cc-switch-cli
                 COALESCE(SUM(output_tokens), 0),
                 COALESCE(SUM(cache_creation_tokens), 0),
                 COALESCE(SUM(cache_read_tokens), 0)
@@ -1140,7 +1024,6 @@ impl Database {
     ) -> Result<Vec<ProviderStats>, AppError> {
         let conn = lock_conn!(self.conn);
 
-<<<<<<< HEAD
         let mut detail_conditions = vec![effective_usage_log_filter("l")];
         let mut detail_params: Vec<Box<dyn rusqlite::ToSql>> = Vec::new();
         if let Some(start) = start_date {
@@ -1153,20 +1036,6 @@ impl Database {
         }
         if let Some(at) = app_type {
             detail_conditions.push("l.app_type = ?".to_string());
-=======
-        let mut detail_conditions = Vec::new();
-        let mut detail_params: Vec<Box<dyn rusqlite::ToSql>> = Vec::new();
-        if let Some(start) = start_date {
-            detail_conditions.push("l.created_at >= ?");
-            detail_params.push(Box::new(start));
-        }
-        if let Some(end) = end_date {
-            detail_conditions.push("l.created_at <= ?");
-            detail_params.push(Box::new(end));
-        }
-        if let Some(at) = app_type {
-            detail_conditions.push("l.app_type = ?");
->>>>>>> origin/cc-switch-cli
             detail_params.push(Box::new(at.to_string()));
         }
         let detail_where = if detail_conditions.is_empty() {
@@ -1197,11 +1066,8 @@ impl Database {
         // UNION detail logs + rollup data, then aggregate
         let detail_pname = provider_name_coalesce("l", "p");
         let rollup_pname = provider_name_coalesce("r", "p2");
-<<<<<<< HEAD
         let fresh_input_detail = fresh_input_sql("l");
         let fresh_input_rollup = fresh_input_sql("r");
-=======
->>>>>>> origin/cc-switch-cli
         let sql = format!(
             "SELECT
                 provider_id, app_type, provider_name,
@@ -1216,11 +1082,7 @@ impl Database {
                 SELECT l.provider_id, l.app_type,
                     {detail_pname} as provider_name,
                     COUNT(*) as request_count,
-<<<<<<< HEAD
                     COALESCE(SUM({fresh_input_detail} + l.output_tokens), 0) as total_tokens,
-=======
-                    COALESCE(SUM(l.input_tokens + l.output_tokens), 0) as total_tokens,
->>>>>>> origin/cc-switch-cli
                     COALESCE(SUM(CAST(l.total_cost_usd AS REAL)), 0) as total_cost,
                     COALESCE(SUM(CASE WHEN l.status_code >= 200 AND l.status_code < 300 THEN 1 ELSE 0 END), 0) as success_count,
                     COALESCE(SUM(l.latency_ms), 0) as latency_sum
@@ -1232,11 +1094,7 @@ impl Database {
                 SELECT r.provider_id, r.app_type,
                     {rollup_pname} as provider_name,
                     COALESCE(SUM(r.request_count), 0),
-<<<<<<< HEAD
                     COALESCE(SUM({fresh_input_rollup} + r.output_tokens), 0),
-=======
-                    COALESCE(SUM(r.input_tokens + r.output_tokens), 0),
->>>>>>> origin/cc-switch-cli
                     COALESCE(SUM(CAST(r.total_cost_usd AS REAL)), 0),
                     COALESCE(SUM(r.success_count), 0),
                     COALESCE(SUM(r.avg_latency_ms * r.request_count), 0)
@@ -1292,7 +1150,6 @@ impl Database {
     ) -> Result<Vec<ModelStats>, AppError> {
         let conn = lock_conn!(self.conn);
 
-<<<<<<< HEAD
         let mut detail_conditions = vec![effective_usage_log_filter("l")];
         let mut detail_params: Vec<Box<dyn rusqlite::ToSql>> = Vec::new();
         if let Some(start) = start_date {
@@ -1305,20 +1162,6 @@ impl Database {
         }
         if let Some(at) = app_type {
             detail_conditions.push("l.app_type = ?".to_string());
-=======
-        let mut detail_conditions = Vec::new();
-        let mut detail_params: Vec<Box<dyn rusqlite::ToSql>> = Vec::new();
-        if let Some(start) = start_date {
-            detail_conditions.push("l.created_at >= ?");
-            detail_params.push(Box::new(start));
-        }
-        if let Some(end) = end_date {
-            detail_conditions.push("l.created_at <= ?");
-            detail_params.push(Box::new(end));
-        }
-        if let Some(at) = app_type {
-            detail_conditions.push("l.app_type = ?");
->>>>>>> origin/cc-switch-cli
             detail_params.push(Box::new(at.to_string()));
         }
         let detail_where = if detail_conditions.is_empty() {
@@ -1347,11 +1190,8 @@ impl Database {
         };
 
         // UNION detail logs + rollup data
-<<<<<<< HEAD
         let fresh_input_detail = fresh_input_sql("l");
         let fresh_input_rollup = fresh_input_sql("r");
-=======
->>>>>>> origin/cc-switch-cli
         let sql = format!(
             "SELECT
                 model,
@@ -1361,26 +1201,16 @@ impl Database {
             FROM (
                 SELECT l.model,
                     COUNT(*) as request_count,
-<<<<<<< HEAD
                     COALESCE(SUM({fresh_input_detail} + l.output_tokens), 0) as total_tokens,
-=======
-                    COALESCE(SUM(l.input_tokens + l.output_tokens), 0) as total_tokens,
->>>>>>> origin/cc-switch-cli
                     COALESCE(SUM(CAST(l.total_cost_usd AS REAL)), 0) as total_cost
                 FROM proxy_request_logs l
                 {detail_where}
                 GROUP BY l.model
                 UNION ALL
                 SELECT r.model,
-<<<<<<< HEAD
                     COALESCE(SUM(r.request_count), 0),
                     COALESCE(SUM({fresh_input_rollup} + r.output_tokens), 0),
                     COALESCE(SUM(CAST(r.total_cost_usd AS REAL)), 0)
-=======
-                    COALESCE(SUM(request_count), 0),
-                    COALESCE(SUM(input_tokens + output_tokens), 0),
-                    COALESCE(SUM(CAST(total_cost_usd AS REAL)), 0)
->>>>>>> origin/cc-switch-cli
                 FROM usage_daily_rollups r
                 {rollup_where}
                 GROUP BY r.model
@@ -1497,40 +1327,7 @@ impl Database {
 
         let mut stmt = conn.prepare(&sql)?;
         let params_refs: Vec<&dyn rusqlite::ToSql> = params.iter().map(|p| p.as_ref()).collect();
-<<<<<<< HEAD
         let rows = stmt.query_map(params_refs.as_slice(), row_to_request_log_detail)?;
-=======
-        let rows = stmt.query_map(params_refs.as_slice(), |row| {
-            Ok(RequestLogDetail {
-                request_id: row.get(0)?,
-                provider_id: row.get(1)?,
-                provider_name: row.get(2)?,
-                app_type: row.get(3)?,
-                model: row.get(4)?,
-                request_model: row.get(5)?,
-                cost_multiplier: row
-                    .get::<_, Option<String>>(6)?
-                    .unwrap_or_else(|| "1".to_string()),
-                input_tokens: row.get::<_, i64>(7)? as u32,
-                output_tokens: row.get::<_, i64>(8)? as u32,
-                cache_read_tokens: row.get::<_, i64>(9)? as u32,
-                cache_creation_tokens: row.get::<_, i64>(10)? as u32,
-                input_cost_usd: row.get(11)?,
-                output_cost_usd: row.get(12)?,
-                cache_read_cost_usd: row.get(13)?,
-                cache_creation_cost_usd: row.get(14)?,
-                total_cost_usd: row.get(15)?,
-                is_streaming: row.get::<_, i64>(16)? != 0,
-                latency_ms: row.get::<_, i64>(17)? as u64,
-                first_token_ms: row.get::<_, Option<i64>>(18)?.map(|v| v as u64),
-                duration_ms: row.get::<_, Option<i64>>(19)?.map(|v| v as u64),
-                status_code: row.get::<_, i64>(20)? as u16,
-                error_message: row.get(21)?,
-                created_at: row.get(22)?,
-                data_source: row.get(23)?,
-            })
-        })?;
->>>>>>> origin/cc-switch-cli
 
         let mut logs = Vec::new();
         let mut pricing_cache = HashMap::new();
@@ -1568,40 +1365,7 @@ impl Database {
              LEFT JOIN providers p ON l.provider_id = p.id AND l.app_type = p.app_type
              WHERE l.request_id = ?"
         );
-<<<<<<< HEAD
         let result = conn.query_row(&detail_sql, [request_id], row_to_request_log_detail);
-=======
-        let result = conn.query_row(&detail_sql, [request_id], |row| {
-            Ok(RequestLogDetail {
-                request_id: row.get(0)?,
-                provider_id: row.get(1)?,
-                provider_name: row.get(2)?,
-                app_type: row.get(3)?,
-                model: row.get(4)?,
-                request_model: row.get(5)?,
-                cost_multiplier: row
-                    .get::<_, Option<String>>(6)?
-                    .unwrap_or_else(|| "1".to_string()),
-                input_tokens: row.get::<_, i64>(7)? as u32,
-                output_tokens: row.get::<_, i64>(8)? as u32,
-                cache_read_tokens: row.get::<_, i64>(9)? as u32,
-                cache_creation_tokens: row.get::<_, i64>(10)? as u32,
-                input_cost_usd: row.get(11)?,
-                output_cost_usd: row.get(12)?,
-                cache_read_cost_usd: row.get(13)?,
-                cache_creation_cost_usd: row.get(14)?,
-                total_cost_usd: row.get(15)?,
-                is_streaming: row.get::<_, i64>(16)? != 0,
-                latency_ms: row.get::<_, i64>(17)? as u64,
-                first_token_ms: row.get::<_, Option<i64>>(18)?.map(|v| v as u64),
-                duration_ms: row.get::<_, Option<i64>>(19)?.map(|v| v as u64),
-                status_code: row.get::<_, i64>(20)? as u16,
-                error_message: row.get(21)?,
-                created_at: row.get(22)?,
-                data_source: row.get(23)?,
-            })
-        });
->>>>>>> origin/cc-switch-cli
 
         match result {
             Ok(mut detail) => {
@@ -2236,7 +2000,6 @@ mod tests {
         }
     }
 
-<<<<<<< HEAD
     #[allow(clippy::too_many_arguments)]
     fn insert_usage_log(
         conn: &Connection,
@@ -2502,8 +2265,6 @@ mod tests {
         Ok(())
     }
 
-=======
->>>>>>> origin/cc-switch-cli
     #[test]
     fn test_get_usage_summary() -> Result<(), AppError> {
         let db = Database::memory()?;
@@ -2679,7 +2440,6 @@ mod tests {
     }
 
     #[test]
-<<<<<<< HEAD
     fn test_effective_usage_dedup_prefers_proxy_for_session_sources() -> Result<(), AppError> {
         let db = Database::memory()?;
 
@@ -3041,8 +2801,6 @@ mod tests {
     }
 
     #[test]
-=======
->>>>>>> origin/cc-switch-cli
     fn test_get_model_stats() -> Result<(), AppError> {
         let db = Database::memory()?;
 
@@ -3392,7 +3150,6 @@ mod tests {
     }
 
     #[test]
-<<<<<<< HEAD
     fn test_strip_model_date_suffix_is_utf8_safe() {
         assert_eq!(
             strip_model_date_suffix("模型-2026-05-14").as_deref(),
@@ -3427,8 +3184,6 @@ mod tests {
     }
 
     #[test]
-=======
->>>>>>> origin/cc-switch-cli
     fn test_model_pricing_matching() -> Result<(), AppError> {
         let db = Database::memory()?;
         let conn = lock_conn!(db.conn);

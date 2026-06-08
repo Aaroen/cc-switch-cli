@@ -24,9 +24,6 @@ import {
   extractCodexWireApi,
   isCodexChatWireApi,
 } from "@/utils/providerConfigUtils";
-import { ProviderHealthBadge } from "@/components/providers/ProviderHealthBadge";
-import { FailoverPriorityBadge } from "@/components/providers/FailoverPriorityBadge";
-import { extractCodexBaseUrl } from "@/utils/providerConfigUtils";
 import { useProviderHealth } from "@/lib/query/failover";
 import { useUsageQuery } from "@/lib/query/queries";
 
@@ -90,7 +87,6 @@ function isOfficialProvider(provider: Provider, appId: AppId): boolean {
       !bearerToken &&
       (!apiKey || (typeof apiKey === "string" && apiKey.trim() === ""))
     );
-    return !apiKey || (typeof apiKey === "string" && apiKey.trim() === "");
   }
   if (appId === "gemini") {
     // 无 GEMINI_API_KEY 且无 GOOGLE_GEMINI_BASE_URL → Google OAuth 官方模式
@@ -223,8 +219,6 @@ export function ProviderCard({
   ]);
   const isClaudeThirdParty =
     appId === "claude" && provider.category === "third_party";
-  const isCodexOauth =
-    provider.meta?.providerType === PROVIDER_TYPES.CODEX_OAUTH;
 
   // 获取用量数据以判断是否有多套餐
   // 累加模式应用（OpenCode/OpenClaw/Hermes）：使用 isInConfig 代替 isCurrent
@@ -284,19 +278,6 @@ export function ProviderCard({
     (!isAnyOmo &&
       !isProxyTakeover &&
       (isActiveProvider || hasPersistentConfigHighlight));
-  const supportsWeightRoundRobin =
-    appId === "claude" || appId === "codex" || appId === "gemini";
-  const routingWeight = provider.weight ?? provider.meta?.routingWeight ?? 1;
-  const routingBadgeLabel =
-    routingWeight === 0
-      ? t("proxy.weightRoundRobin.badgeDisabled", {
-          defaultValue: "轮询禁用",
-        })
-      : t("proxy.weightRoundRobin.badgeFrequency", {
-          weight: routingWeight,
-          defaultValue: `轮询 1/${routingWeight}`,
-        });
-
   return (
     <div
       className={cn(
@@ -554,7 +535,6 @@ export function ProviderCard({
                 !isCopilot &&
                 !isCodexOauth &&
                 !isClaudeThirdParty
-                onTest && !isOfficial && !isCopilot && !isCodexOauth
                   ? () => onTest(provider)
                   : undefined
               }

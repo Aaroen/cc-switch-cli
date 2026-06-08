@@ -106,7 +106,6 @@ CC Switch User Manual
 
 ## Version Information
 
-<<<<<<< HEAD
 - Documentation version: v3.16.0
 - Last updated: 2026-05-29
 - Applicable to CC Switch v3.16.0+
@@ -126,21 +125,6 @@ CC Switch User Manual
 - **Skills Discovery & Batch Updates**: SHA-256 update detection, batch updates, skills.sh public registry search — see [3.3 Skills Management](./3-extensions/3.3-skills.md)
 - **Full URL Endpoint Mode**: Advanced option to treat `base_url` as the full upstream endpoint — see [2.1 Add Provider](./2-providers/2.1-add.md)
 - **OpenCode / OpenClaw / Hermes Stream Check Coverage**: Stream Check covers Claude / Codex / Gemini / OpenCode / OpenClaw / Hermes — see [4.5 Model Test](./4-proxy/4.5-model-test.md)
-=======
-- Documentation version: v3.13.0
-- Last updated: 2026-04-08
-- Applicable to CC Switch v3.13.0+
-
-### v3.13.0 Highlights
-
-- **Lightweight Mode**: Destroys the main window when minimizing to tray — near-zero idle footprint. See [1.5 Personalization](./1-getting-started/1.5-settings.md)
-- **Quota & Balance Display**: Official subscriptions (Claude/Codex/Gemini/Copilot/Codex OAuth) auto-display quotas; Token Plan and third-party balances use built-in templates with one-click enable — see [2.5 Usage Query](./2-providers/2.5-usage-query.md)
-- **Codex OAuth Reverse Proxy**: Reuse your ChatGPT account's Codex service inside Claude Code — see [2.1 Add Provider](./2-providers/2.1-add.md)
-- **Per-App Tray Submenus**: Five independent app submenus to prevent tray overflow — see [2.2 Switch Provider](./2-providers/2.2-switch.md)
-- **Skills Discovery & Batch Updates**: SHA-256 update detection, batch updates, skills.sh public registry search — see [3.3 Skills Management](./3-extensions/3.3-skills.md)
-- **Full URL Endpoint Mode**: Advanced option to treat `base_url` as the full upstream endpoint — see [2.1 Add Provider](./2-providers/2.1-add.md)
-- **OpenCode / OpenClaw Stream Check Coverage**: Stream Check panel extended to all five apps — see [4.5 Model Test](./4-proxy/4.5-model-test.md)
->>>>>>> origin/cc-switch-cli
 
 ## Contributing
 

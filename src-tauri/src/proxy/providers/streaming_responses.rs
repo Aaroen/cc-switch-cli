@@ -8,14 +8,10 @@
 //!
 //! 与 Chat Completions 的 delta chunk 模型完全不同，需要独立的状态机处理。
 
-<<<<<<< HEAD
 use super::transform_responses::{
     build_anthropic_usage_from_responses, map_responses_stop_reason,
     sanitize_anthropic_tool_use_input_json,
 };
-=======
-use super::transform_responses::{build_anthropic_usage_from_responses, map_responses_stop_reason};
->>>>>>> origin/cc-switch-cli
 use crate::proxy::sse::{strip_sse_field, take_sse_block};
 use bytes::Bytes;
 use futures::stream::{Stream, StreamExt};
@@ -119,11 +115,8 @@ pub fn create_anthropic_sse_stream_from_responses<E: std::error::Error + Send + 
         let mut fallback_open_index: Option<u32> = None;
         let mut current_text_index: Option<u32> = None;
         let mut tool_index_by_item_id: HashMap<String, u32> = HashMap::new();
-<<<<<<< HEAD
         let mut tool_name_by_index: HashMap<u32, String> = HashMap::new();
         let mut tool_args_by_index: HashMap<u32, String> = HashMap::new();
-=======
->>>>>>> origin/cc-switch-cli
         let mut last_tool_index: Option<u32> = None;
 
         tokio::pin!(stream);
@@ -182,18 +175,12 @@ pub fn create_anthropic_sse_stream_from_responses<E: std::error::Error + Send + 
                                 }
 
                                 has_sent_message_start = true;
-<<<<<<< HEAD
                                 // Build usage with defensive null handling
                                 // Some() wrapper ensures build function always receives valid input
                                 // Fallback to empty object {} if usage field missing, ensuring message_start
                                 // event always has valid usage structure for VSCode Extension compatibility
                                 let start_usage = build_anthropic_usage_from_responses(
                                     Some(response_obj.get("usage").unwrap_or(&json!({}))),
-=======
-                                // Build usage with cache tokens if available
-                                let start_usage = build_anthropic_usage_from_responses(
-                                    response_obj.get("usage"),
->>>>>>> origin/cc-switch-cli
                                 );
 
                                 let event = json!({
@@ -431,21 +418,15 @@ pub fn create_anthropic_sse_stream_from_responses<E: std::error::Error + Send + 
                                         {
                                             tool_index_by_item_id.insert(item_id.to_string(), index);
                                         }
-<<<<<<< HEAD
                                         tool_name_by_index.insert(index, name.to_string());
-=======
->>>>>>> origin/cc-switch-cli
                                         last_tool_index = Some(index);
 
                                         if open_indices.contains(&index) {
                                             continue;
                                         }
 
-<<<<<<< HEAD
                                         tool_args_by_index.insert(index, String::new());
 
-=======
->>>>>>> origin/cc-switch-cli
                                         let event = json!({
                                             "type": "content_block_start",
                                             "index": index,
@@ -509,7 +490,6 @@ pub fn create_anthropic_sse_stream_from_responses<E: std::error::Error + Send + 
                                         open_indices.insert(index);
                                     }
 
-<<<<<<< HEAD
                                     if tool_name_by_index.get(&index).map(String::as_str) == Some("Read") {
                                         tool_args_by_index
                                             .entry(index)
@@ -518,8 +498,6 @@ pub fn create_anthropic_sse_stream_from_responses<E: std::error::Error + Send + 
                                         continue;
                                     }
 
-=======
->>>>>>> origin/cc-switch-cli
                                     let event = json!({
                                         "type": "content_block_delta",
                                         "index": index,
@@ -553,7 +531,6 @@ pub fn create_anthropic_sse_stream_from_responses<E: std::error::Error + Send + 
                                     if !open_indices.remove(&index) {
                                         continue;
                                     }
-<<<<<<< HEAD
                                     if tool_name_by_index.get(&index).map(String::as_str) == Some("Read") {
                                         let raw = data
                                             .get("arguments")
@@ -580,8 +557,6 @@ pub fn create_anthropic_sse_stream_from_responses<E: std::error::Error + Send + 
                                             yield Ok(Bytes::from(sse));
                                         }
                                     }
-=======
->>>>>>> origin/cc-switch-cli
                                     let event = json!({
                                         "type": "content_block_stop",
                                         "index": index
@@ -592,11 +567,8 @@ pub fn create_anthropic_sse_stream_from_responses<E: std::error::Error + Send + 
                                     if let Some(item_id) = item_id {
                                         tool_index_by_item_id.remove(item_id);
                                     }
-<<<<<<< HEAD
                                     tool_name_by_index.remove(&index);
                                     tool_args_by_index.remove(&index);
-=======
->>>>>>> origin/cc-switch-cli
                                 }
                             }
 
@@ -745,18 +717,12 @@ pub fn create_anthropic_sse_stream_from_responses<E: std::error::Error + Send + 
                                 }
                                 fallback_open_index = None;
 
-<<<<<<< HEAD
                                 // Defensive: Always build usage_json, even if usage field missing
                                 // Some() wrapper with fallback to {} ensures build_anthropic_usage_from_responses
                                 // always receives valid input, preventing null pointer errors in VSCode Extension
                                 let usage_json = build_anthropic_usage_from_responses(
                                     Some(response_obj.get("usage").unwrap_or(&json!({})))
                                 );
-=======
-                                let usage_json = response_obj.get("usage").map(|u| {
-                                    build_anthropic_usage_from_responses(Some(u))
-                                });
->>>>>>> origin/cc-switch-cli
 
                                 // Emit message_delta (with usage + stop_reason)
                                 let delta_event = json!({
@@ -905,7 +871,6 @@ mod tests {
     }
 
     #[tokio::test]
-<<<<<<< HEAD
     async fn test_streaming_read_tool_drops_empty_pages() {
         let input = concat!(
             "event: response.created\n",
@@ -971,8 +936,6 @@ mod tests {
     }
 
     #[tokio::test]
-=======
->>>>>>> origin/cc-switch-cli
     async fn test_streaming_conversion_interleaved_tool_deltas_by_item_id() {
         let input = concat!(
             "event: response.created\n",

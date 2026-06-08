@@ -58,8 +58,6 @@ export const useAddProviderMutation = (appId: AppId) => {
         id = generateUUID();
       }
 
-      const { providerKey: _providerKey, addToLive, ...rest } = providerInput;
-
       const newProvider: Provider = {
         ...rest,
         id,

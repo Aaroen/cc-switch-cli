@@ -114,8 +114,6 @@ import { HERMES_DEFAULT_CONFIG } from "./hooks/useHermesFormState";
 import { resolveManagedAccountId } from "@/lib/authBinding";
 import { useOpenClawLiveProviderIds } from "@/hooks/useOpenClaw";
 import { useHermesLiveProviderIds } from "@/hooks/useHermes";
-import { resolveManagedAccountId } from "@/lib/authBinding";
-import { useOpenClawLiveProviderIds } from "@/hooks/useOpenClaw";
 
 type PresetEntry = {
   id: string;
@@ -419,9 +417,6 @@ function ProviderFormFull({
   useEffect(() => {
     onSubmittingChange?.(isSubmitting || isConfirmSubmitting);
   }, [isSubmitting, isConfirmSubmitting, onSubmittingChange]);
-  useEffect(() => {
-    onSubmittingChange?.(isSubmitting);
-  }, [isSubmitting, onSubmittingChange]);
 
   const {
     apiKey,
@@ -919,9 +914,6 @@ function ProviderFormFull({
   }, [
     appId,
     hermesLiveProviderIds,
-    return false;
-  }, [
-    appId,
     isAnyOmoCategory,
     isEditMode,
     openclawLiveProviderIds,
@@ -1116,38 +1108,10 @@ function ProviderFormFull({
 
     // 非官方供应商端点 / API Key 空：A 类
     // cloud_provider（如 Bedrock）通过模板变量处理认证，跳过通用校验
-    // GitHub Copilot 使用 OAuth 认证，不需要 API Key
-    const isCopilotProvider =
-      templatePreset?.providerType === "github_copilot" ||
-      initialData?.meta?.providerType === "github_copilot" ||
-      baseUrl.includes("githubcopilot.com");
-    const isCodexOauthProvider =
-      templatePreset?.providerType === "codex_oauth" ||
-      initialData?.meta?.providerType === "codex_oauth";
-    // GitHub Copilot 必须先登录才能添加
-    if (isCopilotProvider && !isCopilotAuthenticated) {
-      toast.error(
-        t("copilot.loginRequired", {
-          defaultValue: "请先登录 GitHub Copilot",
-        }),
-      );
-      return;
-    }
-    // Codex OAuth 必须先登录才能添加
-    if (isCodexOauthProvider && !isCodexOauthAuthenticated) {
-      toast.error(
-        t("codexOauth.loginRequired", {
-          defaultValue: "请先登录 ChatGPT 账号",
-        }),
-      );
-      return;
-    }
-
     if (category !== "official" && category !== "cloud_provider") {
       if (appId === "claude") {
         if (!isCodexOauthProvider && !baseUrl.trim()) {
           issues.push(
-          toast.error(
             t("providerForm.endpointRequired", {
               defaultValue: "非官方供应商请填写 API 端点",
             }),
@@ -1155,7 +1119,6 @@ function ProviderFormFull({
         }
         if (!isCopilotProvider && !isCodexOauthProvider && !apiKey.trim()) {
           issues.push(
-          toast.error(
             t("providerForm.apiKeyRequired", {
               defaultValue: "非官方供应商请填写 API Key",
             }),
@@ -1385,7 +1348,6 @@ function ProviderFormFull({
       templatePreset?.providerType || initialData?.meta?.providerType;
 
     const nextMeta: ProviderMeta = {
-    payload.meta = {
       ...(baseMeta ?? {}),
       commonConfigEnabled:
         appId === "claude"
@@ -1438,16 +1400,6 @@ function ProviderFormFull({
           : appId === "codex" && category !== "official"
             ? localCodexApiFormat
             : undefined,
-      apiKeyField:
-        appId === "claude" &&
-        category !== "official" &&
-        localApiKeyField !== "ANTHROPIC_AUTH_TOKEN"
-          ? localApiKeyField
-          : undefined,
-      isFullUrl:
-        supportsFullUrl && category !== "official" && localIsFullUrl
-          ? true
-          : undefined,
       apiKeyField:
         appId === "claude" &&
         category !== "official" &&
@@ -1766,8 +1718,6 @@ function ProviderFormFull({
             <ProviderPresetSelector
               selectedPresetId={selectedPresetId}
               presetEntries={presetEntries}
-              groupedPresets={groupedPresets}
-              categoryKeys={categoryKeys}
               presetCategoryLabels={presetCategoryLabels}
               onPresetChange={handlePresetChange}
               onUniversalPresetSelect={onUniversalPresetSelect}
@@ -2051,12 +2001,6 @@ function ProviderFormFull({
               defaultSonnetModelName={defaultSonnetModelName}
               defaultOpusModel={defaultOpusModel}
               defaultOpusModelName={defaultOpusModelName}
-              shouldShowModelSelector={category !== "official"}
-              claudeModel={claudeModel}
-              reasoningModel={reasoningModel}
-              defaultHaikuModel={defaultHaikuModel}
-              defaultSonnetModel={defaultSonnetModel}
-              defaultOpusModel={defaultOpusModel}
               onModelChange={handleModelChange}
               speedTestEndpoints={speedTestEndpoints}
               apiFormat={localApiFormat}
@@ -2096,9 +2040,6 @@ function ProviderFormFull({
               onCodexChatReasoningChange={setCodexChatReasoning}
               catalogModels={codexCatalogModels}
               onCatalogModelsChange={setCodexCatalogModels}
-              shouldShowModelField={category !== "official"}
-              modelName={codexModelName}
-              onModelNameChange={handleCodexModelNameChange}
               speedTestEndpoints={speedTestEndpoints}
             />
           )}
@@ -2305,7 +2246,6 @@ function ProviderFormFull({
               {settingsConfigErrorField}
             </>
           ) : appId === "openclaw" || appId === "hermes" ? (
-          ) : appId === "openclaw" ? (
             <>
               <div className="space-y-2">
                 <Label htmlFor="settingsConfig">
@@ -2322,14 +2262,12 @@ function ProviderFormFull({
   "api_key": ""
 }`
                       : `{
-                  placeholder={`{
   "baseUrl": "https://api.example.com/v1",
   "apiKey": "your-api-key-here",
   "api": "openai-completions",
   "models": []
 }`
                   }
-}`}
                   rows={14}
                   showValidation={true}
                   language="json"
@@ -2369,7 +2307,6 @@ function ProviderFormFull({
             appId !== "opencode" &&
             appId !== "openclaw" &&
             appId !== "hermes" && (
-            appId !== "openclaw" && (
               <ProviderAdvancedConfig
                 testConfig={testConfig}
                 pricingConfig={pricingConfig}
@@ -2387,7 +2324,6 @@ function ProviderFormFull({
                 type="submit"
                 disabled={isSubmitting || isConfirmSubmitting}
               >
-              <Button type="submit" disabled={isSubmitting}>
                 {submitLabel}
               </Button>
             </div>

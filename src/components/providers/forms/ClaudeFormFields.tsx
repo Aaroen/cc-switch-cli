@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import {
@@ -33,7 +32,6 @@ import {
   Loader2,
   Wand2,
 } from "lucide-react";
-import { ChevronDown, ChevronRight, Download, Loader2 } from "lucide-react";
 import EndpointSpeedTest from "./EndpointSpeedTest";
 import { ApiKeySection, EndpointField, ModelInputWithFetch } from "./shared";
 import { CopilotAuthSection } from "./CopilotAuthSection";
@@ -64,7 +62,6 @@ import {
   providerPresets,
   type TemplateValueConfig,
 } from "@/config/claudeProviderPresets";
-import type { TemplateValueConfig } from "@/config/claudeProviderPresets";
 
 interface EndpointCandidate {
   url: string;
@@ -164,8 +161,6 @@ export function ClaudeFormFields({
   onCodexAccountSelect,
   codexFastMode,
   onCodexFastModeChange,
-  selectedCodexAccountId,
-  onCodexAccountSelect,
   templateValueEntries,
   templateValues,
   templatePresetName,
@@ -199,7 +194,6 @@ export function ClaudeFormFields({
   const { t } = useTranslation();
   const hasAnyAdvancedValue = !!(
     claudeModel ||
-    reasoningModel ||
     defaultHaikuModel ||
     defaultSonnetModel ||
     defaultOpusModel ||
@@ -261,17 +255,6 @@ export function ClaudeFormFields({
       .then((models) => {
         setFetchedModels(models);
         showModelFetchResult(models.length);
-    setIsFetchingModels(true);
-    fetchModelsForConfig(baseUrl, apiKey, isFullUrl)
-      .then((models) => {
-        setFetchedModels(models);
-        if (models.length === 0) {
-          toast.info(t("providerForm.fetchModelsEmpty"));
-        } else {
-          toast.success(
-            t("providerForm.fetchModelsSuccess", { count: models.length }),
-          );
-        }
       })
       .catch((err) => {
         console.warn("[ModelFetch] Failed:", err);
@@ -292,18 +275,6 @@ export function ClaudeFormFields({
 
     const requestId = copilotModelsRequestRef.current + 1;
     copilotModelsRequestRef.current = requestId;
-  }, [baseUrl, apiKey, isFullUrl, t]);
-
-  // 当 Copilot 预设且已认证时，加载可用模型
-  useEffect(() => {
-    // 如果不是 Copilot 预设或未认证，清空模型列表
-    if (!isCopilotPreset || !isCopilotAuthenticated) {
-      setCopilotModels([]);
-      setModelsLoading(false);
-      return;
-    }
-
-    let cancelled = false;
     setModelsLoading(true);
     const fetchModels = selectedGitHubAccountId
       ? copilotGetModelsForAccount(selectedGitHubAccountId)
@@ -395,26 +366,6 @@ export function ClaudeFormFields({
       ? handleFetchCodexOauthModels
       : handleFetchModels;
 
-        if (!cancelled) setCopilotModels(models);
-      })
-      .catch((err) => {
-        console.warn("[Copilot] Failed to fetch models:", err);
-        if (!cancelled) {
-          toast.error(
-            t("copilot.loadModelsFailed", {
-              defaultValue: "加载 Copilot 模型列表失败",
-            }),
-          );
-        }
-      })
-      .finally(() => {
-        if (!cancelled) setModelsLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [isCopilotPreset, isCopilotAuthenticated, selectedGitHubAccountId]);
-
   // 模型输入框：支持手动输入 + 下拉选择
   const renderModelInput = (
     id: string,
@@ -439,14 +390,6 @@ export function ClaudeFormFields({
       );
     }
 
-    field: ClaudeFormFieldsProps["onModelChange"] extends (
-      f: infer F,
-      v: string,
-    ) => void
-      ? F
-      : never,
-    placeholder?: string,
-  ) => {
     if (isCopilotPreset && copilotModels.length > 0) {
       // 按 vendor 分组
       const grouped: Record<string, CopilotModel[]> = {};
@@ -464,7 +407,6 @@ export function ClaudeFormFields({
             type="text"
             value={value}
             onChange={(e) => updateValue(e.target.value)}
-            onChange={(e) => onModelChange(field, e.target.value)}
             placeholder={placeholder}
             autoComplete="off"
             className="flex-1"
@@ -487,7 +429,6 @@ export function ClaudeFormFields({
                     <DropdownMenuItem
                       key={model.id}
                       onSelect={() => updateValue(model.id)}
-                      onSelect={() => onModelChange(field, model.id)}
                     >
                       {model.id}
                     </DropdownMenuItem>
@@ -508,7 +449,6 @@ export function ClaudeFormFields({
             type="text"
             value={value}
             onChange={(e) => updateValue(e.target.value)}
-            onChange={(e) => onModelChange(field, e.target.value)}
             placeholder={placeholder}
             autoComplete="off"
             className="flex-1"
@@ -534,13 +474,11 @@ export function ClaudeFormFields({
     }
 
     // 普通供应商: 使用 ModelInputWithFetch（获取按钮在 section 标题旁）
-    // 非 Copilot 供应商: 使用 ModelInputWithFetch（获取按钮在 section 标题旁）
     return (
       <ModelInputWithFetch
         id={id}
         value={value}
         onChange={updateValue}
-        onChange={(v) => onModelChange(field, v)}
         placeholder={placeholder}
         fetchedModels={fetchedModels}
         isLoading={isFetchingModels}
@@ -706,14 +644,6 @@ export function ClaudeFormFields({
             showEndpointTools ? () => onEndpointModalToggle(true) : undefined
           }
           showFullUrlToggle={showEndpointTools}
-          }
-          fullUrlHint={
-            apiFormat === "gemini_native"
-              ? t("providerForm.fullUrlHintGeminiNative")
-              : undefined
-          }
-          onManageClick={() => onEndpointModalToggle(true)}
-          showFullUrlToggle={true}
           isFullUrl={isFullUrl}
           onFullUrlChange={onFullUrlChange}
         />
@@ -840,7 +770,6 @@ export function ClaudeFormFields({
                 <FormLabel>{t("providerForm.modelMappingLabel")}</FormLabel>
                 <div className="flex gap-2">
                   {/* 一键设置按钮 */}
-                {!isCopilotPreset && (
                   <Button
                     type="button"
                     variant="outline"
@@ -891,11 +820,6 @@ export function ClaudeFormFields({
                     className="h-7 gap-1"
                   >
                     {modelFetchLoading ? (
-                    onClick={handleFetchModels}
-                    disabled={isFetchingModels}
-                    className="h-7 gap-1"
-                  >
-                    {isFetchingModels ? (
                       <Loader2 className="h-3.5 w-3.5 animate-spin" />
                     ) : (
                       <Download className="h-3.5 w-3.5" />
@@ -903,7 +827,6 @@ export function ClaudeFormFields({
                     {t("providerForm.fetchModels")}
                   </Button>
                 </div>
-                )}
               </div>
               <p className="text-xs text-muted-foreground">
                 {t("providerForm.modelMappingHint")}
@@ -1009,78 +932,6 @@ export function ClaudeFormFields({
                     "仅在 Claude Code 请求没有明确落到 Sonnet、Opus 或 Haiku 角色时使用；通常可以留空。",
                 })}
               </p>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {/* 主模型 */}
-              <div className="space-y-2">
-                <FormLabel htmlFor="claudeModel">
-                  {t("providerForm.anthropicModel", {
-                    defaultValue: "主模型",
-                  })}
-                </FormLabel>
-                {renderModelInput(
-                  "claudeModel",
-                  claudeModel,
-                  "ANTHROPIC_MODEL",
-                  t("providerForm.modelPlaceholder", { defaultValue: "" }),
-                )}
-              </div>
-
-              {/* 推理模型 */}
-              <div className="space-y-2">
-                <FormLabel htmlFor="reasoningModel">
-                  {t("providerForm.anthropicReasoningModel")}
-                </FormLabel>
-                {renderModelInput(
-                  "reasoningModel",
-                  reasoningModel,
-                  "ANTHROPIC_REASONING_MODEL",
-                )}
-              </div>
-
-              {/* 默认 Haiku */}
-              <div className="space-y-2">
-                <FormLabel htmlFor="claudeDefaultHaikuModel">
-                  {t("providerForm.anthropicDefaultHaikuModel", {
-                    defaultValue: "Haiku 默认模型",
-                  })}
-                </FormLabel>
-                {renderModelInput(
-                  "claudeDefaultHaikuModel",
-                  defaultHaikuModel,
-                  "ANTHROPIC_DEFAULT_HAIKU_MODEL",
-                  t("providerForm.haikuModelPlaceholder", { defaultValue: "" }),
-                )}
-              </div>
-
-              {/* 默认 Sonnet */}
-              <div className="space-y-2">
-                <FormLabel htmlFor="claudeDefaultSonnetModel">
-                  {t("providerForm.anthropicDefaultSonnetModel", {
-                    defaultValue: "Sonnet 默认模型",
-                  })}
-                </FormLabel>
-                {renderModelInput(
-                  "claudeDefaultSonnetModel",
-                  defaultSonnetModel,
-                  "ANTHROPIC_DEFAULT_SONNET_MODEL",
-                  t("providerForm.modelPlaceholder", { defaultValue: "" }),
-                )}
-              </div>
-
-              {/* 默认 Opus */}
-              <div className="space-y-2">
-                <FormLabel htmlFor="claudeDefaultOpusModel">
-                  {t("providerForm.anthropicDefaultOpusModel", {
-                    defaultValue: "Opus 默认模型",
-                  })}
-                </FormLabel>
-                {renderModelInput(
-                  "claudeDefaultOpusModel",
-                  defaultOpusModel,
-                  "ANTHROPIC_DEFAULT_OPUS_MODEL",
-                  t("providerForm.modelPlaceholder", { defaultValue: "" }),
-                )}
-              </div>
             </div>
           </CollapsibleContent>
         </Collapsible>

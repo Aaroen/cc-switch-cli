@@ -186,7 +186,6 @@ export function GeminiFormFields({
             value={model}
             onChange={onModelChange}
             placeholder="gemini-3.5-flash"
-            placeholder="gemini-3-pro-preview"
             fetchedModels={fetchedModels}
             isLoading={isFetchingModels}
           />

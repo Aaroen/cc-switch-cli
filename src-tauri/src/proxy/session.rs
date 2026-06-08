@@ -575,11 +575,7 @@ mod tests {
     }
 
     #[test]
-<<<<<<< HEAD
     fn test_codex_previous_response_id_is_not_stable_session_identity() {
-=======
-    fn test_extract_session_from_codex_previous_response_id() {
->>>>>>> origin/cc-switch-cli
         let headers = HeaderMap::new();
         let body = json!({
             "input": "Write a function",

@@ -307,7 +307,6 @@ export function UsageDateRangePicker({
           <div className="space-y-2 sm:w-[250px] sm:flex-none">
             <p className="text-xs text-muted-foreground">
               {t("usage.customRangeHint", "支持日期与时间")}
-              {t("usage.customRangeHint", "支持日期与时间，最长 30 天")}
             </p>
             {renderField("start")}
             {renderField("end")}

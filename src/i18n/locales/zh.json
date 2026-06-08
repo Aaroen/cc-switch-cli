@@ -42,7 +42,6 @@
     "enabled": "已开启",
     "notSet": "未设置",
     "desktopOnly": "此功能仅在桌面端可用"
-    "notSet": "未设置"
   },
   "firstRunNotice": {
     "title": "欢迎使用 CC Switch",
@@ -83,7 +82,6 @@
     "enableTeammates": "Teammates 模式",
     "enableToolSearch": "启用 Tool Search",
     "effortMax": "最大强度思考",
-    "effortHigh": "高强度思考",
     "disableAutoUpgrade": "禁用自动升级"
   },
   "header": {
@@ -388,18 +386,6 @@
         "cacheTtl5m": "5 分钟",
         "cacheTtl1h": "1 小时"
       },
-      "optimizer": {
-        "title": "Bedrock 请求优化器",
-        "description": "在请求发送前自动优化 Thinking 和 Cache 配置（仅 Bedrock 供应商生效）",
-        "enabled": "启用优化器",
-        "thinkingOptimizer": "Thinking 优化",
-        "thinkingOptimizerDescription": "自动为 Opus/Sonnet 启用 Adaptive Thinking，为旧模型注入 Extended Thinking",
-        "cacheInjection": "Cache 注入",
-        "cacheInjectionDescription": "自动在请求关键位置注入 Cache 断点，减少重复 token 计费",
-        "cacheTtl": "Cache TTL",
-        "cacheTtl5m": "5 分钟",
-        "cacheTtl1h": "1 小时"
-      },
       "logConfig": {
         "title": "日志管理",
         "description": "控制日志输出级别",
@@ -625,7 +611,6 @@
           "wezterm": "WezTerm",
           "kaku": "Kaku",
           "warp": "Warp"
-          "kaku": "Kaku"
         },
         "windows": {
           "cmd": "命令提示符",
@@ -925,13 +910,6 @@
       "openrouter": "OpenRouter",
       "deepseek": "DeepSeek",
       "together": "Together AI"
-      "ddshub": "呆呆兽为CC Switch 的用户提供了特别福利，通过此链接注册后，首单充值可额外赠送 10% 额度（联系群主领取）！",
-      "lionccapi": "LionCCAPI 为 CC Switch 的用户提供了特别福利，注册后添加客服微信HSQBJ088888888，发暗号cc-switch备注即可送10美金额度！",
-      "shengsuanyun": "胜算云为 CC Switch 的用户提供了特别福利，使用此链接注册的新用户可获 10 元模力及首充 10% 赠送！"
-    },
-    "presets": {
-      "ucloud": "优云智算",
-      "shengsuanyun": "胜算云"
     },
     "parameterConfig": "参数配置 - {{name}} *",
     "mainModel": "主模型 (可选)",
@@ -1003,7 +981,6 @@
     "fallbackModelHint": "仅在 Claude Code 请求没有明确落到 Sonnet、Opus 或 Haiku 角色时使用；通常可以留空。",
     "quickSetModels": "一键设置",
     "quickSetSuccess": "已将模型名称应用到所有角色",
-    "modelMappingHint": "如果供应商原生提供 Claude 系列模型，通常无需配置。仅在需要将请求映射到不同模型名称时填写。",
     "advancedOptionsToggle": "高级选项",
     "advancedOptionsHint": "包含 API 格式、认证字段、模型映射等配置。大多数场景下保持默认即可。",
     "categoryOfficial": "官方",
@@ -1056,7 +1033,6 @@
     "deploymentGitHubCom": "GitHub.com",
     "deploymentEnterprise": "GitHub Enterprise Server",
     "enterpriseDomainPlaceholder": "例如：company.ghe.com"
-    "loadModelsFailed": "加载 Copilot 模型列表失败"
   },
   "codexOauth": {
     "authStatus": "认证状态",
@@ -1080,7 +1056,6 @@
     "copyCode": "复制代码",
     "fastMode": "FAST 模式",
     "fastModeDescription": "发送 service_tier=\"priority\" 换取更低延迟。默认关闭——开启后会按更高速率消耗 ChatGPT 配额。"
-    "copyCode": "复制代码"
   },
   "endpointTest": {
     "title": "请求地址管理",
@@ -1183,10 +1158,6 @@
     "reasoningEffortHint": "上游支持 low/high/max 等思考深度控制时启用。启用后会自动启用思考模式，并把 Codex 的 reasoning.effort 转成上游 Chat 参数。",
     "reasoningSectionToggle": "思考能力（高级·通常自动识别）",
     "reasoningSectionHint": "预设供应商已自动配置；自定义供应商会按名称/地址自动推断。仅当自动识别不准时才需展开手动覆盖。"
-    "modelNamePlaceholder": "例如: gpt-5-codex",
-    "contextWindow1M": "1M 上下文窗口",
-    "autoCompactLimit": "压缩阈值",
-    "autoCompactLimitHint": "上下文 token 数达到此阈值时自动压缩历史"
   },
   "geminiConfig": {
     "envFile": "环境变量 (.env)",
@@ -2317,7 +2288,6 @@
       },
       "invalidPort": "端口无效，请输入 1024-65535 之间的数字",
       "invalidAddress": "地址无效，请输入 IPv4（如 127.0.0.1）、IPv6（如 ::1）或 localhost",
-      "invalidAddress": "地址无效，请输入有效的 IP 地址（如 127.0.0.1）或 localhost",
       "configSaved": "路由配置已保存",
       "configSaveFailed": "保存配置失败",
       "restartRequired": "修改地址或端口后需要重启路由服务才能生效"
@@ -2328,7 +2298,6 @@
       "enabled": "{{app}} 路由已启用",
       "disabled": "{{app}} 路由已关闭",
       "failed": "切换路由状态失败: {{detail}}",
-      "failed": "切换路由状态失败",
       "tooltip": {
         "active": "{{appLabel}} 路由中 - {{address}}:{{port}}\n切换该应用供应商为热切换",
         "broken": "{{appLabel}} 路由中，但路由服务未运行",

@@ -1,5 +1,4 @@
 import { invoke } from "@/lib/api/transport";
-import { invoke } from "@tauri-apps/api/core";
 
 export async function copyText(text: string): Promise<void> {
   try {

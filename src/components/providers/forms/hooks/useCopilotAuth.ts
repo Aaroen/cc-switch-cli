@@ -3,8 +3,6 @@ import { useManagedAuth } from "./useManagedAuth";
 
 export function useCopilotAuth(githubDomain?: string) {
   const managedAuth = useManagedAuth("github_copilot", githubDomain);
-export function useCopilotAuth() {
-  const managedAuth = useManagedAuth("github_copilot");
   const defaultAccount =
     managedAuth.accounts.find(
       (account) => account.id === managedAuth.defaultAccountId,

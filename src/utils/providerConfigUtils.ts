@@ -425,11 +425,6 @@ const CODEX_RESERVED_MODEL_PROVIDER_IDS = new Set([
   "oss",
   "ollama-chat",
 ]);
-const TOML_MODEL_PATTERN = /^\s*model\s*=\s*(["'])([^"'\r\n]+)\1\s*(?:#.*)?$/;
-const TOML_MODEL_PROVIDER_LINE_PATTERN =
-  /^\s*model_provider\s*=\s*(["'])([^"'\r\n]+)\1\s*(?:#.*)?$/;
-const TOML_MODEL_PROVIDER_PATTERN =
-  /^\s*model_provider\s*=\s*(["'])([^"'\r\n]+)\1\s*(?:#.*)?$/m;
 
 interface TomlSectionRange {
   bodyEndIndex: number;
@@ -524,7 +519,6 @@ const getCodexModelProviderName = (configText: string): string | undefined => {
   const index = getTopLevelModelProviderLineIndex(lines);
   if (index === -1) return undefined;
   const match = lines[index].match(TOML_MODEL_PROVIDER_LINE_PATTERN);
-  const match = configText.match(TOML_MODEL_PROVIDER_PATTERN);
   const providerName = match?.[2]?.trim();
   return providerName || undefined;
 };

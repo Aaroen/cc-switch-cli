@@ -1,15 +1,10 @@
 //! 模型列表获取服务
 //!
 //! 通过 OpenAI 兼容的 GET /v1/models 端点获取供应商可用模型列表。
-<<<<<<< HEAD
 //! 主要面向第三方聚合站（硅基流动、OpenRouter 等），以及把 Anthropic
 //! 协议挂在兼容子路径上的官方供应商（DeepSeek、Kimi、智谱 GLM 等）。
 
 use reqwest::StatusCode;
-=======
-//! 主要面向第三方聚合站（硅基流动、OpenRouter 等）。
-
->>>>>>> origin/cc-switch-cli
 use serde::{Deserialize, Serialize};
 use std::time::Duration;
 
@@ -35,7 +30,6 @@ struct ModelEntry {
 
 const FETCH_TIMEOUT_SECS: u64 = 15;
 
-<<<<<<< HEAD
 /// 404/405 响应体截断长度：避免把几十 KB HTML 404 页整页保留到错误串里。
 const ERROR_BODY_MAX_CHARS: usize = 512;
 
@@ -56,25 +50,16 @@ const KNOWN_COMPAT_SUFFIXES: &[&str] = &[
 /// 获取供应商的可用模型列表
 ///
 /// 使用 OpenAI 兼容的 GET /v1/models 端点，按候选列表顺序尝试。
-=======
-/// 获取供应商的可用模型列表
-///
-/// 使用 OpenAI 兼容的 GET /v1/models 端点。
->>>>>>> origin/cc-switch-cli
 pub async fn fetch_models(
     base_url: &str,
     api_key: &str,
     is_full_url: bool,
-<<<<<<< HEAD
     models_url_override: Option<&str>,
-=======
->>>>>>> origin/cc-switch-cli
 ) -> Result<Vec<FetchedModel>, String> {
     if api_key.is_empty() {
         return Err("API Key is required to fetch models".to_string());
     }
 
-<<<<<<< HEAD
     let candidates = build_models_url_candidates(base_url, is_full_url, models_url_override)?;
     let client = crate::proxy::http_client::get();
     let mut last_err: Option<String> = None;
@@ -155,53 +140,10 @@ pub fn build_models_url_candidates(
     }
 
     let trimmed = base_url.trim().trim_end_matches('/');
-=======
-    let models_url = build_models_url(base_url, is_full_url)?;
-    let client = crate::proxy::http_client::get();
-
-    let response = client
-        .get(&models_url)
-        .header("Authorization", format!("Bearer {api_key}"))
-        .timeout(Duration::from_secs(FETCH_TIMEOUT_SECS))
-        .send()
-        .await
-        .map_err(|e| format!("Request failed: {e}"))?;
-
-    let status = response.status();
-    if !status.is_success() {
-        let body = response.text().await.unwrap_or_default();
-        return Err(format!("HTTP {status}: {body}"));
-    }
-
-    let resp: ModelsResponse = response
-        .json()
-        .await
-        .map_err(|e| format!("Failed to parse response: {e}"))?;
-
-    let mut models: Vec<FetchedModel> = resp
-        .data
-        .unwrap_or_default()
-        .into_iter()
-        .map(|m| FetchedModel {
-            id: m.id,
-            owned_by: m.owned_by,
-        })
-        .collect();
-
-    models.sort_by(|a, b| a.id.cmp(&b.id));
-    Ok(models)
-}
-
-/// 构造 /v1/models 的完整 URL
-fn build_models_url(base_url: &str, is_full_url: bool) -> Result<String, String> {
-    let trimmed = base_url.trim().trim_end_matches('/');
-
->>>>>>> origin/cc-switch-cli
     if trimmed.is_empty() {
         return Err("Base URL is empty".to_string());
     }
 
-<<<<<<< HEAD
     let mut candidates: Vec<String> = Vec::new();
 
     if is_full_url {
@@ -282,31 +224,6 @@ fn ends_with_version_segment(url: &str) -> bool {
     let last = url.rsplit('/').next().unwrap_or("");
     last.strip_prefix('v')
         .is_some_and(|digits| !digits.is_empty() && digits.bytes().all(|b| b.is_ascii_digit()))
-=======
-    if is_full_url {
-        // 尝试从完整端点 URL 推导 API 根路径
-        // 例如: https://proxy.example.com/v1/chat/completions → https://proxy.example.com/v1/models
-        if let Some(idx) = trimmed.find("/v1/") {
-            return Ok(format!("{}/v1/models", &trimmed[..idx]));
-        }
-        // 如果没有 /v1/ 路径，直接去掉最后一段路径
-        if let Some(idx) = trimmed.rfind('/') {
-            let root = &trimmed[..idx];
-            if root.contains("://") && root.len() > root.find("://").unwrap() + 3 {
-                return Ok(format!("{root}/v1/models"));
-            }
-        }
-        return Err("Cannot derive models endpoint from full URL".to_string());
-    }
-
-    // 常规情况: base_url 是 API 根路径
-    // 如果已经包含 /v1 路径，直接追加 /models
-    if trimmed.ends_with("/v1") {
-        return Ok(format!("{trimmed}/models"));
-    }
-
-    Ok(format!("{trimmed}/v1/models"))
->>>>>>> origin/cc-switch-cli
 }
 
 #[cfg(test)]
@@ -314,7 +231,6 @@ mod tests {
     use super::*;
 
     #[test]
-<<<<<<< HEAD
     fn test_candidates_plain_root() {
         let c = build_models_url_candidates("https://api.siliconflow.cn", false, None).unwrap();
         assert_eq!(c, vec!["https://api.siliconflow.cn/v1/models"]);
@@ -345,17 +261,10 @@ mod tests {
                 "https://open.bigmodel.cn/api/coding/paas/v4/models",
                 "https://open.bigmodel.cn/api/coding/paas/v4/v1/models",
             ]
-=======
-    fn test_build_models_url_basic() {
-        assert_eq!(
-            build_models_url("https://api.siliconflow.cn", false).unwrap(),
-            "https://api.siliconflow.cn/v1/models"
->>>>>>> origin/cc-switch-cli
         );
     }
 
     #[test]
-<<<<<<< HEAD
     fn test_candidates_zai_coding_paas_v4() {
         let c = build_models_url_candidates("https://api.z.ai/api/coding/paas/v4", false, None)
             .unwrap();
@@ -365,17 +274,10 @@ mod tests {
                 "https://api.z.ai/api/coding/paas/v4/models",
                 "https://api.z.ai/api/coding/paas/v4/v1/models",
             ]
-=======
-    fn test_build_models_url_trailing_slash() {
-        assert_eq!(
-            build_models_url("https://api.example.com/", false).unwrap(),
-            "https://api.example.com/v1/models"
->>>>>>> origin/cc-switch-cli
         );
     }
 
     #[test]
-<<<<<<< HEAD
     fn test_ends_with_version_segment() {
         assert!(ends_with_version_segment("https://x.com/v1"));
         assert!(ends_with_version_segment(
@@ -433,17 +335,10 @@ mod tests {
                 "https://api.deepseek.com/v1/models",
                 "https://api.deepseek.com/models",
             ]
-=======
-    fn test_build_models_url_with_v1() {
-        assert_eq!(
-            build_models_url("https://api.example.com/v1", false).unwrap(),
-            "https://api.example.com/v1/models"
->>>>>>> origin/cc-switch-cli
         );
     }
 
     #[test]
-<<<<<<< HEAD
     fn test_candidates_zhipu_strip_api_anthropic() {
         let c = build_models_url_candidates("https://open.bigmodel.cn/api/anthropic", false, None)
             .unwrap();
@@ -454,17 +349,10 @@ mod tests {
                 "https://open.bigmodel.cn/v1/models",
                 "https://open.bigmodel.cn/models",
             ]
-=======
-    fn test_build_models_url_full_url() {
-        assert_eq!(
-            build_models_url("https://proxy.example.com/v1/chat/completions", true).unwrap(),
-            "https://proxy.example.com/v1/models"
->>>>>>> origin/cc-switch-cli
         );
     }
 
     #[test]
-<<<<<<< HEAD
     fn test_candidates_bailian_strip_apps_anthropic() {
         let c = build_models_url_candidates(
             "https://dashscope.aliyuncs.com/apps/anthropic",
@@ -553,10 +441,6 @@ mod tests {
         // 虚构 case：baseURL 就是 "scheme://host"，剥不出子路径，应只有一个候选。
         let c = build_models_url_candidates("https://host.example.com", false, None).unwrap();
         assert_eq!(c.len(), 1);
-=======
-    fn test_build_models_url_empty() {
-        assert!(build_models_url("", false).is_err());
->>>>>>> origin/cc-switch-cli
     }
 
     #[test]

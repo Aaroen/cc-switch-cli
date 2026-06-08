@@ -20,8 +20,6 @@ interface SkillCardProps {
   skill: SkillCardSkill;
   onInstall: (key: string) => Promise<void>;
   onUninstall: (key: string) => Promise<void>;
-  onInstall: (directory: string) => Promise<void>;
-  onUninstall: (directory: string) => Promise<void>;
   installs?: number;
 }
 

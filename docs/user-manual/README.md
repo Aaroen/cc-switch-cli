@@ -12,15 +12,9 @@
 
 ## Version / 版本 / バージョン
 
-<<<<<<< HEAD
 - Documentation version: v3.16.0
 - Last updated: 2026-05-29
 - Compatible with CC Switch v3.16.0+
-=======
-- Documentation version: v3.13.0
-- Last updated: 2026-04-08
-- Compatible with CC Switch v3.13.0+
->>>>>>> origin/cc-switch-cli
 
 ## Links
 

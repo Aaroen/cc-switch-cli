@@ -32,15 +32,12 @@ pub struct QuotaTier {
     pub utilization: f64,
     /// ISO 8601 重置时间
     pub resets_at: Option<String>,
-<<<<<<< HEAD
     /// ZenMux: 已用额度（USD）
     #[serde(skip_serializing_if = "Option::is_none")]
     pub used_value_usd: Option<f64>,
     /// ZenMux: 窗口上限（USD）
     #[serde(skip_serializing_if = "Option::is_none")]
     pub max_value_usd: Option<f64>,
-=======
->>>>>>> origin/cc-switch-cli
 }
 
 /// 超额使用信息
@@ -300,7 +297,6 @@ struct ApiExtraUsage {
     currency: Option<String>,
 }
 
-<<<<<<< HEAD
 /// 已知的 Claude 用量窗口名称。`QuotaTier::name` 会是其中之一。
 pub const TIER_FIVE_HOUR: &str = "five_hour";
 pub const TIER_SEVEN_DAY: &str = "seven_day";
@@ -321,14 +317,6 @@ const KNOWN_TIERS: &[&str] = &[
     TIER_SEVEN_DAY,
     TIER_SEVEN_DAY_OPUS,
     TIER_SEVEN_DAY_SONNET,
-=======
-/// 已知的 Claude 用量窗口名称
-const KNOWN_TIERS: &[&str] = &[
-    "five_hour",
-    "seven_day",
-    "seven_day_opus",
-    "seven_day_sonnet",
->>>>>>> origin/cc-switch-cli
 ];
 
 /// 查询 Claude 官方订阅额度
@@ -395,11 +383,8 @@ async fn query_claude_quota(access_token: &str) -> SubscriptionQuota {
                         name: tier_name.to_string(),
                         utilization: util,
                         resets_at: w.resets_at,
-<<<<<<< HEAD
                         used_value_usd: None,
                         max_value_usd: None,
-=======
->>>>>>> origin/cc-switch-cli
                     });
                 }
             }
@@ -418,11 +403,8 @@ async fn query_claude_quota(access_token: &str) -> SubscriptionQuota {
                         name: key.clone(),
                         utilization: util,
                         resets_at: w.resets_at,
-<<<<<<< HEAD
                         used_value_usd: None,
                         max_value_usd: None,
-=======
->>>>>>> origin/cc-switch-cli
                     });
                 }
             }
@@ -742,11 +724,8 @@ pub(crate) async fn query_codex_quota(
                         .unwrap_or_else(|| "unknown".to_string()),
                     utilization: used,
                     resets_at: window.reset_at.and_then(unix_ts_to_iso),
-<<<<<<< HEAD
                     used_value_usd: None,
                     max_value_usd: None,
-=======
->>>>>>> origin/cc-switch-cli
                 });
             }
         }
@@ -1084,19 +1063,11 @@ fn extract_project_id(value: &serde_json::Value) -> Option<String> {
 /// 将 Gemini 模型 ID 分类为 Pro / Flash / Flash Lite
 fn classify_gemini_model(model_id: &str) -> &str {
     if model_id.contains("flash-lite") {
-<<<<<<< HEAD
         TIER_GEMINI_FLASH_LITE
     } else if model_id.contains("flash") {
         TIER_GEMINI_FLASH
     } else if model_id.contains("pro") {
         TIER_GEMINI_PRO
-=======
-        "gemini_flash_lite"
-    } else if model_id.contains("flash") {
-        "gemini_flash"
-    } else if model_id.contains("pro") {
-        "gemini_pro"
->>>>>>> origin/cc-switch-cli
     } else {
         model_id
     }
@@ -1251,15 +1222,9 @@ async fn query_gemini_quota(access_token: &str) -> SubscriptionQuota {
     // 转换为 tiers（remainingFraction → utilization: 已用百分比）
     let sort_order = |name: &str| -> usize {
         match name {
-<<<<<<< HEAD
             TIER_GEMINI_PRO => 0,
             TIER_GEMINI_FLASH => 1,
             TIER_GEMINI_FLASH_LITE => 2,
-=======
-            "gemini_pro" => 0,
-            "gemini_flash" => 1,
-            "gemini_flash_lite" => 2,
->>>>>>> origin/cc-switch-cli
             _ => 3,
         }
     };
@@ -1270,11 +1235,8 @@ async fn query_gemini_quota(access_token: &str) -> SubscriptionQuota {
             name,
             utilization: (1.0 - remaining) * 100.0,
             resets_at: reset_time,
-<<<<<<< HEAD
             used_value_usd: None,
             max_value_usd: None,
-=======
->>>>>>> origin/cc-switch-cli
         })
         .collect();
 

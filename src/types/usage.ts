@@ -238,7 +238,6 @@ export function isUnpricedUsage(log: UsageCostLog): boolean {
     totalCost === 0
   );
 }
-export type AppTypeFilter = "all" | "claude" | "codex" | "gemini";
 
 export interface StatsFilters {
   timeRange: UsageRangePreset;

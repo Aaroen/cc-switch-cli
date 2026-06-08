@@ -293,7 +293,6 @@ export function ProviderActions({
           variant="ghost"
           onClick={onTest || undefined}
           disabled={isTesting || !onTest}
-          disabled={isTesting}
           title={t("modelTest.testProvider", "测试模型")}
           className={cn(
             iconButtonClass,

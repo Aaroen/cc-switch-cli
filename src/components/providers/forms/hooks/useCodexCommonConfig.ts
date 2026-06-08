@@ -168,9 +168,6 @@ export function useCodexCommonConfig({
 
     // 如果应该启用通用配置但配置中还没有，则自动添加
     if (hasCommon && !inferredHasCommon && parsedSnippet.hasContent) {
-    const hasCommon = initialEnabled ?? inferredHasCommon;
-
-    if (hasCommon && !inferredHasCommon) {
       const { updatedConfig, error } = updateTomlCommonConfigSnippet(
         codexConfig,
         commonConfigSnippet,

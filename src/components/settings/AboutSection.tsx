@@ -380,13 +380,13 @@ export function AboutSection({ isPortable }: AboutSectionProps) {
 
       if (!displayVersion) {
         await settingsApi.openExternal(
-          "https://github.com/Aaroen/cc-switch-cli/releases",
+          "https://github.com/farion1231/cc-switch/releases",
         );
         return;
       }
 
       await settingsApi.openExternal(
-        `https://github.com/Aaroen/cc-switch-cli/releases/tag/${displayVersion}`,
+        `https://github.com/farion1231/cc-switch/releases/tag/${displayVersion}`,
       );
     } catch (error) {
       console.error("[AboutSection] Failed to open release notes", error);

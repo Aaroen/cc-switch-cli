@@ -15,7 +15,6 @@ export interface CodexTemplate {
 export function getCodexCustomTemplate(): CodexTemplate {
   const config = `model_provider = "custom"
 model = "gpt-5.5"
-model = "gpt-5.4"
 model_reasoning_effort = "high"
 disable_response_storage = true
 

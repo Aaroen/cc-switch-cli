@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
   extractCodexBaseUrl,
-<<<<<<< HEAD
   extractCodexExperimentalBearerToken,
   extractCodexModelName,
   extractCodexTopLevelInt,
@@ -12,11 +11,6 @@ import {
   setCodexModelName,
   setCodexTopLevelInt,
   updateCodexExperimentalBearerToken,
-=======
-  extractCodexModelName,
-  setCodexBaseUrl,
-  setCodexModelName,
->>>>>>> origin/cc-switch-cli
 } from "@/utils/providerConfigUtils";
 
 describe("Codex TOML utils", () => {
@@ -161,7 +155,6 @@ describe("Codex TOML utils", () => {
     expect(extractCodexBaseUrl(input)).toBe("https://api.example.com/v1");
     expect(extractCodexModelName(input)).toBe("gpt-5");
   });
-<<<<<<< HEAD
 
   it("reads, writes, and removes top-level integer metadata fields", () => {
     const input = [
@@ -411,6 +404,4 @@ describe("Codex TOML utils", () => {
 
     expect(extractCodexExperimentalBearerToken(input)).toBe("top-level-key");
   });
-=======
->>>>>>> origin/cc-switch-cli
 });

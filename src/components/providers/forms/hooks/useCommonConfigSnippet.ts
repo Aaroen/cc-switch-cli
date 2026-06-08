@@ -135,11 +135,6 @@ export function useCommonConfigSnippet({
 
       // 如果应该启用通用配置但配置中还没有，则自动添加
       if (hasCommon && !inferredHasCommon) {
-      const hasCommon = initialEnabled ?? inferredHasCommon;
-      setUseCommonConfig(hasCommon);
-
-      if (hasCommon && !inferredHasCommon && !hasInitializedEditMode.current) {
-        hasInitializedEditMode.current = true;
         const { updatedConfig, error } = updateCommonConfigSnippet(
           settingsConfig,
           commonConfigSnippet,
@@ -152,8 +147,6 @@ export function useCommonConfigSnippet({
             isUpdatingFromCommonConfig.current = false;
           }, 0);
         }
-      } else {
-        hasInitializedEditMode.current = true;
       }
     }
   }, [

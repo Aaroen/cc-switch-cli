@@ -8,7 +8,6 @@ use crate::config::{
 use crate::error::AppError;
 use serde_json::{json, Value};
 use std::fs;
-<<<<<<< HEAD
 use std::process::Command;
 use toml_edit::DocumentMut;
 
@@ -27,10 +26,6 @@ const CODEX_RESERVED_MODEL_PROVIDER_IDS: &[&str] = &[
     "oss",
     "ollama-chat",
 ];
-=======
-use std::path::Path;
-use toml_edit::DocumentMut;
->>>>>>> origin/cc-switch-cli
 
 /// 获取 Codex 配置目录路径
 pub fn get_codex_config_dir() -> PathBuf {
@@ -162,7 +157,6 @@ pub fn read_and_validate_codex_config_text() -> Result<String, AppError> {
     Ok(s)
 }
 
-<<<<<<< HEAD
 fn active_codex_model_provider_id(doc: &DocumentMut) -> Option<String> {
     doc.get("model_provider")
         .and_then(|item| item.as_str())
@@ -1137,20 +1131,14 @@ pub fn restore_codex_settings_for_backfill(
     Ok(())
 }
 
-=======
->>>>>>> origin/cc-switch-cli
 /// Update a field in Codex config.toml using toml_edit (syntax-preserving).
 ///
 /// Supported fields:
 /// - `"base_url"`: writes to `[model_providers.<current>].base_url` if `model_provider` exists,
 ///   otherwise falls back to top-level `base_url`.
-<<<<<<< HEAD
 /// - `"wire_api"`: writes to `[model_providers.<current>].wire_api` if `model_provider` exists,
 ///   otherwise falls back to top-level `wire_api`.
 /// - `"model"` / `"model_catalog_json"`: writes to top-level field.
-=======
-/// - `"model"`: writes to top-level `model` field.
->>>>>>> origin/cc-switch-cli
 ///
 /// Empty value removes the field.
 pub fn update_codex_toml_field(toml_str: &str, field: &str, value: &str) -> Result<String, String> {
@@ -1161,11 +1149,7 @@ pub fn update_codex_toml_field(toml_str: &str, field: &str, value: &str) -> Resu
     let trimmed = value.trim();
 
     match field {
-<<<<<<< HEAD
         "base_url" | "wire_api" => {
-=======
-        "base_url" => {
->>>>>>> origin/cc-switch-cli
             let model_provider = doc
                 .get("model_provider")
                 .and_then(|item| item.as_str())
@@ -1185,22 +1169,15 @@ pub fn update_codex_toml_field(toml_str: &str, field: &str, value: &str) -> Resu
 
                     if let Some(provider_table) = model_providers[&provider_key].as_table_mut() {
                         if trimmed.is_empty() {
-<<<<<<< HEAD
                             provider_table.remove(field);
                         } else {
                             provider_table[field] = toml_edit::value(trimmed);
-=======
-                            provider_table.remove("base_url");
-                        } else {
-                            provider_table["base_url"] = toml_edit::value(trimmed);
->>>>>>> origin/cc-switch-cli
                         }
                         return Ok(doc.to_string());
                     }
                 }
             }
 
-<<<<<<< HEAD
             // Fallback: no model_provider or structure mismatch → top-level field
             if trimmed.is_empty() {
                 doc.as_table_mut().remove(field);
@@ -1213,20 +1190,6 @@ pub fn update_codex_toml_field(toml_str: &str, field: &str, value: &str) -> Resu
                 doc.as_table_mut().remove(field);
             } else {
                 doc[field] = toml_edit::value(trimmed);
-=======
-            // Fallback: no model_provider or structure mismatch → top-level base_url
-            if trimmed.is_empty() {
-                doc.as_table_mut().remove("base_url");
-            } else {
-                doc["base_url"] = toml_edit::value(trimmed);
-            }
-        }
-        "model" => {
-            if trimmed.is_empty() {
-                doc.as_table_mut().remove("model");
-            } else {
-                doc["model"] = toml_edit::value(trimmed);
->>>>>>> origin/cc-switch-cli
             }
         }
         _ => return Err(format!("unsupported field: {field}")),
@@ -1286,7 +1249,6 @@ pub fn remove_codex_toml_base_url_if(toml_str: &str, predicate: impl Fn(&str) ->
 #[cfg(test)]
 mod tests {
     use super::*;
-<<<<<<< HEAD
     use serde_json::json;
 
     #[test]
@@ -1481,8 +1443,6 @@ wire_api = "responses"
             "backfill should not rewrite user-selected provider tables"
         );
     }
-=======
->>>>>>> origin/cc-switch-cli
 
     #[test]
     fn base_url_writes_into_correct_model_provider_section() {
@@ -1518,7 +1478,6 @@ wire_api = "responses"
     }
 
     #[test]
-<<<<<<< HEAD
     fn wire_api_writes_into_correct_model_provider_section() {
         let input = r#"model_provider = "chat_only"
 model = "gpt-5.1-codex"
@@ -1549,8 +1508,6 @@ wire_api = "chat"
     }
 
     #[test]
-=======
->>>>>>> origin/cc-switch-cli
     fn base_url_creates_section_when_missing() {
         let input = r#"model_provider = "custom"
 model = "gpt-4"
@@ -1730,7 +1687,6 @@ base_url = "https://production.api/v1"
             .and_then(|v| v.as_str());
         assert_eq!(base_url, Some("https://production.api/v1"));
     }
-<<<<<<< HEAD
 
     #[test]
     fn codex_model_catalog_uses_provider_models_and_context() {
@@ -2173,6 +2129,4 @@ model_catalog_json = "cc-switch-model-catalog.json"
             "None arm should remove relative cc-switch-owned field"
         );
     }
-=======
->>>>>>> origin/cc-switch-cli
 }

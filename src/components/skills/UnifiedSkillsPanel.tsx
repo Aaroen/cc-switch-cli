@@ -351,7 +351,6 @@ const UnifiedSkillsPanel = React.forwardRef<
           totalLabel={t("skills.installed", { count: skills?.length || 0 })}
           counts={enabledCounts}
           appIds={SKILLS_APP_IDS}
-          appIds={MCP_SKILLS_APP_IDS}
         />
         <div className="flex items-center gap-1.5">
           <div
@@ -837,7 +836,6 @@ const ImportSkillsDialog: React.FC<ImportSkillsDialogProps> = ({
                         }));
                       }}
                       appIds={SKILLS_APP_IDS}
-                      appIds={MCP_SKILLS_APP_IDS}
                     />
                   </div>
                   <div
@@ -859,10 +857,6 @@ const ImportSkillsDialog: React.FC<ImportSkillsDialogProps> = ({
               onClick={handleImport}
               disabled={selected.size === 0 || isImporting}
             >
-            <Button variant="outline" onClick={onClose}>
-              {t("common.cancel")}
-            </Button>
-            <Button onClick={handleImport} disabled={selected.size === 0}>
               {t("skills.importSelected", { count: selected.size })}
             </Button>
           </div>

@@ -42,7 +42,6 @@
     "enabled": "Enabled",
     "notSet": "Not Set",
     "desktopOnly": "This feature is available in the desktop app only"
-    "notSet": "Not Set"
   },
   "firstRunNotice": {
     "title": "Welcome to CC Switch",
@@ -83,7 +82,6 @@
     "enableTeammates": "Teammates Mode",
     "enableToolSearch": "Enable Tool Search",
     "effortMax": "Max Effort Thinking",
-    "effortHigh": "High Effort Thinking",
     "disableAutoUpgrade": "Disable Auto-Upgrade"
   },
   "header": {
@@ -388,18 +386,6 @@
         "cacheTtl5m": "5 minutes",
         "cacheTtl1h": "1 hour"
       },
-      "optimizer": {
-        "title": "Bedrock Request Optimizer",
-        "description": "Automatically optimize Thinking and Cache configuration before sending requests (only applies to Bedrock providers)",
-        "enabled": "Enable Optimizer",
-        "thinkingOptimizer": "Thinking Optimization",
-        "thinkingOptimizerDescription": "Automatically enable Adaptive Thinking for Opus/Sonnet, and inject Extended Thinking for legacy models",
-        "cacheInjection": "Cache Injection",
-        "cacheInjectionDescription": "Automatically inject cache breakpoints at key positions in requests to reduce duplicate token billing",
-        "cacheTtl": "Cache TTL",
-        "cacheTtl5m": "5 minutes",
-        "cacheTtl1h": "1 hour"
-      },
       "logConfig": {
         "title": "Log Management",
         "description": "Control log output level",
@@ -625,7 +611,6 @@
           "wezterm": "WezTerm",
           "kaku": "Kaku",
           "warp": "Warp"
-          "kaku": "Kaku"
         },
         "windows": {
           "cmd": "Command Prompt",
@@ -925,12 +910,6 @@
       "openrouter": "OpenRouter",
       "deepseek": "DeepSeek",
       "together": "Together AI"
-      "ddshub": "DDSHub offers a special bonus for CC Switch users — register via this link and get 10% extra credit on your first top-up (contact group admin to claim)!",
-      "lionccapi": "LionCCAPI offers exclusive benefits for CC Switch users. After registration, add WeChat HSQBJ088888888 and mention 'cc-switch' to receive $10 free credits!",
-      "shengsuanyun": "Shengsuanyun offers exclusive benefits for CC Switch users. New users who register via this link get ¥10 free credits and 10% bonus on first top-up!"
-    },
-    "presets": {
-      "ucloud": "Compshare"
     },
     "parameterConfig": "Parameter Config - {{name}} *",
     "mainModel": "Main Model (optional)",
@@ -1002,7 +981,6 @@
     "fallbackModelHint": "Used only when a Claude Code request does not clearly map to Sonnet, Opus, or Haiku. Usually safe to leave blank.",
     "quickSetModels": "Quick Set",
     "quickSetSuccess": "Model name applied to all roles",
-    "modelMappingHint": "Usually not needed if the provider natively serves Claude models. Only configure when you need to map requests to different model names.",
     "advancedOptionsToggle": "Advanced Options",
     "advancedOptionsHint": "Includes API format, auth field, and model mapping. Defaults work for most use cases.",
     "categoryOfficial": "Official",
@@ -1055,7 +1033,6 @@
     "deploymentGitHubCom": "GitHub.com",
     "deploymentEnterprise": "GitHub Enterprise Server",
     "enterpriseDomainPlaceholder": "e.g. company.ghe.com"
-    "loadModelsFailed": "Failed to load Copilot models"
   },
   "codexOauth": {
     "authStatus": "Auth status",
@@ -1079,7 +1056,6 @@
     "copyCode": "Copy code",
     "fastMode": "FAST mode",
     "fastModeDescription": "Send service_tier=\"priority\" for lower latency. Off by default — enabling it consumes your ChatGPT quota at a higher rate."
-    "copyCode": "Copy code"
   },
   "endpointTest": {
     "title": "API Endpoint Management",
@@ -1182,10 +1158,6 @@
     "reasoningEffortHint": "Enable when the upstream supports thinking-depth control such as low/high/max. Enabling this also turns on thinking mode and converts Codex's reasoning.effort into the upstream Chat parameter.",
     "reasoningSectionToggle": "Reasoning Capability (Advanced · usually auto-detected)",
     "reasoningSectionHint": "Preset providers are configured automatically; custom providers are inferred from name/URL. Expand to override manually only when auto-detection is wrong."
-    "modelNamePlaceholder": "e.g., gpt-5-codex",
-    "contextWindow1M": "1M Context Window",
-    "autoCompactLimit": "Auto Compact Limit",
-    "autoCompactLimitHint": "Auto-compacts history when context reaches this token limit"
   },
   "geminiConfig": {
     "envFile": "Environment Variables (.env)",
@@ -2316,7 +2288,6 @@
       },
       "invalidPort": "Invalid port, please enter a number between 1024-65535",
       "invalidAddress": "Invalid address. Enter an IPv4 (e.g. 127.0.0.1), IPv6 (e.g. ::1), or localhost",
-      "invalidAddress": "Invalid address, please enter a valid IP address (e.g. 127.0.0.1) or localhost",
       "configSaved": "Routing configuration saved",
       "configSaveFailed": "Failed to save configuration",
       "restartRequired": "Restart routing service for address or port changes to take effect"
@@ -2327,7 +2298,6 @@
       "enabled": "{{app}} routing enabled",
       "disabled": "{{app}} routing disabled",
       "failed": "Failed to toggle routing: {{detail}}",
-      "failed": "Failed to toggle routing",
       "tooltip": {
         "active": "{{appLabel}} is routing - {{address}}:{{port}}\nSwitch provider for hot switching",
         "broken": "{{appLabel}} is routing, but routing service is not running",

@@ -8,7 +8,6 @@
 //! - system prompt 使用 `instructions` 字段而非 system role message
 //! - usage 字段命名与 Anthropic 一致 (input_tokens/output_tokens)
 
-<<<<<<< HEAD
 use crate::proxy::{error::ProxyError, json_canonical::canonical_json_string};
 use serde_json::{json, Value};
 
@@ -41,30 +40,19 @@ pub(crate) fn sanitize_anthropic_tool_use_input_json(name: &str, raw: &str) -> S
         .unwrap_or_else(|_| raw.to_string())
 }
 
-=======
-use crate::proxy::error::ProxyError;
-use serde_json::{json, Value};
-
->>>>>>> origin/cc-switch-cli
 /// Anthropic 请求 → OpenAI Responses 请求
 ///
 /// `cache_key`: optional prompt_cache_key to inject for improved cache routing
 /// `is_codex_oauth`: 当目标后端是 ChatGPT Plus/Pro 反代 (`chatgpt.com/backend-api/codex`) 时为 true。
 /// 该后端强制要求 `store: false`，并要求 `include` 包含 `reasoning.encrypted_content`
 /// 以便在无服务端状态下保持多轮 reasoning 上下文。
-<<<<<<< HEAD
 /// `codex_fast_mode`: 仅在 `is_codex_oauth` 为 true 时生效，控制是否注入
 /// `service_tier = "priority"`。
-=======
->>>>>>> origin/cc-switch-cli
 pub fn anthropic_to_responses(
     body: Value,
     cache_key: Option<&str>,
     is_codex_oauth: bool,
-<<<<<<< HEAD
     codex_fast_mode: bool,
-=======
->>>>>>> origin/cc-switch-cli
 ) -> Result<Value, ProxyError> {
     let mut result = json!({});
 
@@ -76,19 +64,12 @@ pub fn anthropic_to_responses(
     // system → instructions (Responses API 使用 instructions 字段)
     if let Some(system) = body.get("system") {
         let instructions = if let Some(text) = system.as_str() {
-<<<<<<< HEAD
             super::transform::strip_leading_anthropic_billing_header(text).to_string()
         } else if let Some(arr) = system.as_array() {
             arr.iter()
                 .filter_map(|msg| msg.get("text").and_then(|t| t.as_str()))
                 .map(super::transform::strip_leading_anthropic_billing_header)
                 .filter(|text| !text.is_empty())
-=======
-            text.to_string()
-        } else if let Some(arr) = system.as_array() {
-            arr.iter()
-                .filter_map(|msg| msg.get("text").and_then(|t| t.as_str()))
->>>>>>> origin/cc-switch-cli
                 .collect::<Vec<_>>()
                 .join("\n\n")
         } else {
@@ -178,21 +159,15 @@ pub fn anthropic_to_responses(
     //   （codex-rs 结构体根本没有这三个字段，OpenAI 自己的客户端不发它们）
     // - instructions / tools / parallel_tool_calls: 必填字段，缺则兜底默认值
     //   （cc-switch 的 transform 当前是"条件写入"，可能产生缺失）
-<<<<<<< HEAD
     // - service_tier: 仅在 FAST mode 开启时写入 "priority"
     //   （与 OpenAI 官方 codex-rs 当前请求结构保持一致）
-=======
->>>>>>> origin/cc-switch-cli
     // - stream: 必须永远 true（codex-rs 硬编码 true，且 cc-switch 的
     //   SSE 解析层只处理流式响应，强制覆盖避免客户端误传 false）
     if is_codex_oauth {
         result["store"] = json!(false);
-<<<<<<< HEAD
         if codex_fast_mode {
             result["service_tier"] = json!("priority");
         }
-=======
->>>>>>> origin/cc-switch-cli
 
         const REASONING_MARKER: &str = "reasoning.encrypted_content";
         let mut includes: Vec<Value> = body
@@ -267,17 +242,13 @@ pub(crate) fn map_responses_stop_reason(
         {
             "max_tokens"
         }
-<<<<<<< HEAD
         "incomplete" => "end_turn",
-=======
->>>>>>> origin/cc-switch-cli
         _ => "end_turn",
     })
 }
 
 /// Build Anthropic-style usage JSON from Responses API usage, including cache tokens.
 ///
-<<<<<<< HEAD
 /// **Robustness Features**:
 /// - Handles null, missing, empty objects, and partial objects gracefully
 /// - Supports OpenAI field name variants (prompt_tokens/completion_tokens) as fallbacks
@@ -300,14 +271,6 @@ pub(crate) fn map_responses_stop_reason(
 pub(crate) fn build_anthropic_usage_from_responses(usage: Option<&Value>) -> Value {
     let u = match usage {
         Some(v) if !v.is_null() && v.is_object() => v,
-=======
-/// Priority order:
-/// 1. OpenAI nested details (`input_tokens_details.cached_tokens`, `prompt_tokens_details.cached_tokens`) as initial value
-/// 2. Direct Anthropic-style fields (`cache_read_input_tokens`, `cache_creation_input_tokens`) override if present
-pub(crate) fn build_anthropic_usage_from_responses(usage: Option<&Value>) -> Value {
-    let u = match usage {
-        Some(v) if !v.is_null() => v,
->>>>>>> origin/cc-switch-cli
         _ => {
             return json!({
                 "input_tokens": 0,
@@ -316,7 +279,6 @@ pub(crate) fn build_anthropic_usage_from_responses(usage: Option<&Value>) -> Val
         }
     };
 
-<<<<<<< HEAD
     // Detect empty object {} and log warning
     if u.as_object().map(|obj| obj.is_empty()).unwrap_or(false) {
         log::warn!("[Responses] Empty usage object received, using defaults");
@@ -360,21 +322,13 @@ pub(crate) fn build_anthropic_usage_from_responses(usage: Option<&Value>) -> Val
     if (input == 0 && output > 0) || (input > 0 && output == 0) {
         log::debug!("[Responses] Partial usage object: {:?}", u);
     }
-=======
-    let input = u.get("input_tokens").and_then(|v| v.as_u64()).unwrap_or(0);
-    let output = u.get("output_tokens").and_then(|v| v.as_u64()).unwrap_or(0);
->>>>>>> origin/cc-switch-cli
 
     let mut result = json!({
         "input_tokens": input,
         "output_tokens": output
     });
 
-<<<<<<< HEAD
     // Step 1: OpenAI nested details as fallback for cache tokens
-=======
-    // Step 1: OpenAI nested details as fallback
->>>>>>> origin/cc-switch-cli
     // OpenAI Responses API: input_tokens_details.cached_tokens
     if let Some(cached) = u
         .pointer("/input_tokens_details/cached_tokens")
@@ -393,10 +347,7 @@ pub(crate) fn build_anthropic_usage_from_responses(usage: Option<&Value>) -> Val
     }
 
     // Step 2: Direct Anthropic-style fields override (authoritative if present)
-<<<<<<< HEAD
     // These preserve cache tokens even if input/output_tokens are missing
-=======
->>>>>>> origin/cc-switch-cli
     if let Some(v) = u.get("cache_read_input_tokens") {
         result["cache_read_input_tokens"] = v.clone();
     }
@@ -490,11 +441,7 @@ fn convert_messages_to_input(messages: &[Value]) -> Result<Vec<Value>, ProxyErro
                                 "type": "function_call",
                                 "call_id": id,
                                 "name": name,
-<<<<<<< HEAD
                                 "arguments": canonical_json_string(&arguments)
-=======
-                                "arguments": serde_json::to_string(&arguments).unwrap_or_default()
->>>>>>> origin/cc-switch-cli
                             }));
                         }
 
@@ -515,11 +462,7 @@ fn convert_messages_to_input(messages: &[Value]) -> Result<Vec<Value>, ProxyErro
                                 .unwrap_or("");
                             let output = match block.get("content") {
                                 Some(Value::String(s)) => s.clone(),
-<<<<<<< HEAD
                                 Some(v) => canonical_json_string(v),
-=======
-                                Some(v) => serde_json::to_string(v).unwrap_or_default(),
->>>>>>> origin/cc-switch-cli
                                 None => String::new(),
                             };
 
@@ -600,10 +543,7 @@ pub fn responses_to_anthropic(body: Value) -> Result<Value, ProxyError> {
                     .and_then(|a| a.as_str())
                     .unwrap_or("{}");
                 let input: Value = serde_json::from_str(args_str).unwrap_or(json!({}));
-<<<<<<< HEAD
                 let input = sanitize_anthropic_tool_use_input(name, input);
-=======
->>>>>>> origin/cc-switch-cli
 
                 content.push(json!({
                     "type": "tool_use",
@@ -678,11 +618,7 @@ mod tests {
             "messages": [{"role": "user", "content": "Hello"}]
         });
 
-<<<<<<< HEAD
         let result = anthropic_to_responses(input, None, false, false).unwrap();
-=======
-        let result = anthropic_to_responses(input, None, false).unwrap();
->>>>>>> origin/cc-switch-cli
         assert_eq!(result["model"], "gpt-4o");
         assert_eq!(result["max_output_tokens"], 1024);
         assert_eq!(result["input"][0]["role"], "user");
@@ -701,18 +637,13 @@ mod tests {
             "messages": [{"role": "user", "content": "Hello"}]
         });
 
-<<<<<<< HEAD
         let result = anthropic_to_responses(input, None, false, false).unwrap();
-=======
-        let result = anthropic_to_responses(input, None, false).unwrap();
->>>>>>> origin/cc-switch-cli
         assert_eq!(result["instructions"], "You are a helpful assistant.");
         // system should not appear in input
         assert_eq!(result["input"].as_array().unwrap().len(), 1);
     }
 
     #[test]
-<<<<<<< HEAD
     fn test_anthropic_to_responses_strips_leading_billing_header_from_system_string() {
         let input = json!({
             "model": "gpt-4o",
@@ -755,8 +686,6 @@ mod tests {
     }
 
     #[test]
-=======
->>>>>>> origin/cc-switch-cli
     fn test_anthropic_to_responses_with_system_array() {
         let input = json!({
             "model": "gpt-4o",
@@ -768,16 +697,11 @@ mod tests {
             "messages": [{"role": "user", "content": "Hello"}]
         });
 
-<<<<<<< HEAD
         let result = anthropic_to_responses(input, None, false, false).unwrap();
-=======
-        let result = anthropic_to_responses(input, None, false).unwrap();
->>>>>>> origin/cc-switch-cli
         assert_eq!(result["instructions"], "Part 1\n\nPart 2");
     }
 
     #[test]
-<<<<<<< HEAD
     fn test_anthropic_to_responses_strips_billing_header_from_system_array_parts() {
         let input = json!({
             "model": "gpt-4o",
@@ -813,8 +737,6 @@ mod tests {
     }
 
     #[test]
-=======
->>>>>>> origin/cc-switch-cli
     fn test_anthropic_to_responses_with_tools() {
         let input = json!({
             "model": "gpt-4o",
@@ -827,11 +749,7 @@ mod tests {
             }]
         });
 
-<<<<<<< HEAD
         let result = anthropic_to_responses(input, None, false, false).unwrap();
-=======
-        let result = anthropic_to_responses(input, None, false).unwrap();
->>>>>>> origin/cc-switch-cli
         assert_eq!(result["tools"][0]["type"], "function");
         assert_eq!(result["tools"][0]["name"], "get_weather");
         assert!(result["tools"][0].get("parameters").is_some());
@@ -848,11 +766,7 @@ mod tests {
             "tool_choice": {"type": "any"}
         });
 
-<<<<<<< HEAD
         let result = anthropic_to_responses(input, None, false, false).unwrap();
-=======
-        let result = anthropic_to_responses(input, None, false).unwrap();
->>>>>>> origin/cc-switch-cli
         assert_eq!(result["tool_choice"], "required");
     }
 
@@ -865,11 +779,7 @@ mod tests {
             "tool_choice": {"type": "tool", "name": "get_weather"}
         });
 
-<<<<<<< HEAD
         let result = anthropic_to_responses(input, None, false, false).unwrap();
-=======
-        let result = anthropic_to_responses(input, None, false).unwrap();
->>>>>>> origin/cc-switch-cli
         assert_eq!(result["tool_choice"]["type"], "function");
         assert_eq!(result["tool_choice"]["name"], "get_weather");
     }
@@ -888,11 +798,7 @@ mod tests {
             }]
         });
 
-<<<<<<< HEAD
         let result = anthropic_to_responses(input, None, false, false).unwrap();
-=======
-        let result = anthropic_to_responses(input, None, false).unwrap();
->>>>>>> origin/cc-switch-cli
         let input_arr = result["input"].as_array().unwrap();
 
         // Should produce: assistant message (text) + function_call item
@@ -922,11 +828,7 @@ mod tests {
             }]
         });
 
-<<<<<<< HEAD
         let result = anthropic_to_responses(input, None, false, false).unwrap();
-=======
-        let result = anthropic_to_responses(input, None, false).unwrap();
->>>>>>> origin/cc-switch-cli
         let input_arr = result["input"].as_array().unwrap();
 
         // Should produce: function_call_output item (lifted)
@@ -950,11 +852,7 @@ mod tests {
             }]
         });
 
-<<<<<<< HEAD
         let result = anthropic_to_responses(input, None, false, false).unwrap();
-=======
-        let result = anthropic_to_responses(input, None, false).unwrap();
->>>>>>> origin/cc-switch-cli
         let input_arr = result["input"].as_array().unwrap();
 
         // thinking should be discarded, only text remains
@@ -977,11 +875,7 @@ mod tests {
             }]
         });
 
-<<<<<<< HEAD
         let result = anthropic_to_responses(input, None, false, false).unwrap();
-=======
-        let result = anthropic_to_responses(input, None, false).unwrap();
->>>>>>> origin/cc-switch-cli
         let content = result["input"][0]["content"].as_array().unwrap();
 
         assert_eq!(content[0]["type"], "input_text");
@@ -1042,7 +936,6 @@ mod tests {
     }
 
     #[test]
-<<<<<<< HEAD
     fn test_responses_to_anthropic_read_drops_empty_pages() {
         let input = json!({
             "id": "resp_read",
@@ -1093,8 +986,6 @@ mod tests {
     }
 
     #[test]
-=======
->>>>>>> origin/cc-switch-cli
     fn test_responses_to_anthropic_with_refusal_block() {
         let input = json!({
             "id": "resp_123",
@@ -1192,11 +1083,7 @@ mod tests {
             "messages": [{"role": "user", "content": "Hello"}]
         });
 
-<<<<<<< HEAD
         let result = anthropic_to_responses(input, None, false, false).unwrap();
-=======
-        let result = anthropic_to_responses(input, None, false).unwrap();
->>>>>>> origin/cc-switch-cli
         assert_eq!(result["model"], "o3-mini");
     }
 
@@ -1208,11 +1095,7 @@ mod tests {
             "messages": [{"role": "user", "content": "Hello"}]
         });
 
-<<<<<<< HEAD
         let result = anthropic_to_responses(input, Some("my-provider-id"), false, false).unwrap();
-=======
-        let result = anthropic_to_responses(input, Some("my-provider-id"), false).unwrap();
->>>>>>> origin/cc-switch-cli
         assert_eq!(result["prompt_cache_key"], "my-provider-id");
     }
 
@@ -1230,11 +1113,7 @@ mod tests {
             }]
         });
 
-<<<<<<< HEAD
         let result = anthropic_to_responses(input, None, false, false).unwrap();
-=======
-        let result = anthropic_to_responses(input, None, false).unwrap();
->>>>>>> origin/cc-switch-cli
         assert!(result["tools"][0].get("cache_control").is_none());
     }
 
@@ -1251,11 +1130,7 @@ mod tests {
             }]
         });
 
-<<<<<<< HEAD
         let result = anthropic_to_responses(input, None, false, false).unwrap();
-=======
-        let result = anthropic_to_responses(input, None, false).unwrap();
->>>>>>> origin/cc-switch-cli
         assert!(result["input"][0]["content"][0]
             .get("cache_control")
             .is_none());
@@ -1317,11 +1192,7 @@ mod tests {
             "max_tokens": 4096,
             "messages": [{"role": "user", "content": "Hello"}]
         });
-<<<<<<< HEAD
         let result = anthropic_to_responses(input, None, false, false).unwrap();
-=======
-        let result = anthropic_to_responses(input, None, false).unwrap();
->>>>>>> origin/cc-switch-cli
         assert_eq!(result["max_output_tokens"], 4096);
         assert!(result.get("max_completion_tokens").is_none());
     }
@@ -1335,11 +1206,7 @@ mod tests {
             "messages": [{"role": "user", "content": "Hello"}]
         });
 
-<<<<<<< HEAD
         let result = anthropic_to_responses(input, None, false, false).unwrap();
-=======
-        let result = anthropic_to_responses(input, None, false).unwrap();
->>>>>>> origin/cc-switch-cli
         assert_eq!(result["reasoning"]["effort"], "xhigh");
     }
 
@@ -1353,11 +1220,7 @@ mod tests {
             "messages": [{"role": "user", "content": "Hello"}]
         });
 
-<<<<<<< HEAD
         let result = anthropic_to_responses(input, None, false, false).unwrap();
-=======
-        let result = anthropic_to_responses(input, None, false).unwrap();
->>>>>>> origin/cc-switch-cli
         assert_eq!(result["reasoning"]["effort"], "low");
     }
 
@@ -1370,11 +1233,7 @@ mod tests {
             "messages": [{"role": "user", "content": "Hello"}]
         });
 
-<<<<<<< HEAD
         let result = anthropic_to_responses(input, None, false, false).unwrap();
-=======
-        let result = anthropic_to_responses(input, None, false).unwrap();
->>>>>>> origin/cc-switch-cli
         assert_eq!(result["reasoning"]["effort"], "low");
     }
 
@@ -1387,11 +1246,7 @@ mod tests {
             "messages": [{"role": "user", "content": "Hello"}]
         });
 
-<<<<<<< HEAD
         let result = anthropic_to_responses(input, None, false, false).unwrap();
-=======
-        let result = anthropic_to_responses(input, None, false).unwrap();
->>>>>>> origin/cc-switch-cli
         assert_eq!(result["reasoning"]["effort"], "medium");
     }
 
@@ -1404,11 +1259,7 @@ mod tests {
             "messages": [{"role": "user", "content": "Hello"}]
         });
 
-<<<<<<< HEAD
         let result = anthropic_to_responses(input, None, false, false).unwrap();
-=======
-        let result = anthropic_to_responses(input, None, false).unwrap();
->>>>>>> origin/cc-switch-cli
         assert_eq!(result["reasoning"]["effort"], "high");
     }
 
@@ -1421,11 +1272,7 @@ mod tests {
             "messages": [{"role": "user", "content": "Hello"}]
         });
 
-<<<<<<< HEAD
         let result = anthropic_to_responses(input, None, false, false).unwrap();
-=======
-        let result = anthropic_to_responses(input, None, false).unwrap();
->>>>>>> origin/cc-switch-cli
         assert_eq!(result["reasoning"]["effort"], "xhigh");
     }
 
@@ -1438,11 +1285,7 @@ mod tests {
             "messages": [{"role": "user", "content": "Hello"}]
         });
 
-<<<<<<< HEAD
         let result = anthropic_to_responses(input, None, false, false).unwrap();
-=======
-        let result = anthropic_to_responses(input, None, false).unwrap();
->>>>>>> origin/cc-switch-cli
         assert!(result.get("reasoning").is_none());
     }
 
@@ -1456,18 +1299,11 @@ mod tests {
             "messages": [{"role": "user", "content": "Hello"}]
         });
 
-<<<<<<< HEAD
         let result = anthropic_to_responses(input, None, true, true).unwrap();
 
         // store 必须显式为 false（ChatGPT 后端拒绝 true）
         assert_eq!(result["store"], json!(false));
         assert_eq!(result["service_tier"], json!("priority"));
-=======
-        let result = anthropic_to_responses(input, None, true).unwrap();
-
-        // store 必须显式为 false（ChatGPT 后端拒绝 true）
-        assert_eq!(result["store"], json!(false));
->>>>>>> origin/cc-switch-cli
 
         // include 必须包含 reasoning.encrypted_content（无服务端状态下保持多轮 reasoning）
         assert_eq!(result["include"], json!(["reasoning.encrypted_content"]));
@@ -1483,16 +1319,10 @@ mod tests {
             "messages": [{"role": "user", "content": "Hello"}]
         });
 
-<<<<<<< HEAD
         let result = anthropic_to_responses(input, None, false, false).unwrap();
 
         assert!(result.get("store").is_none());
         assert!(result.get("service_tier").is_none());
-=======
-        let result = anthropic_to_responses(input, None, false).unwrap();
-
-        assert!(result.get("store").is_none());
->>>>>>> origin/cc-switch-cli
         assert!(result.get("include").is_none());
     }
 
@@ -1506,11 +1336,7 @@ mod tests {
             "include": ["something.else", "reasoning.encrypted_content"]
         });
 
-<<<<<<< HEAD
         let result = anthropic_to_responses(input, None, true, true).unwrap();
-=======
-        let result = anthropic_to_responses(input, None, true).unwrap();
->>>>>>> origin/cc-switch-cli
         let includes = result["include"]
             .as_array()
             .expect("include should be array");
@@ -1532,7 +1358,6 @@ mod tests {
     }
 
     #[test]
-<<<<<<< HEAD
     fn test_anthropic_to_responses_codex_oauth_fast_mode_can_be_disabled() {
         let input = json!({
             "model": "gpt-5-codex",
@@ -1548,8 +1373,6 @@ mod tests {
     }
 
     #[test]
-=======
->>>>>>> origin/cc-switch-cli
     fn test_anthropic_to_responses_codex_oauth_strips_max_output_tokens() {
         // ChatGPT Plus/Pro 反代不接受 max_output_tokens（OpenAI 官方 codex-rs 的
         // ResponsesApiRequest 结构体里也没有这个字段），必须删除，否则服务端 400：
@@ -1560,11 +1383,7 @@ mod tests {
             "messages": [{"role": "user", "content": "Hello"}]
         });
 
-<<<<<<< HEAD
         let result = anthropic_to_responses(input, None, true, true).unwrap();
-=======
-        let result = anthropic_to_responses(input, None, true).unwrap();
->>>>>>> origin/cc-switch-cli
 
         assert!(
             result.get("max_output_tokens").is_none(),
@@ -1582,11 +1401,7 @@ mod tests {
             "messages": [{"role": "user", "content": "Hello"}]
         });
 
-<<<<<<< HEAD
         let result = anthropic_to_responses(input, None, false, false).unwrap();
-=======
-        let result = anthropic_to_responses(input, None, false).unwrap();
->>>>>>> origin/cc-switch-cli
 
         assert_eq!(result["max_output_tokens"], json!(1024));
     }
@@ -1604,11 +1419,7 @@ mod tests {
             "messages": [{"role": "user", "content": "Hello"}]
         });
 
-<<<<<<< HEAD
         let result = anthropic_to_responses(input, None, true, true).unwrap();
-=======
-        let result = anthropic_to_responses(input, None, true).unwrap();
->>>>>>> origin/cc-switch-cli
 
         assert!(
             result.get("temperature").is_none(),
@@ -1626,11 +1437,7 @@ mod tests {
             "messages": [{"role": "user", "content": "Hello"}]
         });
 
-<<<<<<< HEAD
         let result = anthropic_to_responses(input, None, true, true).unwrap();
-=======
-        let result = anthropic_to_responses(input, None, true).unwrap();
->>>>>>> origin/cc-switch-cli
 
         assert!(
             result.get("top_p").is_none(),
@@ -1647,11 +1454,7 @@ mod tests {
             "messages": [{"role": "user", "content": "Hello"}]
         });
 
-<<<<<<< HEAD
         let result = anthropic_to_responses(input, None, true, true).unwrap();
-=======
-        let result = anthropic_to_responses(input, None, true).unwrap();
->>>>>>> origin/cc-switch-cli
 
         assert_eq!(
             result["instructions"],
@@ -1685,11 +1488,7 @@ mod tests {
             "messages": [{"role": "user", "content": "Hello"}]
         });
 
-<<<<<<< HEAD
         let result = anthropic_to_responses(input, None, true, true).unwrap();
-=======
-        let result = anthropic_to_responses(input, None, true).unwrap();
->>>>>>> origin/cc-switch-cli
 
         assert_eq!(
             result["instructions"],
@@ -1713,11 +1512,7 @@ mod tests {
             "messages": [{"role": "user", "content": "Hello"}]
         });
 
-<<<<<<< HEAD
         let result = anthropic_to_responses(input, None, true, true).unwrap();
-=======
-        let result = anthropic_to_responses(input, None, true).unwrap();
->>>>>>> origin/cc-switch-cli
 
         assert_eq!(
             result["stream"],
@@ -1738,11 +1533,7 @@ mod tests {
             "messages": [{"role": "user", "content": "Hello"}]
         });
 
-<<<<<<< HEAD
         let result = anthropic_to_responses(input, None, false, false).unwrap();
-=======
-        let result = anthropic_to_responses(input, None, false).unwrap();
->>>>>>> origin/cc-switch-cli
 
         assert_eq!(result["temperature"], json!(0.7));
         assert_eq!(result["top_p"], json!(0.9));
@@ -1758,11 +1549,7 @@ mod tests {
             "messages": [{"role": "user", "content": "Hello"}]
         });
 
-<<<<<<< HEAD
         let result = anthropic_to_responses(input, None, false, false).unwrap();
-=======
-        let result = anthropic_to_responses(input, None, false).unwrap();
->>>>>>> origin/cc-switch-cli
 
         assert!(
             result.get("parallel_tool_calls").is_none(),
@@ -1782,7 +1569,6 @@ mod tests {
             "非 Codex OAuth 路径下 tools 在客户端未送时不应被注入"
         );
     }
-<<<<<<< HEAD
 
     // ==================== Usage Field Robustness Tests ====================
 
@@ -1885,6 +1671,4 @@ mod tests {
         assert_eq!(result["cache_read_input_tokens"], json!(60));
         assert_eq!(result["cache_creation_input_tokens"], json!(20));
     }
-=======
->>>>>>> origin/cc-switch-cli
 }

@@ -39,10 +39,6 @@ function toQuotaTier(data: UsageData): QuotaTier {
     name: data.planName || "",
     utilization: data.used || 0,
     resetsAt: extra || null,
-  return {
-    name: data.planName || "",
-    utilization: data.used || 0,
-    resetsAt: data.extra || null,
   };
 }
 
@@ -183,9 +179,6 @@ const UsageFooter: React.FC<UsageFooterProps> = ({
               </>
             );
           })()}
-          {usageDataList.map((data, index) => (
-            <TierBadge key={index} tier={toQuotaTier(data)} t={t} />
-          ))}
         </div>
       </div>
     );

@@ -20,7 +20,6 @@ fn merge_settings_for_save(
             incoming_sync.password = existing_sync.password.clone();
         }
         _ => {}
-<<<<<<< HEAD
     }
     if incoming.local_migrations.is_none() {
         incoming.local_migrations = existing.local_migrations.clone();
@@ -39,8 +38,6 @@ fn merge_settings_for_save(
             incoming_migrations.codex_provider_template_v1 =
                 existing_migrations.codex_provider_template_v1.clone();
         }
-=======
->>>>>>> origin/cc-switch-cli
     }
     incoming
 }
@@ -167,7 +164,6 @@ mod tests {
     /// must NOT overwrite the existing one.
     #[test]
     fn save_settings_should_preserve_password_when_incoming_has_empty_password() {
-<<<<<<< HEAD
         let existing = AppSettings {
             webdav_sync: Some(WebDavSyncSettings {
                 base_url: "https://dav.example.com".to_string(),
@@ -188,24 +184,6 @@ mod tests {
             }),
             ..AppSettings::default()
         };
-=======
-        let mut existing = AppSettings::default();
-        existing.webdav_sync = Some(WebDavSyncSettings {
-            base_url: "https://dav.example.com".to_string(),
-            username: "alice".to_string(),
-            password: "secret".to_string(),
-            ..WebDavSyncSettings::default()
-        });
-
-        // Simulate frontend sending settings with cleared password
-        let mut incoming = AppSettings::default();
-        incoming.webdav_sync = Some(WebDavSyncSettings {
-            base_url: "https://dav.example.com".to_string(),
-            username: "alice".to_string(),
-            password: "".to_string(),
-            ..WebDavSyncSettings::default()
-        });
->>>>>>> origin/cc-switch-cli
 
         let merged = merge_settings_for_save(incoming, &existing);
 
@@ -220,7 +198,6 @@ mod tests {
     /// work without panicking and keep the empty state.
     #[test]
     fn save_settings_should_handle_both_empty_passwords() {
-<<<<<<< HEAD
         let existing = AppSettings {
             webdav_sync: Some(WebDavSyncSettings {
                 base_url: "https://dav.example.com".to_string(),
@@ -240,23 +217,6 @@ mod tests {
             }),
             ..AppSettings::default()
         };
-=======
-        let mut existing = AppSettings::default();
-        existing.webdav_sync = Some(WebDavSyncSettings {
-            base_url: "https://dav.example.com".to_string(),
-            username: "alice".to_string(),
-            password: "".to_string(),
-            ..WebDavSyncSettings::default()
-        });
-
-        let mut incoming = AppSettings::default();
-        incoming.webdav_sync = Some(WebDavSyncSettings {
-            base_url: "https://dav.example.com".to_string(),
-            username: "alice".to_string(),
-            password: "".to_string(),
-            ..WebDavSyncSettings::default()
-        });
->>>>>>> origin/cc-switch-cli
 
         let merged = merge_settings_for_save(incoming, &existing);
 
@@ -265,7 +225,6 @@ mod tests {
             Some("")
         );
     }
-<<<<<<< HEAD
 
     #[test]
     fn save_settings_should_preserve_local_migrations_when_payload_omits_it() {
@@ -315,8 +274,6 @@ mod tests {
             vec!["legacy".to_string()]
         );
     }
-=======
->>>>>>> origin/cc-switch-cli
 }
 
 /// 获取开机自启状态

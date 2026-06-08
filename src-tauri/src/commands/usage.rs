@@ -18,7 +18,6 @@ pub fn get_usage_summary(
     state
         .db
         .get_usage_summary(start_date, end_date, app_type.as_deref())
-<<<<<<< HEAD
 }
 
 /// 获取用量数据时间边界（前端首屏自适应日期范围用）
@@ -35,8 +34,6 @@ pub fn get_usage_summary_by_app(
     end_date: Option<i64>,
 ) -> Result<Vec<UsageSummaryByApp>, AppError> {
     state.db.get_usage_summary_by_app(start_date, end_date)
-=======
->>>>>>> origin/cc-switch-cli
 }
 
 /// 获取每日趋势

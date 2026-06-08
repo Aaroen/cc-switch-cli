@@ -1,9 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { UsageHero } from "./UsageHero";
-import { useMemo, useState } from "react";
-import { useTranslation } from "react-i18next";
-import { UsageSummaryCards } from "./UsageSummaryCards";
 import { UsageTrendChart } from "./UsageTrendChart";
 import { RequestLogTable } from "./RequestLogTable";
 import { ProviderStatsTable } from "./ProviderStatsTable";
@@ -13,7 +10,6 @@ import {
   type AppTypeFilter,
   type UsageRangeSelection,
 } from "@/types/usage";
-import type { AppTypeFilter, UsageRangeSelection } from "@/types/usage";
 import { motion } from "framer-motion";
 import {
   BarChart3,
@@ -41,12 +37,6 @@ import { UsageDateRangePicker } from "./UsageDateRangePicker";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 const APP_FILTER_OPTIONS: AppTypeFilter[] = ["all", ...KNOWN_APP_TYPES];
-const APP_FILTER_OPTIONS: AppTypeFilter[] = [
-  "all",
-  "claude",
-  "codex",
-  "gemini",
-];
 
 export function UsageDashboard() {
   const { t, i18n } = useTranslation();
@@ -179,9 +169,6 @@ export function UsageDashboard() {
       <UsageHero
         range={range}
         appType={appType === "all" ? undefined : appType}
-      <UsageSummaryCards
-        range={range}
-        appType={appType}
         refreshIntervalMs={refreshIntervalMs}
       />
 

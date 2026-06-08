@@ -14,7 +14,6 @@ export function useManagedAuth(
   authProvider: ManagedAuthProvider,
   githubDomain?: string,
 ) {
-export function useManagedAuth(authProvider: ManagedAuthProvider) {
   const queryClient = useQueryClient();
   const queryKey = ["managed-auth-status", authProvider];
 
@@ -57,7 +56,6 @@ export function useManagedAuth(authProvider: ManagedAuthProvider) {
 
   const startLoginMutation = useMutation({
     mutationFn: () => authApi.authStartLogin(authProvider, githubDomain),
-    mutationFn: () => authApi.authStartLogin(authProvider),
     onSuccess: async (response) => {
       setDeviceCode(response);
       setPollingState("polling");

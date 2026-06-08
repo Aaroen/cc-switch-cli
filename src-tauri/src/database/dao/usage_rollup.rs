@@ -4,10 +4,7 @@
 
 use crate::database::{lock_conn, Database};
 use crate::error::AppError;
-<<<<<<< HEAD
 use crate::services::usage_stats::effective_usage_log_filter;
-=======
->>>>>>> origin/cc-switch-cli
 use chrono::{Duration, Local, TimeZone};
 
 /// Compute the rollup/prune cutoff aligned to a local-day boundary.
@@ -92,12 +89,9 @@ impl Database {
                     log::info!(
                         "Rolled up and pruned {deleted} proxy_request_logs (retain={retain_days}d)"
                     );
-<<<<<<< HEAD
                     // 归档触发了表结构变化，前端 30 天前的统计可能跟着变，
                     // 通知一次让 UsageDashboard 重拉数据
                     crate::usage_events::notify_log_recorded();
-=======
->>>>>>> origin/cc-switch-cli
                 }
                 Ok(deleted)
             }
@@ -111,12 +105,8 @@ impl Database {
 
     fn do_rollup_and_prune(conn: &rusqlite::Connection, cutoff: i64) -> Result<u64, AppError> {
         // Aggregate old logs, merging with any pre-existing rollup rows via LEFT JOIN.
-<<<<<<< HEAD
         let effective_filter = effective_usage_log_filter("l");
         let aggregation_sql = format!(
-=======
-        conn.execute(
->>>>>>> origin/cc-switch-cli
             "INSERT OR REPLACE INTO usage_daily_rollups
                 (date, app_type, provider_id, model,
                  request_count, success_count,
@@ -139,7 +129,6 @@ impl Database {
                     ELSE 0 END
             FROM (
                 SELECT
-<<<<<<< HEAD
                     date(l.created_at, 'unixepoch', 'localtime') as d,
                     l.app_type as a, l.provider_id as p, l.model as m,
                     COUNT(*) as new_req,
@@ -152,24 +141,10 @@ impl Database {
                     COALESCE(AVG(l.latency_ms), 0) as new_lat
                 FROM proxy_request_logs l
                 WHERE l.created_at < ?1 AND {effective_filter}
-=======
-                    date(created_at, 'unixepoch', 'localtime') as d,
-                    app_type as a, provider_id as p, model as m,
-                    COUNT(*) as new_req,
-                    SUM(CASE WHEN status_code >= 200 AND status_code < 300 THEN 1 ELSE 0 END) as new_succ,
-                    COALESCE(SUM(input_tokens), 0) as new_in,
-                    COALESCE(SUM(output_tokens), 0) as new_out,
-                    COALESCE(SUM(cache_read_tokens), 0) as new_cr,
-                    COALESCE(SUM(cache_creation_tokens), 0) as new_cc,
-                    COALESCE(SUM(CAST(total_cost_usd AS REAL)), 0) as new_cost,
-                    COALESCE(AVG(latency_ms), 0) as new_lat
-                FROM proxy_request_logs WHERE created_at < ?1
->>>>>>> origin/cc-switch-cli
                 GROUP BY d, a, p, m
             ) agg
             LEFT JOIN usage_daily_rollups old
                 ON old.date = agg.d AND old.app_type = agg.a
-<<<<<<< HEAD
                 AND old.provider_id = agg.p AND old.model = agg.m"
         );
 
@@ -178,14 +153,6 @@ impl Database {
 
         // INSERT uses the effective-log filter to exclude duplicate session rows.
         // DELETE intentionally prunes all old details so those duplicates are discarded.
-=======
-                AND old.provider_id = agg.p AND old.model = agg.m",
-            [cutoff],
-        )
-        .map_err(|e| AppError::Database(format!("Rollup aggregation failed: {e}")))?;
-
-        // Delete the aggregated detail rows
->>>>>>> origin/cc-switch-cli
         let deleted = conn
             .execute(
                 "DELETE FROM proxy_request_logs WHERE created_at < ?1",
@@ -296,7 +263,6 @@ mod tests {
     }
 
     #[test]
-<<<<<<< HEAD
     fn test_rollup_uses_effective_usage_logs() -> Result<(), AppError> {
         let db = Database::memory()?;
         let now = chrono::Utc::now().timestamp();
@@ -360,8 +326,6 @@ mod tests {
     }
 
     #[test]
-=======
->>>>>>> origin/cc-switch-cli
     fn test_rollup_noop_when_no_old_data() -> Result<(), AppError> {
         let db = Database::memory()?;
         assert_eq!(db.rollup_and_prune(30)?, 0);
@@ -378,10 +342,7 @@ mod tests {
             let conn = crate::database::lock_conn!(db.conn);
             let date_str = chrono::DateTime::from_timestamp(old_ts, 0)
                 .unwrap()
-<<<<<<< HEAD
                 .with_timezone(&chrono::Local)
-=======
->>>>>>> origin/cc-switch-cli
                 .format("%Y-%m-%d")
                 .to_string();
             conn.execute(

@@ -57,7 +57,6 @@ pub fn anthropic_to_gemini_with_shadow(
         .map(|snapshot| snapshot.turns)
         .unwrap_or_default();
 
-<<<<<<< HEAD
     let messages = body.get("messages").and_then(|value| value.as_array());
 
     let system_instruction = build_system_instruction(
@@ -69,13 +68,6 @@ pub fn anthropic_to_gemini_with_shadow(
     }
 
     if let Some(messages) = messages {
-=======
-    if let Some(system) = build_system_instruction(body.get("system"))? {
-        result["systemInstruction"] = system;
-    }
-
-    if let Some(messages) = body.get("messages").and_then(|value| value.as_array()) {
->>>>>>> origin/cc-switch-cli
         result["contents"] = json!(convert_messages_to_contents(messages, &shadow_turns)?);
     }
 
@@ -283,7 +275,6 @@ pub fn extract_gemini_model(body: &Value) -> Option<&str> {
     body.get("model").and_then(|value| value.as_str())
 }
 
-<<<<<<< HEAD
 fn build_system_instruction(
     system: Option<&Value>,
     messages: Option<&[Value]>,
@@ -305,34 +296,6 @@ fn build_system_instruction(
         }
     }
 
-=======
-fn build_system_instruction(system: Option<&Value>) -> Result<Option<Value>, ProxyError> {
-    let Some(system) = system else {
-        return Ok(None);
-    };
-
-    if let Some(text) = system.as_str() {
-        if text.is_empty() {
-            return Ok(None);
-        }
-        return Ok(Some(json!({
-            "parts": [{ "text": text }]
-        })));
-    }
-
-    let Some(blocks) = system.as_array() else {
-        return Err(ProxyError::TransformError(
-            "Anthropic system must be a string or an array".to_string(),
-        ));
-    };
-
-    let texts: Vec<&str> = blocks
-        .iter()
-        .filter_map(|block| block.get("text").and_then(|value| value.as_str()))
-        .filter(|text| !text.is_empty())
-        .collect();
-
->>>>>>> origin/cc-switch-cli
     if texts.is_empty() {
         return Ok(None);
     }
@@ -342,7 +305,6 @@ fn build_system_instruction(system: Option<&Value>) -> Result<Option<Value>, Pro
     })))
 }
 
-<<<<<<< HEAD
 fn collect_system_texts(value: &Value, texts: &mut Vec<String>) -> Result<(), ProxyError> {
     if let Some(text) = value.as_str() {
         if !text.is_empty() {
@@ -368,8 +330,6 @@ fn collect_system_texts(value: &Value, texts: &mut Vec<String>) -> Result<(), Pr
     Ok(())
 }
 
-=======
->>>>>>> origin/cc-switch-cli
 fn build_generation_config(body: &Value) -> Option<Value> {
     let mut config = Map::new();
 
@@ -408,7 +368,6 @@ fn convert_messages_to_contents(
     } else {
         shadow_turns
     };
-<<<<<<< HEAD
 
     // Build tool name and thought_signature maps from shadow store.
     // These are used to resolve tool_result→functionResponse names and to
@@ -442,9 +401,6 @@ fn convert_messages_to_contents(
         }
     }
 
-=======
-    let mut tool_name_by_id = build_tool_name_map_from_shadow_turns(shadow_turns);
->>>>>>> origin/cc-switch-cli
     let shadow_start_index = total_assistant_messages.saturating_sub(effective_shadow_turns.len());
     let mut assistant_seen_index = 0usize;
 
@@ -453,12 +409,9 @@ fn convert_messages_to_contents(
             .get("role")
             .and_then(|value| value.as_str())
             .unwrap_or("user");
-<<<<<<< HEAD
         if role == "system" {
             continue;
         }
-=======
->>>>>>> origin/cc-switch-cli
 
         let gemini_role = if role == "assistant" { "model" } else { "user" };
 
@@ -479,10 +432,7 @@ fn convert_messages_to_contents(
                 used_shadow_indices.insert(index);
                 let shadow_turn = &effective_shadow_turns[index];
                 merge_tool_names_from_shadow(shadow_turn, &mut tool_name_by_id);
-<<<<<<< HEAD
                 merge_thought_signatures_from_shadow(shadow_turn, &mut thought_signature_by_id);
-=======
->>>>>>> origin/cc-switch-cli
                 if let Some(parts) = shadow_parts(&shadow_turn.assistant_content) {
                     parts
                 } else {
@@ -490,10 +440,7 @@ fn convert_messages_to_contents(
                         message.get("content"),
                         role,
                         &mut tool_name_by_id,
-<<<<<<< HEAD
                         &thought_signature_by_id,
-=======
->>>>>>> origin/cc-switch-cli
                     )?
                 }
             } else {
@@ -501,7 +448,6 @@ fn convert_messages_to_contents(
                     message.get("content"),
                     role,
                     &mut tool_name_by_id,
-<<<<<<< HEAD
                     &thought_signature_by_id,
                 )?
             }
@@ -512,12 +458,6 @@ fn convert_messages_to_contents(
                 &mut tool_name_by_id,
                 &thought_signature_by_id,
             )?
-=======
-                )?
-            }
-        } else {
-            convert_message_content_to_parts(message.get("content"), role, &mut tool_name_by_id)?
->>>>>>> origin/cc-switch-cli
         };
 
         if role == "assistant" {
@@ -614,10 +554,7 @@ fn convert_message_content_to_parts(
     content: Option<&Value>,
     role: &str,
     tool_name_by_id: &mut std::collections::HashMap<String, String>,
-<<<<<<< HEAD
     thought_signature_by_id: &std::collections::HashMap<String, String>,
-=======
->>>>>>> origin/cc-switch-cli
 ) -> Result<Vec<Value>, ProxyError> {
     let Some(content) = content else {
         return Ok(Vec::new());
@@ -723,7 +660,6 @@ fn convert_message_content_to_parts(
                     function_call["id"] = json!(id);
                 }
 
-<<<<<<< HEAD
                 // Re-attach the thought_signature that Gemini originally
                 // associated with this functionCall.  The Anthropic format
                 // strips it from the tool_use block, but Gemini requires it
@@ -734,8 +670,6 @@ fn convert_message_content_to_parts(
                     function_call["thoughtSignature"] = json!(sig);
                 }
 
-=======
->>>>>>> origin/cc-switch-cli
                 parts.push(json!({ "functionCall": function_call }));
             }
             "tool_result" => {
@@ -746,7 +680,6 @@ fn convert_message_content_to_parts(
                 let name = tool_name_by_id
                     .get(tool_use_id)
                     .cloned()
-<<<<<<< HEAD
                     .or_else(|| {
                         // Last-resort fallback: scan every block in this content
                         // array for a tool_use whose id matches.  This catches
@@ -761,8 +694,6 @@ fn convert_message_content_to_parts(
                             b.get("name").and_then(|v| v.as_str()).map(|n| n.to_string())
                         })
                     })
-=======
->>>>>>> origin/cc-switch-cli
                     .ok_or_else(|| {
                         ProxyError::TransformError(format!(
                             "Unable to resolve Gemini functionResponse.name for tool_use_id `{tool_use_id}`"
@@ -1037,7 +968,6 @@ fn build_tool_name_map_from_shadow_turns(
     tool_name_by_id
 }
 
-<<<<<<< HEAD
 fn build_thought_signature_map_from_shadow_turns(
     shadow_turns: &[GeminiAssistantTurn],
 ) -> HashMap<String, String> {
@@ -1059,8 +989,6 @@ fn merge_thought_signatures_from_shadow(
     }
 }
 
-=======
->>>>>>> origin/cc-switch-cli
 fn merge_tool_names_from_parts(parts: &[Value], tool_name_by_id: &mut HashMap<String, String>) {
     for part in parts {
         let Some(function_call) = part.get("functionCall") else {
@@ -1251,7 +1179,6 @@ mod tests {
     }
 
     #[test]
-<<<<<<< HEAD
     fn anthropic_to_gemini_merges_system_messages_into_system_instruction() {
         let input = json!({
             "model": "gemini-3-pro",
@@ -1278,8 +1205,6 @@ mod tests {
     }
 
     #[test]
-=======
->>>>>>> origin/cc-switch-cli
     fn anthropic_to_gemini_maps_tools_and_tool_results() {
         let input = json!({
             "messages": [

@@ -206,10 +206,6 @@ export const providerPresets: ProviderPreset[] = [
         ANTHROPIC_DEFAULT_HAIKU_MODEL: "gemini-3.5-flash",
         ANTHROPIC_DEFAULT_SONNET_MODEL: "gemini-3.5-flash",
         ANTHROPIC_DEFAULT_OPUS_MODEL: "gemini-3.5-flash",
-        ANTHROPIC_MODEL: "gemini-2.5-pro",
-        ANTHROPIC_DEFAULT_HAIKU_MODEL: "gemini-2.5-flash",
-        ANTHROPIC_DEFAULT_SONNET_MODEL: "gemini-2.5-pro",
-        ANTHROPIC_DEFAULT_OPUS_MODEL: "gemini-2.5-pro",
       },
     },
     category: "third_party",
@@ -217,22 +213,6 @@ export const providerPresets: ProviderPreset[] = [
     endpointCandidates: ["https://generativelanguage.googleapis.com"],
     icon: "gemini",
     iconColor: "#4285F4",
-  },
-  {
-    name: "Shengsuanyun",
-    nameKey: "providerForm.presets.shengsuanyun",
-    websiteUrl: "https://www.shengsuanyun.com",
-    apiKeyUrl: "https://www.shengsuanyun.com/?from=CH_4HHXMRYF",
-    settingsConfig: {
-      env: {
-        ANTHROPIC_BASE_URL: "https://router.shengsuanyun.com/api",
-        ANTHROPIC_AUTH_TOKEN: "",
-      },
-    },
-    category: "aggregator",
-    isPartner: true,
-    partnerPromotionKey: "shengsuanyun",
-    icon: "shengsuanyun",
   },
   {
     name: "DeepSeek",
@@ -422,23 +402,6 @@ export const providerPresets: ProviderPreset[] = [
     endpointCandidates: ["https://api.stepfun.ai/step_plan"],
     icon: "stepfun",
     iconColor: "#16D6D2",
-    websiteUrl: "https://platform.stepfun.ai",
-    apiKeyUrl: "https://platform.stepfun.ai/interface-key",
-    settingsConfig: {
-      env: {
-        ANTHROPIC_BASE_URL: "https://api.stepfun.ai/v1",
-        ANTHROPIC_AUTH_TOKEN: "",
-        ANTHROPIC_MODEL: "step-3.5-flash",
-        ANTHROPIC_DEFAULT_HAIKU_MODEL: "step-3.5-flash",
-        ANTHROPIC_DEFAULT_SONNET_MODEL: "step-3.5-flash",
-        ANTHROPIC_DEFAULT_OPUS_MODEL: "step-3.5-flash",
-      },
-    },
-    category: "cn_official",
-    endpointCandidates: ["https://api.stepfun.ai/v1"],
-    apiFormat: "openai_chat",
-    icon: "stepfun",
-    iconColor: "#005AFF",
   },
   {
     name: "ModelScope",
@@ -889,23 +852,6 @@ export const providerPresets: ProviderPreset[] = [
     iconColor: "#000000",
   },
   {
-    name: "AICoding",
-    websiteUrl: "https://aicoding.sh",
-    apiKeyUrl: "https://aicoding.sh/i/CCSWITCH",
-    settingsConfig: {
-      env: {
-        ANTHROPIC_BASE_URL: "https://api.aicoding.sh",
-        ANTHROPIC_AUTH_TOKEN: "",
-      },
-    },
-    endpointCandidates: ["https://api.aicoding.sh"],
-    category: "third_party",
-    isPartner: true, // 合作伙伴
-    partnerPromotionKey: "aicoding", // 促销信息 i18n key
-    icon: "aicoding",
-    iconColor: "#000000",
-  },
-  {
     name: "CrazyRouter",
     websiteUrl: "https://www.crazyrouter.com",
     apiKeyUrl: "https://www.crazyrouter.com/register?aff=OZcm&ref=cc-switch",
@@ -992,16 +938,6 @@ export const providerPresets: ProviderPreset[] = [
       },
     },
     endpointCandidates: ["https://www.micuapi.ai"],
-    name: "Micu",
-    websiteUrl: "https://www.openclaudecode.cn",
-    apiKeyUrl: "https://www.openclaudecode.cn/register?aff=aOYQ",
-    settingsConfig: {
-      env: {
-        ANTHROPIC_BASE_URL: "https://www.openclaudecode.cn",
-        ANTHROPIC_AUTH_TOKEN: "",
-      },
-    },
-    endpointCandidates: ["https://www.openclaudecode.cn"],
     category: "third_party",
     isPartner: true, // 合作伙伴
     partnerPromotionKey: "micu", // 促销信息 i18n key
@@ -1025,22 +961,6 @@ export const providerPresets: ProviderPreset[] = [
     iconColor: "#000000",
   },
   {
-    name: "DDSHub",
-    websiteUrl: "https://www.ddshub.cc",
-    apiKeyUrl: "https://ddshub.short.gy/ccswitch",
-    settingsConfig: {
-      env: {
-        ANTHROPIC_BASE_URL: "https://www.ddshub.cc",
-        ANTHROPIC_AUTH_TOKEN: "",
-      },
-    },
-    category: "third_party",
-    isPartner: true, // 合作伙伴
-    partnerPromotionKey: "ddshub", // 促销信息 i18n key
-    icon: "dds",
-    iconColor: "#000000",
-  },
-  {
     name: "E-FlowCode",
     websiteUrl: "https://e-flowcode.cc",
     apiKeyUrl: "https://e-flowcode.cc",
@@ -1061,20 +981,6 @@ export const providerPresets: ProviderPreset[] = [
     endpointCandidates: ["https://e-flowcode.cc"],
     icon: "eflowcode",
     iconColor: "#000000",
-  },
-  {
-    name: "LionCCAPI",
-    websiteUrl: "https://vibecodingapi.ai",
-    settingsConfig: {
-      env: {
-        ANTHROPIC_BASE_URL: "https://vibecodingapi.ai",
-        ANTHROPIC_AUTH_TOKEN: "",
-      },
-    },
-    category: "third_party",
-    isPartner: true,
-    partnerPromotionKey: "lionccapi",
-    icon: "lioncc",
   },
   {
     name: "OpenRouter",
@@ -1107,7 +1013,6 @@ export const providerPresets: ProviderPreset[] = [
         ANTHROPIC_DEFAULT_HAIKU_MODEL: "anthropic/claude-haiku-4.5",
         ANTHROPIC_DEFAULT_SONNET_MODEL: "anthropic/claude-sonnet-4.6",
         ANTHROPIC_DEFAULT_OPUS_MODEL: "anthropic/claude-opus-4.8",
-        ANTHROPIC_DEFAULT_OPUS_MODEL: "anthropic/claude-opus-4.6",
       },
     },
     category: "aggregator",
@@ -1142,10 +1047,6 @@ export const providerPresets: ProviderPreset[] = [
         ANTHROPIC_DEFAULT_HAIKU_MODEL: "claude-haiku-4.5",
         ANTHROPIC_DEFAULT_SONNET_MODEL: "claude-sonnet-4.6",
         ANTHROPIC_DEFAULT_OPUS_MODEL: "claude-sonnet-4.6",
-        ANTHROPIC_MODEL: "claude-opus-4.6",
-        ANTHROPIC_DEFAULT_HAIKU_MODEL: "claude-haiku-4.5",
-        ANTHROPIC_DEFAULT_SONNET_MODEL: "claude-sonnet-4.6",
-        ANTHROPIC_DEFAULT_OPUS_MODEL: "claude-opus-4.6",
       },
     },
     category: "third_party",
@@ -1167,10 +1068,6 @@ export const providerPresets: ProviderPreset[] = [
         ANTHROPIC_DEFAULT_HAIKU_MODEL: "gpt-5.4-mini",
         ANTHROPIC_DEFAULT_SONNET_MODEL: "gpt-5.5",
         ANTHROPIC_DEFAULT_OPUS_MODEL: "gpt-5.5",
-        ANTHROPIC_MODEL: "gpt-5.4",
-        ANTHROPIC_DEFAULT_HAIKU_MODEL: "gpt-5.4-mini",
-        ANTHROPIC_DEFAULT_SONNET_MODEL: "gpt-5.4",
-        ANTHROPIC_DEFAULT_OPUS_MODEL: "gpt-5.4",
       },
     },
     category: "third_party",
@@ -1227,10 +1124,6 @@ export const providerPresets: ProviderPreset[] = [
         ANTHROPIC_DEFAULT_HAIKU_MODEL: "claude-haiku-4-5-20251001",
         ANTHROPIC_DEFAULT_SONNET_MODEL: "claude-sonnet-4-6",
         ANTHROPIC_DEFAULT_OPUS_MODEL: "claude-opus-4-8",
-        ANTHROPIC_MODEL: "claude-opus-4-6",
-        ANTHROPIC_DEFAULT_HAIKU_MODEL: "claude-haiku-4-5-20251001",
-        ANTHROPIC_DEFAULT_SONNET_MODEL: "claude-sonnet-4-6",
-        ANTHROPIC_DEFAULT_OPUS_MODEL: "claude-opus-4-6",
       },
       includeCoAuthoredBy: false,
     },
@@ -1267,10 +1160,6 @@ export const providerPresets: ProviderPreset[] = [
         ANTHROPIC_DEFAULT_HAIKU_MODEL: "mimo-v2.5-pro",
         ANTHROPIC_DEFAULT_SONNET_MODEL: "mimo-v2.5-pro",
         ANTHROPIC_DEFAULT_OPUS_MODEL: "mimo-v2.5-pro",
-        ANTHROPIC_MODEL: "mimo-v2-pro",
-        ANTHROPIC_DEFAULT_HAIKU_MODEL: "mimo-v2-pro",
-        ANTHROPIC_DEFAULT_SONNET_MODEL: "mimo-v2-pro",
-        ANTHROPIC_DEFAULT_OPUS_MODEL: "mimo-v2-pro",
       },
     },
     category: "cn_official",

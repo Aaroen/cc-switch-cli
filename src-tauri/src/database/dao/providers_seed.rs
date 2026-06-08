@@ -10,11 +10,8 @@
 
 use crate::app_config::AppType;
 
-<<<<<<< HEAD
 pub(crate) const CLAUDE_DESKTOP_OFFICIAL_PROVIDER_ID: &str = "claude-desktop-official";
 
-=======
->>>>>>> origin/cc-switch-cli
 /// 单条官方供应商种子定义。
 pub(crate) struct OfficialProviderSeed {
     pub id: &'static str,
@@ -27,11 +24,7 @@ pub(crate) struct OfficialProviderSeed {
     pub settings_config_json: &'static str,
 }
 
-<<<<<<< HEAD
 /// Claude / Claude Desktop / Codex / Gemini 的官方预设。
-=======
-/// Claude / Codex / Gemini 三个应用的官方预设。
->>>>>>> origin/cc-switch-cli
 ///
 /// id 固定，便于幂等检查；name 直接用英文原名（与前端预设一致），不做 i18n。
 pub(crate) const OFFICIAL_SEEDS: &[OfficialProviderSeed] = &[
@@ -46,7 +39,6 @@ pub(crate) const OFFICIAL_SEEDS: &[OfficialProviderSeed] = &[
         settings_config_json: r#"{"env":{}}"#,
     },
     OfficialProviderSeed {
-<<<<<<< HEAD
         id: CLAUDE_DESKTOP_OFFICIAL_PROVIDER_ID,
         app_type: AppType::ClaudeDesktop,
         name: "Claude Desktop Official",
@@ -57,8 +49,6 @@ pub(crate) const OFFICIAL_SEEDS: &[OfficialProviderSeed] = &[
         settings_config_json: r#"{"env":{}}"#,
     },
     OfficialProviderSeed {
-=======
->>>>>>> origin/cc-switch-cli
         id: "codex-official",
         app_type: AppType::Codex,
         name: "OpenAI Official",
@@ -86,7 +76,6 @@ pub(crate) const OFFICIAL_SEEDS: &[OfficialProviderSeed] = &[
 pub(crate) fn is_official_seed_id(id: &str) -> bool {
     OFFICIAL_SEEDS.iter().any(|seed| seed.id == id)
 }
-<<<<<<< HEAD
 
 #[cfg(test)]
 mod tests {
@@ -103,5 +92,3 @@ mod tests {
         assert!(is_official_seed_id(CLAUDE_DESKTOP_OFFICIAL_PROVIDER_ID));
     }
 }
-=======
->>>>>>> origin/cc-switch-cli

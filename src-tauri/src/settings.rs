@@ -253,13 +253,10 @@ pub struct AppSettings {
     /// Whether to show the failover toggle independently on the main page
     #[serde(default)]
     pub enable_failover_toggle: bool,
-<<<<<<< HEAD
     /// Keep Codex ChatGPT login material in auth.json when switching to third-party providers.
     /// Opt-in: defaults to false so third-party switches cleanly overwrite auth.json.
     #[serde(default)]
     pub preserve_codex_official_auth_on_switch: bool,
-=======
->>>>>>> origin/cc-switch-cli
     /// User has confirmed the failover toggle first-run notice
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub failover_confirmed: Option<bool>,
@@ -373,10 +370,7 @@ impl Default for AppSettings {
             usage_confirmed: None,
             stream_check_confirmed: None,
             enable_failover_toggle: false,
-<<<<<<< HEAD
             preserve_codex_official_auth_on_switch: false,
-=======
->>>>>>> origin/cc-switch-cli
             failover_confirmed: None,
             first_run_notice_confirmed: None,
             common_config_confirmed: None,
@@ -747,18 +741,12 @@ pub fn set_current_provider(app_type: &AppType, id: Option<&str>) -> Result<(), 
     let id_owned = id.map(|s| s.to_string());
     mutate_settings(|settings| match app_type {
         AppType::Claude => settings.current_provider_claude = id_owned.clone(),
-<<<<<<< HEAD
         AppType::ClaudeDesktop => settings.current_provider_claude_desktop = id_owned.clone(),
-=======
->>>>>>> origin/cc-switch-cli
         AppType::Codex => settings.current_provider_codex = id_owned.clone(),
         AppType::Gemini => settings.current_provider_gemini = id_owned.clone(),
         AppType::OpenCode => settings.current_provider_opencode = id_owned.clone(),
         AppType::OpenClaw => settings.current_provider_openclaw = id_owned.clone(),
-<<<<<<< HEAD
         AppType::Hermes => settings.current_provider_hermes = id_owned.clone(),
-=======
->>>>>>> origin/cc-switch-cli
     })
 }
 

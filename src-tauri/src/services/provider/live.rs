@@ -42,11 +42,8 @@ pub(crate) fn provider_exists_in_live_config(
             .map(|providers| providers.contains_key(provider_id)),
         AppType::OpenClaw => crate::openclaw_config::get_providers()
             .map(|providers| providers.contains_key(provider_id)),
-<<<<<<< HEAD
         AppType::Hermes => crate::hermes_config::get_providers()
             .map(|providers| providers.contains_key(provider_id)),
-=======
->>>>>>> origin/cc-switch-cli
         _ => Ok(false),
     }
 }
@@ -350,11 +347,7 @@ fn settings_contain_common_config(app_type: &AppType, settings: &Value, snippet:
             }
             _ => false,
         },
-<<<<<<< HEAD
         AppType::OpenCode | AppType::OpenClaw | AppType::Hermes | AppType::ClaudeDesktop => false,
-=======
-        AppType::OpenCode | AppType::OpenClaw => false,
->>>>>>> origin/cc-switch-cli
     }
 }
 
@@ -424,13 +417,9 @@ pub(crate) fn remove_common_config_from_settings(
             }
             Ok(result)
         }
-<<<<<<< HEAD
         AppType::OpenCode | AppType::OpenClaw | AppType::Hermes | AppType::ClaudeDesktop => {
             Ok(settings.clone())
         }
-=======
-        AppType::OpenCode | AppType::OpenClaw => Ok(settings.clone()),
->>>>>>> origin/cc-switch-cli
     }
 }
 
@@ -485,13 +474,9 @@ fn apply_common_config_to_settings(
             }
             Ok(result)
         }
-<<<<<<< HEAD
         AppType::OpenCode | AppType::OpenClaw | AppType::Hermes | AppType::ClaudeDesktop => {
             Ok(settings.clone())
         }
-=======
-        AppType::OpenCode | AppType::OpenClaw => Ok(settings.clone()),
->>>>>>> origin/cc-switch-cli
     }
 }
 
@@ -530,7 +515,6 @@ pub(crate) fn write_live_with_common_config(
     effective_provider.settings_config =
         build_effective_settings_with_common_config(db, app_type, provider)?;
 
-<<<<<<< HEAD
     if matches!(app_type, AppType::ClaudeDesktop) {
         crate::claude_desktop_config::apply_provider(db, &effective_provider)?;
         log::info!(
@@ -541,8 +525,6 @@ pub(crate) fn write_live_with_common_config(
         return Ok(());
     }
 
-=======
->>>>>>> origin/cc-switch-cli
     write_live_snapshot(app_type, &effective_provider)
 }
 
@@ -560,7 +542,6 @@ pub(crate) fn strip_common_config_from_live_settings(
                 app_type.as_str(),
                 provider.id
             );
-<<<<<<< HEAD
             return restore_live_settings_for_provider_backfill(app_type, provider, live_settings);
         }
     };
@@ -629,31 +610,6 @@ fn restore_live_settings_for_provider_backfill(
     }
 
     settings
-=======
-            return live_settings;
-        }
-    };
-
-    if !provider_uses_common_config(app_type, provider, snippet.as_deref()) {
-        return live_settings;
-    }
-
-    let Some(snippet_text) = snippet.as_deref() else {
-        return live_settings;
-    };
-
-    match remove_common_config_from_settings(app_type, &live_settings, snippet_text) {
-        Ok(settings) => settings,
-        Err(err) => {
-            log::warn!(
-                "Failed to strip common config for {} provider '{}': {err}",
-                app_type.as_str(),
-                provider.id
-            );
-            live_settings
-        }
-    }
->>>>>>> origin/cc-switch-cli
 }
 
 pub(crate) fn normalize_provider_common_config_for_storage(
@@ -1023,26 +979,10 @@ pub fn sync_current_to_live(state: &AppState) -> Result<(), AppError> {
             // Additive mode: sync ALL providers
             sync_all_providers_to_live(state, &app_type)?;
         } else {
-<<<<<<< HEAD
             // Switch mode: sync only current provider. During proxy takeover,
             // update the restore backup instead of rewriting the taken-over
             // live file.
             sync_current_provider_for_app_respecting_takeover(state, &app_type)?;
-=======
-            // Switch mode: sync only current provider
-            let current_id =
-                match crate::settings::get_effective_current_provider(&state.db, &app_type)? {
-                    Some(id) => id,
-                    None => continue,
-                };
-
-            let providers = state.db.get_all_providers(app_type.as_str())?;
-            if let Some(provider) = providers.get(&current_id) {
-                write_live_with_common_config(state.db.as_ref(), &app_type, provider)?;
-            }
-            // Note: get_effective_current_provider already validates existence,
-            // so providers.get() should always succeed here
->>>>>>> origin/cc-switch-cli
         }
     }
 
@@ -1753,7 +1693,6 @@ mod tests {
             .collect();
         assert_eq!(values, vec!["tool2"]);
     }
-<<<<<<< HEAD
 
     #[test]
     fn codex_switch_backfill_preserves_stored_model_catalog_when_live_lacks_it() {
@@ -1828,6 +1767,4 @@ mod tests {
             "backfill must keep the Live-reconstructed catalog when the DB has none"
         );
     }
-=======
->>>>>>> origin/cc-switch-cli
 }

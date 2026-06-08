@@ -914,10 +914,7 @@ pub fn set_tools_config(tools: &OpenClawToolsConfig) -> Result<OpenClawWriteOutc
 #[cfg(test)]
 mod tests {
     use super::*;
-<<<<<<< HEAD
     use serial_test::serial;
-=======
->>>>>>> origin/cc-switch-cli
     use std::sync::{Mutex, OnceLock};
 
     fn test_guard() -> std::sync::MutexGuard<'static, ()> {
@@ -970,10 +967,7 @@ mod tests {
     }
 
     #[test]
-<<<<<<< HEAD
     #[serial]
-=======
->>>>>>> origin/cc-switch-cli
     fn default_model_write_preserves_top_level_comments() {
         let source = r#"{
   // top-level comment
@@ -1002,10 +996,7 @@ mod tests {
     }
 
     #[test]
-<<<<<<< HEAD
     #[serial]
-=======
->>>>>>> origin/cc-switch-cli
     fn default_model_noop_write_skips_backup() {
         let source = r#"{
   models: {
@@ -1040,10 +1031,7 @@ mod tests {
     }
 
     #[test]
-<<<<<<< HEAD
     #[serial]
-=======
->>>>>>> origin/cc-switch-cli
     fn save_detects_external_conflict() {
         let source = r#"{
   models: {
@@ -1066,10 +1054,7 @@ mod tests {
     }
 
     #[test]
-<<<<<<< HEAD
     #[serial]
-=======
->>>>>>> origin/cc-switch-cli
     fn remove_last_provider_writes_empty_providers_without_panic() {
         let source = r#"{
   models: {

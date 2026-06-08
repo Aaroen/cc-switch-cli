@@ -1,5 +1,4 @@
 import { invoke } from "@/lib/api/transport";
-import { invoke } from "@tauri-apps/api/core";
 import type { TFunction } from "i18next";
 import { toast } from "sonner";
 
@@ -13,8 +12,6 @@ export interface FetchedModel {
  *
  * 使用 OpenAI 兼容的 GET /v1/models 端点。优先用 `modelsUrl` 精确覆写；
  * 否则后端会对 baseURL 生成候选列表并按序尝试（含"剥离 /anthropic 等兼容子路径"兜底）。
- * 使用 OpenAI 兼容的 GET /v1/models 端点。
- * 主要面向第三方聚合站（硅基流动、OpenRouter 等）。
  */
 export async function fetchModelsForConfig(
   baseUrl: string,
@@ -41,8 +38,6 @@ export async function fetchCodexOauthModels(
   return invoke("get_codex_oauth_models", {
     accountId: accountId || null,
   });
-): Promise<FetchedModel[]> {
-  return invoke("fetch_models_for_config", { baseUrl, apiKey, isFullUrl });
 }
 
 /**
@@ -81,8 +76,6 @@ export function showFetchModelsError(
   }
   if (msg.includes("HTTP 404") || msg.includes("HTTP 405")) {
     toast.error(t("providerForm.fetchModelsEndpointNotFound"));
-  if (msg.includes("HTTP 404") || msg.includes("HTTP 405")) {
-    toast.error(t("providerForm.fetchModelsNotSupported"));
     return;
   }
   if (msg.includes("timeout") || msg.includes("timed out")) {

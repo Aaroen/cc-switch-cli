@@ -19,7 +19,6 @@ export function useSubscriptionQuota(
 ) {
   return useQuery({
     queryKey: subscriptionKeys.quota(appId),
-    queryKey: ["subscription", "quota", appId],
     queryFn: () => subscriptionApi.getQuota(appId),
     enabled: enabled && ["claude", "codex", "gemini"].includes(appId),
     refetchInterval: autoQuery ? REFETCH_INTERVAL : false,

@@ -6,7 +6,6 @@
  */
 
 import { invoke } from "@/lib/api/transport";
-import { invoke } from "@tauri-apps/api/core";
 
 /**
  * GitHub 设备码响应

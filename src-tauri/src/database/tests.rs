@@ -679,7 +679,6 @@ fn schema_model_pricing_is_seeded_on_init() {
 }
 
 #[test]
-<<<<<<< HEAD
 fn model_pricing_seed_repairs_known_outdated_builtin_prices() {
     let db = Database::memory().expect("create memory db");
 
@@ -740,8 +739,6 @@ fn model_pricing_seed_repairs_known_outdated_builtin_prices() {
 }
 
 #[test]
-=======
->>>>>>> origin/cc-switch-cli
 fn ensure_incremental_auto_vacuum_rebuilds_existing_file_db() {
     let temp = NamedTempFile::new().expect("create temp db file");
     let path = temp.path().to_path_buf();

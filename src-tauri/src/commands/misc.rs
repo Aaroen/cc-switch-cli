@@ -56,7 +56,7 @@ pub async fn check_for_updates(handle: AppHandle) -> Result<bool, String> {
     handle
         .opener()
         .open_url(
-            "https://github.com/Aaroen/cc-switch-cli/releases/latest",
+            "https://github.com/farion1231/cc-switch/releases/latest",
             None::<String>,
         )
         .map_err(|e| format!("打开更新页面失败: {e}"))?;
@@ -4526,16 +4526,11 @@ mod tests {
 
         let count = paths
             .iter()
-<<<<<<< HEAD
             .filter(|path| path.as_path() == Path::new("/home/tester/.bun/bin"))
-=======
-            .filter(|path| **path == PathBuf::from("/home/tester/.bun/bin"))
->>>>>>> origin/cc-switch-cli
             .count();
         assert_eq!(count, 1);
     }
 
-<<<<<<< HEAD
     #[test]
     fn cli_path_env_search_paths_include_path_entries_and_dedupe() {
         let temp = tempfile::tempdir().expect("temp dir should be created");
@@ -4605,8 +4600,6 @@ mod tests {
         assert!(paths.contains(&node_bin));
     }
 
-=======
->>>>>>> origin/cc-switch-cli
     #[cfg(not(target_os = "windows"))]
     #[test]
     fn tool_executable_candidates_non_windows_uses_plain_binary_name() {
@@ -4663,7 +4656,6 @@ mod tests {
         assert_eq!(command, "cd '/tmp/project O'\"'\"'Brien' || exit 1\n");
     }
 
-<<<<<<< HEAD
     #[cfg(target_os = "macos")]
     #[test]
     fn iterm2_applescript_cold_start_avoids_current_window_before_one_exists() {
@@ -4701,8 +4693,6 @@ mod tests {
         assert!(running_branch.contains("create tab with default profile"));
     }
 
-=======
->>>>>>> origin/cc-switch-cli
     #[test]
     fn build_windows_cwd_command_str_uses_cd_for_drive_paths() {
         let command = build_windows_cwd_command_str(r"C:\work\repo");

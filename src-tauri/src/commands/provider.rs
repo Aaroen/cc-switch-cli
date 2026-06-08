@@ -379,7 +379,6 @@ pub async fn queryProviderUsage(
     app: String,
 ) -> Result<crate::provider::UsageResult, String> {
     let app_type = AppType::from_str(&app).map_err(|e| e.to_string())?;
-<<<<<<< HEAD
     // inner 可能以两种形式失败：
     //   1) 返回 Ok(UsageResult { success: false, .. }) —— 业务失败（401、脚本报错等）
     //   2) 返回 Err(String) —— RPC/DB/Copilot fetch_usage 等 transport 层失败
@@ -460,19 +459,12 @@ pub(crate) async fn query_provider_usage_inner(
     app_type: AppType,
     provider_id: &str,
 ) -> Result<crate::provider::UsageResult, String> {
-=======
-
->>>>>>> origin/cc-switch-cli
     // 从数据库读取供应商信息，检查特殊模板类型
     let providers = state
         .db
         .get_all_providers(app_type.as_str())
         .map_err(|e| format!("Failed to get providers: {e}"))?;
-<<<<<<< HEAD
     let provider = providers.get(provider_id);
-=======
-    let provider = providers.get(&providerId);
->>>>>>> origin/cc-switch-cli
     let usage_script = provider
         .and_then(|p| p.meta.as_ref())
         .and_then(|m| m.usage_script.as_ref());
@@ -518,32 +510,10 @@ pub(crate) async fn query_provider_usage_inner(
 
     // ── Coding Plan 专用路径 ──
     if template_type == TEMPLATE_TYPE_TOKEN_PLAN {
-<<<<<<< HEAD
         let (base_url, api_key) =
             resolve_coding_plan_credentials(&app_type, provider, usage_script);
 
         let quota = crate::services::coding_plan::get_coding_plan_quota(&base_url, &api_key)
-=======
-        // 从供应商配置中提取 API Key 和 Base URL
-        let settings_config = provider
-            .map(|p| &p.settings_config)
-            .cloned()
-            .unwrap_or_default();
-        let env = settings_config.get("env");
-        let base_url = env
-            .and_then(|e| e.get("ANTHROPIC_BASE_URL"))
-            .and_then(|v| v.as_str())
-            .unwrap_or("");
-        let api_key = env
-            .and_then(|e| {
-                e.get("ANTHROPIC_AUTH_TOKEN")
-                    .or_else(|| e.get("ANTHROPIC_API_KEY"))
-            })
-            .and_then(|v| v.as_str())
-            .unwrap_or("");
-
-        let quota = crate::services::coding_plan::get_coding_plan_quota(base_url, api_key)
->>>>>>> origin/cc-switch-cli
             .await
             .map_err(|e| format!("Failed to query coding plan: {e}"))?;
 
@@ -556,7 +526,6 @@ pub(crate) async fn query_provider_usage_inner(
             });
         }
 
-<<<<<<< HEAD
         // ZenMux 的 tier 携带 USD 额度信息，需要编码为 JSON extra
         let has_usd = quota
             .tiers
@@ -570,8 +539,6 @@ pub(crate) async fn query_provider_usage_inner(
             .map(|tier| format!("ZenMux·{}", tier.to_uppercase()));
         let mut first_tier = true;
 
-=======
->>>>>>> origin/cc-switch-cli
         let data: Vec<crate::provider::UsageData> = quota
             .tiers
             .iter()
@@ -579,7 +546,6 @@ pub(crate) async fn query_provider_usage_inner(
                 let total = 100.0;
                 let used = tier.utilization;
                 let remaining = total - used;
-<<<<<<< HEAD
                 let extra = if has_usd {
                     let mut extra_json = serde_json::json!({
                         "resetsAt": tier.resets_at,
@@ -600,8 +566,6 @@ pub(crate) async fn query_provider_usage_inner(
                 } else {
                     tier.resets_at.clone()
                 };
-=======
->>>>>>> origin/cc-switch-cli
                 crate::provider::UsageData {
                     plan_name: Some(tier.name.clone()),
                     remaining: Some(remaining),
@@ -610,11 +574,7 @@ pub(crate) async fn query_provider_usage_inner(
                     unit: Some("%".to_string()),
                     is_valid: Some(true),
                     invalid_message: None,
-<<<<<<< HEAD
                     extra,
-=======
-                    extra: tier.resets_at.clone(),
->>>>>>> origin/cc-switch-cli
                 }
             })
             .collect();
@@ -628,41 +588,16 @@ pub(crate) async fn query_provider_usage_inner(
 
     // ── 官方余额查询路径 ──
     if template_type == TEMPLATE_TYPE_BALANCE {
-<<<<<<< HEAD
         // 按 app 区分的凭据存储格式提取 Base URL 与 API Key
         let (base_url, api_key) = resolve_native_credentials(&app_type, provider);
 
         return crate::services::balance::get_balance(&base_url, &api_key)
-=======
-        let settings_config = provider
-            .map(|p| &p.settings_config)
-            .cloned()
-            .unwrap_or_default();
-        let env = settings_config.get("env");
-        let base_url = env
-            .and_then(|e| e.get("ANTHROPIC_BASE_URL"))
-            .and_then(|v| v.as_str())
-            .unwrap_or("");
-        let api_key = env
-            .and_then(|e| {
-                e.get("ANTHROPIC_AUTH_TOKEN")
-                    .or_else(|| e.get("ANTHROPIC_API_KEY"))
-            })
-            .and_then(|v| v.as_str())
-            .unwrap_or("");
-
-        return crate::services::balance::get_balance(base_url, api_key)
->>>>>>> origin/cc-switch-cli
             .await
             .map_err(|e| format!("Failed to query balance: {e}"));
     }
 
     // ── 通用 JS 脚本路径 ──
-<<<<<<< HEAD
     ProviderService::query_usage(state, app_type, provider_id)
-=======
-    ProviderService::query_usage(state.inner(), app_type, &providerId)
->>>>>>> origin/cc-switch-cli
         .await
         .map_err(|e| e.to_string())
 }

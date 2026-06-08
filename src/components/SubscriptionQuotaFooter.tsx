@@ -32,7 +32,6 @@ export const TIER_I18N_KEYS: Record<string, string> = {
   gemini_flash_lite: "subscription.geminiFlashLite",
   // Token Plan（five_hour 已在上方官方映射中）
   weekly_limit: "subscription.sevenDay",
-  weekly_limit: "subscription.weeklyLimit",
   // GitHub Copilot
   premium: "subscription.copilotPremium",
 };
@@ -209,7 +208,6 @@ export const SubscriptionQuotaView: React.FC<SubscriptionQuotaViewProps> = ({
   const tiers = (quota.tiers || []).filter(
     (tier) => tier.name in TIER_I18N_KEYS,
   );
-  const tiers = quota.tiers || [];
   if (tiers.length === 0) return null;
 
   // ── inline 模式：紧凑两行显示 ──

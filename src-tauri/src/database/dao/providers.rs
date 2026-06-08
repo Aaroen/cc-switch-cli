@@ -733,7 +733,6 @@ impl Database {
         Ok(ids)
     }
 
-<<<<<<< HEAD
     /// 判断指定 app 下是否已存在任意 provider。
     ///
     /// 启动阶段的 live import 需要使用这个更严格的判断：
@@ -750,8 +749,6 @@ impl Database {
         Ok(exists)
     }
 
-=======
->>>>>>> origin/cc-switch-cli
     /// 判断指定 app 下是否存在非官方种子的供应商。
     ///
     /// 比 `get_all_providers` 轻量得多：只读 id 列、无 endpoint 子查询、首条命中即返回。
@@ -850,7 +847,6 @@ impl Database {
 
         Ok(inserted)
     }
-<<<<<<< HEAD
 
     /// 按 id 兜底插入单条 official seed（仅当目标表中该 id 不存在时插入）。
     ///
@@ -985,8 +981,6 @@ mod ensure_official_seed_tests {
             db.ensure_official_seed_by_id(CLAUDE_DESKTOP_OFFICIAL_PROVIDER_ID, AppType::Claude);
         assert!(result.is_err(), "(id, app_type) mismatch should be Err");
     }
-=======
->>>>>>> origin/cc-switch-cli
 }
 
 #[cfg(test)]
@@ -1018,14 +1012,10 @@ mod tests {
             .get_provider_by_id("provider-1", "codex")
             .expect("query provider")
             .expect("provider should exist");
-<<<<<<< HEAD
         assert_eq!(
             saved.weight, 1,
             "effective weight should be the updated value"
         );
-=======
-        assert_eq!(saved.weight, 1, "effective weight should be the updated value");
->>>>>>> origin/cc-switch-cli
         assert_eq!(
             saved.meta.as_ref().and_then(|meta| meta.routing_weight),
             None,

@@ -3,13 +3,9 @@
 //! 支持 Kimi For Coding、智谱 GLM、MiniMax 的 Token Plan 额度查询。
 //! 复用 subscription 模块的 SubscriptionQuota / QuotaTier 类型。
 
-<<<<<<< HEAD
 use super::subscription::{
     CredentialStatus, QuotaTier, SubscriptionQuota, TIER_FIVE_HOUR, TIER_WEEKLY_LIMIT,
 };
-=======
-use super::subscription::{CredentialStatus, QuotaTier, SubscriptionQuota};
->>>>>>> origin/cc-switch-cli
 use std::time::{SystemTime, UNIX_EPOCH};
 
 // ── 供应商检测 ──────────────────────────────────────────────
@@ -20,10 +16,7 @@ enum CodingPlanProvider {
     ZhipuEn,
     MiniMaxCn,
     MiniMaxEn,
-<<<<<<< HEAD
     ZenMux,
-=======
->>>>>>> origin/cc-switch-cli
 }
 
 fn detect_provider(base_url: &str) -> Option<CodingPlanProvider> {
@@ -38,11 +31,8 @@ fn detect_provider(base_url: &str) -> Option<CodingPlanProvider> {
         Some(CodingPlanProvider::MiniMaxCn)
     } else if url.contains("api.minimax.io") {
         Some(CodingPlanProvider::MiniMaxEn)
-<<<<<<< HEAD
     } else if url.contains("zenmux") {
         Some(CodingPlanProvider::ZenMux)
-=======
->>>>>>> origin/cc-switch-cli
     } else {
         None
     }
@@ -158,11 +148,8 @@ async fn query_kimi(api_key: &str) -> SubscriptionQuota {
                     name: "five_hour".to_string(),
                     utilization,
                     resets_at,
-<<<<<<< HEAD
                     used_value_usd: None,
                     max_value_usd: None,
-=======
->>>>>>> origin/cc-switch-cli
                 });
             }
         }
@@ -184,11 +171,8 @@ async fn query_kimi(api_key: &str) -> SubscriptionQuota {
             name: "weekly_limit".to_string(),
             utilization,
             resets_at,
-<<<<<<< HEAD
             used_value_usd: None,
             max_value_usd: None,
-=======
->>>>>>> origin/cc-switch-cli
         });
     }
 
@@ -206,7 +190,6 @@ async fn query_kimi(api_key: &str) -> SubscriptionQuota {
 
 // ── 智谱 GLM ────────────────────────────────────────────────
 
-<<<<<<< HEAD
 /// 把智谱 `data` 里的 `limits[]` 解析成 tier 列表。
 ///
 /// 双桶响应中，5 小时桶在 0% 等状态下可能没有 `nextResetTime`；
@@ -256,8 +239,6 @@ fn parse_zhipu_token_tiers(data: &serde_json::Value) -> Vec<QuotaTier> {
         .collect()
 }
 
-=======
->>>>>>> origin/cc-switch-cli
 async fn query_zhipu(api_key: &str) -> SubscriptionQuota {
     let client = crate::proxy::http_client::get();
 
@@ -314,38 +295,7 @@ async fn query_zhipu(api_key: &str) -> SubscriptionQuota {
         None => return make_error("Missing 'data' field in response".to_string()),
     };
 
-<<<<<<< HEAD
     let tiers = parse_zhipu_token_tiers(data);
-=======
-    let mut tiers = Vec::new();
-
-    if let Some(limits) = data.get("limits").and_then(|v| v.as_array()) {
-        for limit_item in limits {
-            let limit_type = limit_item
-                .get("type")
-                .and_then(|v| v.as_str())
-                .unwrap_or("");
-            let percentage = limit_item
-                .get("percentage")
-                .and_then(|v| v.as_f64())
-                .unwrap_or(0.0);
-            let next_reset = limit_item
-                .get("nextResetTime")
-                .and_then(|v| v.as_i64())
-                .and_then(millis_to_iso8601);
-
-            if limit_type != "TOKENS_LIMIT" {
-                continue;
-            }
-
-            tiers.push(QuotaTier {
-                name: "five_hour".to_string(),
-                utilization: percentage,
-                resets_at: next_reset,
-            });
-        }
-    }
->>>>>>> origin/cc-switch-cli
 
     // 套餐等级存入 credential_message
     let level = data
@@ -429,55 +379,8 @@ async fn query_minimax(api_key: &str, is_cn: bool) -> SubscriptionQuota {
         }
     }
 
-<<<<<<< HEAD
     // 提取纯函数便于无 mock 单元测试;新接口直接给"剩余百分比",反转为已用百分比
     let tiers = parse_minimax_tiers(&body);
-=======
-    let mut tiers = Vec::new();
-
-    if let Some(model_remains) = body.get("model_remains").and_then(|v| v.as_array()) {
-        // 只取第一个模型（MiniMax-M*，主力编程模型）
-        if let Some(item) = model_remains.first() {
-            // usage_count 是剩余量（满额=total，用完=0），需反转为已用百分比
-            let interval_total = item
-                .get("current_interval_total_count")
-                .and_then(|v| v.as_f64())
-                .unwrap_or(0.0);
-            let interval_remaining = item
-                .get("current_interval_usage_count")
-                .and_then(|v| v.as_f64())
-                .unwrap_or(0.0);
-            let end_time = item.get("end_time").and_then(|v| v.as_i64());
-
-            if interval_total > 0.0 {
-                tiers.push(QuotaTier {
-                    name: "five_hour".to_string(),
-                    utilization: ((interval_total - interval_remaining) / interval_total) * 100.0,
-                    resets_at: end_time.and_then(millis_to_iso8601),
-                });
-            }
-
-            // 周额度
-            let weekly_total = item
-                .get("current_weekly_total_count")
-                .and_then(|v| v.as_f64())
-                .unwrap_or(0.0);
-            let weekly_remaining = item
-                .get("current_weekly_usage_count")
-                .and_then(|v| v.as_f64())
-                .unwrap_or(0.0);
-            let weekly_end = item.get("weekly_end_time").and_then(|v| v.as_i64());
-
-            if weekly_total > 0.0 {
-                tiers.push(QuotaTier {
-                    name: "weekly_limit".to_string(),
-                    utilization: ((weekly_total - weekly_remaining) / weekly_total) * 100.0,
-                    resets_at: weekly_end.and_then(millis_to_iso8601),
-                });
-            }
-        }
-    }
->>>>>>> origin/cc-switch-cli
 
     SubscriptionQuota {
         tool: "coding_plan".to_string(),
@@ -491,7 +394,6 @@ async fn query_minimax(api_key: &str, is_cn: bool) -> SubscriptionQuota {
     }
 }
 
-<<<<<<< HEAD
 // ── ZenMux ──────────────────────────────────────────────────
 
 async fn query_zenmux(base_url: &str, api_key: &str) -> SubscriptionQuota {
@@ -690,8 +592,6 @@ fn parse_minimax_tiers(body: &serde_json::Value) -> Vec<QuotaTier> {
     tiers
 }
 
-=======
->>>>>>> origin/cc-switch-cli
 // ── 公开入口 ────────────────────────────────────────────────
 
 pub async fn get_coding_plan_quota(
@@ -732,15 +632,11 @@ pub async fn get_coding_plan_quota(
         CodingPlanProvider::ZhipuCn | CodingPlanProvider::ZhipuEn => query_zhipu(api_key).await,
         CodingPlanProvider::MiniMaxCn => query_minimax(api_key, true).await,
         CodingPlanProvider::MiniMaxEn => query_minimax(api_key, false).await,
-<<<<<<< HEAD
         CodingPlanProvider::ZenMux => query_zenmux(base_url, api_key).await,
-=======
->>>>>>> origin/cc-switch-cli
     };
 
     Ok(quota)
 }
-<<<<<<< HEAD
 
 #[cfg(test)]
 mod tests {
@@ -1045,5 +941,3 @@ mod tests {
         assert_eq!(tiers[0].utilization, 20.0);
     }
 }
-=======
->>>>>>> origin/cc-switch-cli

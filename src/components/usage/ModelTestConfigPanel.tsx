@@ -26,8 +26,6 @@ export function ModelTestConfigPanel() {
     claudeModel: "claude-haiku-4-5-20251001",
     codexModel: "gpt-5.5@low",
     geminiModel: "gemini-3.5-flash",
-    codexModel: "gpt-5.4@low",
-    geminiModel: "gemini-3-flash-preview",
     testPrompt: "Who are you?",
   });
 

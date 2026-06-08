@@ -12,7 +12,6 @@ import {
   extractCodexBaseUrl,
   extractCodexExperimentalBearerToken,
 } from "@/utils/providerConfigUtils";
-import { extractCodexBaseUrl } from "@/utils/providerConfigUtils";
 import JsonEditor from "./JsonEditor";
 import * as prettier from "prettier/standalone";
 import * as parserBabel from "prettier/parser-babel";
@@ -123,21 +122,6 @@ const TEMPLATE_NAME_KEYS: Record<string, string> = {
   [TEMPLATE_TYPES.BALANCE]: "usageScript.templateBalance",
 };
 
-/** Coding Plan 供应商选项 */
-const TOKEN_PLAN_PROVIDERS = [
-  { id: "kimi", label: "Kimi For Coding", pattern: /api\.kimi\.com\/coding/i },
-  {
-    id: "zhipu",
-    label: "Zhipu GLM (智谱)",
-    pattern: /bigmodel\.cn|api\.z\.ai/i,
-  },
-  {
-    id: "minimax",
-    label: "MiniMax",
-    pattern: /api\.minimaxi?\.com|api\.minimax\.io/i,
-  },
-] as const;
-
 /** 官方余额查询供应商检测 */
 const BALANCE_PROVIDERS = [
   { id: "deepseek", label: "DeepSeek", pattern: /api\.deepseek\.com/i },
@@ -155,15 +139,6 @@ const BALANCE_PROVIDERS = [
 function detectBalanceProvider(baseUrl: string | undefined): boolean {
   if (!baseUrl) return false;
   return BALANCE_PROVIDERS.some((bp) => bp.pattern.test(baseUrl));
-}
-
-/** 根据 Base URL 自动检测 Coding Plan 供应商 */
-function detectTokenPlanProvider(baseUrl: string | undefined): string | null {
-  if (!baseUrl) return null;
-  for (const cp of TOKEN_PLAN_PROVIDERS) {
-    if (cp.pattern.test(baseUrl)) return cp.id;
-  }
-  return null;
 }
 
 const UsageScriptModal: React.FC<UsageScriptModalProps> = ({
@@ -276,7 +251,6 @@ const UsageScriptModal: React.FC<UsageScriptModalProps> = ({
           ...savedScript,
           codingPlanProvider:
             detectCodingPlanProvider(providerCredentials.baseUrl) || "kimi",
-            detectTokenPlanProvider(providerCredentials.baseUrl) || "kimi",
         };
       }
       return savedScript;
@@ -294,37 +268,6 @@ const UsageScriptModal: React.FC<UsageScriptModalProps> = ({
     return createUsageScript({
       code: PRESET_TEMPLATES[TEMPLATE_TYPES.GENERAL],
     });
-    // 新配置：如果 URL 匹配 Coding Plan，自动初始化
-    const autoDetected = detectTokenPlanProvider(providerCredentials.baseUrl);
-    if (autoDetected) {
-      return {
-        enabled: false,
-        language: "javascript" as const,
-        code: "",
-        timeout: 10,
-        autoQueryInterval: 5,
-        codingPlanProvider: autoDetected,
-      };
-    }
-
-    // 新配置：如果 URL 匹配官方余额查询供应商，自动初始化
-    if (detectBalanceProvider(providerCredentials.baseUrl)) {
-      return {
-        enabled: false,
-        language: "javascript" as const,
-        code: "",
-        timeout: 10,
-        autoQueryInterval: 5,
-      };
-    }
-
-    return {
-      enabled: false,
-      language: "javascript" as const,
-      code: PRESET_TEMPLATES[TEMPLATE_TYPES.GENERAL],
-      timeout: 10,
-      autoQueryInterval: 5,
-    };
   });
 
   const [testing, setTesting] = useState(false);
@@ -398,7 +341,6 @@ const UsageScriptModal: React.FC<UsageScriptModalProps> = ({
       }
       // 新配置：如果 URL 匹配 Coding Plan 供应商，自动选择 Coding Plan 模板
       if (detectCodingPlanProvider(providerCredentials.baseUrl)) {
-      if (detectTokenPlanProvider(providerCredentials.baseUrl)) {
         return TEMPLATE_TYPES.TOKEN_PLAN;
       }
       // 新配置：如果 URL 匹配官方余额查询供应商，自动选择 Balance 模板
@@ -474,12 +416,6 @@ const UsageScriptModal: React.FC<UsageScriptModalProps> = ({
       if (selectedTemplate === TEMPLATE_TYPES.BALANCE) {
         const baseUrl = providerCredentials.baseUrl ?? "";
         const apiKey = providerCredentials.apiKey ?? "";
-        const config = provider.settingsConfig as Record<string, any>;
-        const baseUrl: string = config?.env?.ANTHROPIC_BASE_URL ?? "";
-        const apiKey: string =
-          config?.env?.ANTHROPIC_AUTH_TOKEN ??
-          config?.env?.ANTHROPIC_API_KEY ??
-          "";
         const { subscriptionApi } = await import("@/lib/api/subscription");
         const result = await subscriptionApi.getBalance(baseUrl, apiKey);
         if (result.success && result.data && result.data.length > 0) {
@@ -491,10 +427,6 @@ const UsageScriptModal: React.FC<UsageScriptModalProps> = ({
                 used: t("usage.used"),
               }),
             )
-            .map((d) => {
-              const name = d.planName ? `[${d.planName}] ` : "";
-              return `${name}${t("usage.remaining")} ${d.remaining?.toFixed(2)} ${d.unit || ""}`;
-            })
             .join(", ");
           toast.success(`${t("usageScript.testSuccess")}${summary}`, {
             duration: 3000,
@@ -520,12 +452,6 @@ const UsageScriptModal: React.FC<UsageScriptModalProps> = ({
         const apiKey = isZenMux
           ? (script.apiKey ?? "")
           : (providerCredentials.apiKey ?? "");
-        const config = provider.settingsConfig as Record<string, any>;
-        const baseUrl: string = config?.env?.ANTHROPIC_BASE_URL ?? "";
-        const apiKey: string =
-          config?.env?.ANTHROPIC_AUTH_TOKEN ??
-          config?.env?.ANTHROPIC_API_KEY ??
-          "";
         const { subscriptionApi } = await import("@/lib/api/subscription");
         const quota = await subscriptionApi.getCodingPlanQuota(baseUrl, apiKey);
         if (quota.success && quota.tiers.length > 0) {
@@ -717,18 +643,6 @@ const UsageScriptModal: React.FC<UsageScriptModalProps> = ({
           accessToken: undefined,
           userId: undefined,
           codingPlanProvider: provider,
-        const autoDetected = detectTokenPlanProvider(
-          providerCredentials.baseUrl,
-        );
-        setScript({
-          ...script,
-          code: "",
-          apiKey: undefined,
-          baseUrl: undefined,
-          accessToken: undefined,
-          userId: undefined,
-          codingPlanProvider:
-            script.codingPlanProvider || autoDetected || "kimi",
         });
       } else if (presetName === TEMPLATE_TYPES.BALANCE) {
         // 官方余额查询模板不需要脚本，使用 Rust 原生查询
@@ -750,7 +664,6 @@ const UsageScriptModal: React.FC<UsageScriptModalProps> = ({
     selectedTemplate === TEMPLATE_TYPES.NEW_API ||
     (selectedTemplate === TEMPLATE_TYPES.TOKEN_PLAN &&
       script.codingPlanProvider === "zenmux");
-    selectedTemplate === TEMPLATE_TYPES.NEW_API;
 
   const footer = (
     <>
@@ -960,7 +873,6 @@ const UsageScriptModal: React.FC<UsageScriptModalProps> = ({
                 </p>
                 <div className="flex gap-2 flex-wrap">
                   {CODING_PLAN_PROVIDERS.map((cp) => (
-                  {TOKEN_PLAN_PROVIDERS.map((cp) => (
                     <Button
                       key={cp.id}
                       type="button"

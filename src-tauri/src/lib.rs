@@ -32,11 +32,8 @@ mod services;
 mod session_manager;
 mod settings;
 mod store;
-<<<<<<< HEAD
 /// CLI 专属 Web 控制台（仅无头 CLI 模式启用；GUI 不启用）
 pub mod web_panel;
-=======
->>>>>>> origin/cc-switch-cli
 
 mod tray;
 mod usage_events;
@@ -74,16 +71,6 @@ use tauri::tray::{TrayIconBuilder, TrayIconEvent};
 use tauri::RunEvent;
 use tauri::{Emitter, Manager};
 use tauri_plugin_window_state::{AppHandleExt, StateFlags};
-
-pub fn ensure_rustls_crypto_provider() {
-    static INIT: Once = Once::new();
-
-    INIT.call_once(|| {
-        // rustls 0.23 在同时启用多个 provider 特性时不会自动选型。
-        // 本项目统一显式选择 ring，并要求在任何 TLS 客户端初始化前完成安装。
-        let _ = rustls::crypto::ring::default_provider().install_default();
-    });
-}
 
 pub fn ensure_rustls_crypto_provider() {
     static INIT: Once = Once::new();
@@ -530,7 +517,6 @@ pub fn run() {
             for app_type in
                 crate::app_config::AppType::all().filter(|t| !t.is_additive_mode())
             {
-<<<<<<< HEAD
                 if !crate::services::provider::should_import_default_config_on_startup(
                     &app_state,
                     &app_type,
@@ -544,8 +530,6 @@ pub fn run() {
                     continue;
                 }
 
-=======
->>>>>>> origin/cc-switch-cli
                 match crate::services::provider::import_default_config(
                     &app_state,
                     app_type.clone(),
@@ -573,7 +557,6 @@ pub fn run() {
                 Err(e) => log::warn!("✗ Failed to seed official providers: {e}"),
             }
 
-<<<<<<< HEAD
             {
                 let db_for_codex_history_migration = app_state.db.clone();
                 tauri::async_runtime::spawn_blocking(move || {
@@ -617,8 +600,6 @@ pub fn run() {
                 });
             }
 
-=======
->>>>>>> origin/cc-switch-cli
             // 老用户 / 已确认的路径由 `fresh_install_at_startup` 自行拦截，这里不做写入。
             // 字段只由前端在用户点击"我知道了"时 save_settings 回写，语义是"用户显式确认过"。
             if !first_run_already_confirmed && fresh_install_at_startup {
@@ -648,7 +629,6 @@ pub fn run() {
                 Ok(_) => log::debug!("○ No new OpenClaw providers to import"),
                 Err(e) => log::warn!("✗ Failed to import OpenClaw providers: {e}"),
             }
-<<<<<<< HEAD
             match crate::services::provider::import_hermes_providers_from_live(&app_state) {
                 Ok(count) if count > 0 => {
                     log::info!("✓ Imported {count} Hermes provider(s) from live config");
@@ -656,8 +636,6 @@ pub fn run() {
                 Ok(_) => log::debug!("○ No new Hermes providers to import"),
                 Err(e) => log::warn!("✗ Failed to import Hermes providers: {e}"),
             }
-=======
->>>>>>> origin/cc-switch-cli
 
             // 2. OMO 配置导入（当数据库中无 OMO provider 时，从本地文件导入）
             {
@@ -1032,68 +1010,6 @@ pub fn run() {
                         interval.tick().await;
                         if let Err(e) = db_for_timer.periodic_backup_if_needed() {
                             log::warn!("Periodic maintenance timer failed: {e}");
-<<<<<<< HEAD
-=======
-                        }
-                    }
-                });
-
-                // Session log usage sync: 启动时同步一次，之后每 60 秒检查
-                let db_for_session_sync = state.db.clone();
-                tauri::async_runtime::spawn(async move {
-                    const SESSION_SYNC_INTERVAL_SECS: u64 = 60;
-
-                    // 首次同步
-                    if let Err(e) =
-                        crate::services::session_usage::sync_claude_session_logs(
-                            &db_for_session_sync,
-                        )
-                    {
-                        log::warn!("Session usage initial sync failed: {e}");
-                    }
-                    if let Err(e) =
-                        crate::services::session_usage_codex::sync_codex_usage(
-                            &db_for_session_sync,
-                        )
-                    {
-                        log::warn!("Codex usage initial sync failed: {e}");
-                    }
-                    if let Err(e) =
-                        crate::services::session_usage_gemini::sync_gemini_usage(
-                            &db_for_session_sync,
-                        )
-                    {
-                        log::warn!("Gemini usage initial sync failed: {e}");
-                    }
-
-                    // 定期同步
-                    let mut interval = tokio::time::interval(std::time::Duration::from_secs(
-                        SESSION_SYNC_INTERVAL_SECS,
-                    ));
-                    interval.tick().await; // skip immediate first tick
-                    loop {
-                        interval.tick().await;
-                        if let Err(e) =
-                            crate::services::session_usage::sync_claude_session_logs(
-                                &db_for_session_sync,
-                            )
-                        {
-                            log::warn!("Session usage periodic sync failed: {e}");
-                        }
-                        if let Err(e) =
-                            crate::services::session_usage_codex::sync_codex_usage(
-                                &db_for_session_sync,
-                            )
-                        {
-                            log::warn!("Codex usage periodic sync failed: {e}");
-                        }
-                        if let Err(e) =
-                            crate::services::session_usage_gemini::sync_gemini_usage(
-                                &db_for_session_sync,
-                            )
-                        {
-                            log::warn!("Gemini usage periodic sync failed: {e}");
->>>>>>> origin/cc-switch-cli
                         }
                     }
                 });
@@ -1263,10 +1179,7 @@ pub fn run() {
             // subscription quota
             commands::get_subscription_quota,
             commands::get_codex_oauth_quota,
-<<<<<<< HEAD
             commands::get_codex_oauth_models,
-=======
->>>>>>> origin/cc-switch-cli
             commands::get_coding_plan_quota,
             commands::get_balance,
             // New MCP via config.json (SSOT)

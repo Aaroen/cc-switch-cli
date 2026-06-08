@@ -1,5 +1,4 @@
 import { invoke } from "@/lib/api/transport";
-import { invoke } from "@tauri-apps/api/core";
 import type { SubscriptionQuota } from "@/types/subscription";
 
 export const subscriptionApi = {

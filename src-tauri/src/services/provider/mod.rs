@@ -55,7 +55,6 @@ pub struct SwitchResult {
 #[cfg(test)]
 mod tests {
     use super::*;
-<<<<<<< HEAD
     #[cfg(any(target_os = "macos", windows))]
     use crate::claude_desktop_config::PROFILE_ID;
     use crate::config::{get_claude_settings_path, read_json_file, write_json_file};
@@ -63,11 +62,6 @@ mod tests {
     use crate::provider::ProviderMeta;
     #[cfg(any(target_os = "macos", windows))]
     use crate::provider::{ClaudeDesktopMode, ClaudeDesktopModelRoute};
-=======
-    use crate::config::{get_claude_settings_path, read_json_file, write_json_file};
-    use crate::database::Database;
-    use crate::provider::ProviderMeta;
->>>>>>> origin/cc-switch-cli
     use crate::proxy::types::ProxyConfig;
     use crate::store::AppState;
     use serde_json::json;
@@ -83,11 +77,8 @@ mod tests {
         #[allow(dead_code)]
         dir: TempDir,
         original_home: Option<String>,
-<<<<<<< HEAD
         #[cfg(windows)]
         original_local_app_data: Option<String>,
-=======
->>>>>>> origin/cc-switch-cli
         original_userprofile: Option<String>,
         original_test_home: Option<String>,
     }
@@ -96,31 +87,22 @@ mod tests {
         fn new() -> Self {
             let dir = TempDir::new().expect("failed to create temp home");
             let original_home = env::var("HOME").ok();
-<<<<<<< HEAD
             #[cfg(windows)]
             let original_local_app_data = env::var("LOCALAPPDATA").ok();
-=======
->>>>>>> origin/cc-switch-cli
             let original_userprofile = env::var("USERPROFILE").ok();
             let original_test_home = env::var("CC_SWITCH_TEST_HOME").ok();
 
             env::set_var("HOME", dir.path());
-<<<<<<< HEAD
             #[cfg(windows)]
             env::set_var("LOCALAPPDATA", dir.path().join("AppData").join("Local"));
-=======
->>>>>>> origin/cc-switch-cli
             env::set_var("USERPROFILE", dir.path());
             env::set_var("CC_SWITCH_TEST_HOME", dir.path());
 
             Self {
                 dir,
                 original_home,
-<<<<<<< HEAD
                 #[cfg(windows)]
                 original_local_app_data,
-=======
->>>>>>> origin/cc-switch-cli
                 original_userprofile,
                 original_test_home,
             }
@@ -134,7 +116,6 @@ mod tests {
                 None => env::remove_var("HOME"),
             }
 
-<<<<<<< HEAD
             #[cfg(windows)]
             {
                 match &self.original_local_app_data {
@@ -143,8 +124,6 @@ mod tests {
                 }
             }
 
-=======
->>>>>>> origin/cc-switch-cli
             match &self.original_userprofile {
                 Some(value) => env::set_var("USERPROFILE", value),
                 None => env::remove_var("USERPROFILE"),
@@ -157,7 +136,6 @@ mod tests {
         }
     }
 
-<<<<<<< HEAD
     #[cfg(windows)]
     fn claude_desktop_profile_path(home: &Path) -> PathBuf {
         home.join("AppData")
@@ -176,8 +154,6 @@ mod tests {
             .join(format!("{PROFILE_ID}.json"))
     }
 
-=======
->>>>>>> origin/cc-switch-cli
     fn test_guard() -> std::sync::MutexGuard<'static, ()> {
         static LOCK: OnceLock<Mutex<()>> = OnceLock::new();
         LOCK.get_or_init(|| Mutex::new(()))
@@ -558,7 +534,6 @@ base_url = "http://localhost:8080"
             .expect("stop proxy service");
     }
 
-<<<<<<< HEAD
     #[cfg(any(target_os = "macos", windows))]
     #[tokio::test]
     #[serial]
@@ -675,8 +650,6 @@ base_url = "http://localhost:8080"
         );
     }
 
-=======
->>>>>>> origin/cc-switch-cli
     #[test]
     #[serial]
     fn rename_rejects_missing_original_provider() {
@@ -1439,7 +1412,6 @@ impl ProviderService {
                     .ok()
                     .flatten()
                     .is_some();
-<<<<<<< HEAD
             let live_taken_over = state
                 .proxy_service
                 .detect_takeover_in_live_config_for_app(&app_type);
@@ -1463,23 +1435,6 @@ impl ProviderService {
                 if matches!(app_type, AppType::Claude)
                     && futures::executor::block_on(state.proxy_service.is_running())
                 {
-=======
-            let is_proxy_running = futures::executor::block_on(state.proxy_service.is_running());
-            let live_taken_over = state
-                .proxy_service
-                .detect_takeover_in_live_config_for_app(&app_type);
-            let should_sync_via_proxy = is_proxy_running && (has_live_backup || live_taken_over);
-
-            if should_sync_via_proxy {
-                futures::executor::block_on(
-                    state
-                        .proxy_service
-                        .update_live_backup_from_provider(app_type.as_str(), &provider),
-                )
-                .map_err(|e| AppError::Message(format!("更新 Live 备份失败: {e}")))?;
-
-                if matches!(app_type, AppType::Claude) {
->>>>>>> origin/cc-switch-cli
                     futures::executor::block_on(
                         state
                             .proxy_service
@@ -1542,10 +1497,7 @@ impl ProviderService {
                 match app_type {
                     AppType::OpenCode => remove_opencode_provider_from_live(id)?,
                     AppType::OpenClaw => remove_openclaw_provider_from_live(id)?,
-<<<<<<< HEAD
                     AppType::Hermes => remove_hermes_provider_from_live(id)?,
-=======
->>>>>>> origin/cc-switch-cli
                     _ => {}
                 }
             }
@@ -1699,16 +1651,6 @@ impl ProviderService {
             ));
         }
 
-        // Block switching to official providers when proxy takeover is active.
-        // Using a proxy with official APIs (Anthropic/OpenAI/Google) may cause account bans.
-        if should_hot_switch && _provider.category.as_deref() == Some("official") {
-            return Err(AppError::localized(
-                "switch.official_blocked_by_proxy",
-                "代理接管模式下不能切换到官方供应商，使用代理访问官方 API 可能导致账号被封禁。请先关闭代理接管，或选择第三方供应商。",
-                "Cannot switch to official provider while proxy takeover is active. Using proxy with official APIs may cause account bans.",
-            ));
-        }
-
         if should_hot_switch {
             // Proxy takeover mode: hot-switch without restoring upstream Live config.
             // The proxy layer may still refresh proxy-safe Live fields so client labels
@@ -1722,21 +1664,12 @@ impl ProviderService {
             futures::executor::block_on(
                 state
                     .proxy_service
-<<<<<<< HEAD
                     .hot_switch_provider_inner(app_type.as_str(), id),
             )
             .map_err(|e| AppError::Message(format!("热切换失败: {e}")))?;
 
             // The proxy server will route requests to the new provider via is_current.
             // MCP sync is intentionally skipped while Live config is owned by takeover.
-=======
-                    .hot_switch_provider(app_type.as_str(), id),
-            )
-            .map_err(|e| AppError::Message(format!("热切换失败: {e}")))?;
-
-            // Note: No Live config write, no MCP sync
-            // The proxy server will route requests to the new provider via is_current
->>>>>>> origin/cc-switch-cli
             return Ok(SwitchResult::default());
         }
 
@@ -1821,7 +1754,6 @@ impl ProviderService {
         // Sync to live (write_gemini_live handles security flag internally for Gemini)
         write_live_with_common_config(state.db.as_ref(), &app_type, provider)?;
 
-<<<<<<< HEAD
         // Hermes is additive, so "switching" doesn't overwrite a live config file
         // — we instead update the top-level `model:` section to point at this
         // provider's first declared model. Without this, clicking "switch" would
@@ -1841,8 +1773,6 @@ impl ProviderService {
             }
         }
 
-=======
->>>>>>> origin/cc-switch-cli
         // For additive-mode providers that were DB-only (live_config_managed == Some(false)),
         // flip the flag to true now that the provider has been successfully written to the live
         // file. This ensures sync_all_providers_to_live() will include it on future syncs.
@@ -1857,10 +1787,7 @@ impl ProviderService {
                 let rollback_result = match app_type {
                     AppType::OpenCode => remove_opencode_provider_from_live(&provider.id),
                     AppType::OpenClaw => remove_openclaw_provider_from_live(&provider.id),
-<<<<<<< HEAD
                     AppType::Hermes => remove_hermes_provider_from_live(&provider.id),
-=======
->>>>>>> origin/cc-switch-cli
                     _ => Ok(()),
                 };
 
@@ -1911,14 +1838,6 @@ impl ProviderService {
             return Ok(());
         };
 
-<<<<<<< HEAD
-=======
-        let takeover_enabled =
-            futures::executor::block_on(state.db.get_proxy_config_for_app(app_type.as_str()))
-                .map(|config| config.enabled)
-                .unwrap_or(false);
-
->>>>>>> origin/cc-switch-cli
         let has_live_backup =
             futures::executor::block_on(state.db.get_live_backup(app_type.as_str()))
                 .ok()
@@ -1929,7 +1848,6 @@ impl ProviderService {
             .proxy_service
             .detect_takeover_in_live_config_for_app(&app_type);
 
-<<<<<<< HEAD
         // See the save path above: backup/placeholders are the ownership signal
         // here, not just proxy_config.enabled.
         if has_live_backup || live_taken_over {
@@ -1938,9 +1856,6 @@ impl ProviderService {
                 return Ok(());
             }
 
-=======
-        if takeover_enabled && (has_live_backup || live_taken_over) {
->>>>>>> origin/cc-switch-cli
             futures::executor::block_on(
                 state
                     .proxy_service

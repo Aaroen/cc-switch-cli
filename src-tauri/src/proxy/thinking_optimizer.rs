@@ -7,11 +7,7 @@ use serde_json::{json, Value};
 ///
 /// 三路径分发：
 /// - skip: haiku 模型直接跳过
-<<<<<<< HEAD
 /// - adaptive: opus-4-8 / opus-4-7 / opus-4-6 / sonnet-4-6 使用 adaptive thinking
-=======
-/// - adaptive: opus-4-6 / sonnet-4-6 使用 adaptive thinking
->>>>>>> origin/cc-switch-cli
 /// - legacy: 其他模型注入 enabled thinking + budget_tokens
 pub fn optimize(body: &mut Value, config: &OptimizerConfig) {
     if !config.thinking_optimizer {
@@ -28,11 +24,7 @@ pub fn optimize(body: &mut Value, config: &OptimizerConfig) {
         return;
     }
 
-<<<<<<< HEAD
     if uses_adaptive_thinking(&model) {
-=======
-    if model.contains("opus-4-6") || model.contains("sonnet-4-6") {
->>>>>>> origin/cc-switch-cli
         log::info!("[OPT] thinking: adaptive({model})");
         body["thinking"] = json!({"type": "adaptive"});
         body["output_config"] = json!({"effort": "max"});
@@ -81,7 +73,6 @@ pub fn optimize(body: &mut Value, config: &OptimizerConfig) {
     }
 }
 
-<<<<<<< HEAD
 fn uses_adaptive_thinking(model: &str) -> bool {
     let normalized = model.replace('.', "-");
     ["opus-4-8", "opus-4-7", "opus-4-6", "sonnet-4-6"]
@@ -92,23 +83,11 @@ fn uses_adaptive_thinking(model: &str) -> bool {
 /// 追加 beta 标识到 anthropic_beta 数组（去重）
 fn append_beta(body: &mut Value, beta: &str) {
     match body.get_mut("anthropic_beta") {
-=======
-/// 追加 beta 标识到 anthropic_beta 数组（去重）
-fn append_beta(body: &mut Value, beta: &str) {
-    match body.get("anthropic_beta") {
->>>>>>> origin/cc-switch-cli
         Some(Value::Array(arr)) => {
             if arr.iter().any(|v| v.as_str() == Some(beta)) {
                 return;
             }
-<<<<<<< HEAD
             arr.push(json!(beta));
-=======
-            body["anthropic_beta"]
-                .as_array_mut()
-                .unwrap()
-                .push(json!(beta));
->>>>>>> origin/cc-switch-cli
         }
         Some(Value::Null) | None => {
             body["anthropic_beta"] = json!([beta]);
@@ -143,7 +122,6 @@ mod tests {
     }
 
     #[test]
-<<<<<<< HEAD
     fn test_adaptive_opus_4_8() {
         let mut body = json!({
             "model": "anthropic/claude-opus-4.8",
@@ -162,8 +140,6 @@ mod tests {
     }
 
     #[test]
-=======
->>>>>>> origin/cc-switch-cli
     fn test_adaptive_opus_4_6() {
         let mut body = json!({
             "model": "anthropic.claude-opus-4-6-20250514-v1:0",

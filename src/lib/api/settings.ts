@@ -314,13 +314,6 @@ export interface OptimizerConfig {
   cacheTtl: string;
 }
 
-export interface OptimizerConfig {
-  enabled: boolean;
-  thinkingOptimizer: boolean;
-  cacheInjection: boolean;
-  cacheTtl: string;
-}
-
 export interface LogConfig {
   enabled: boolean;
   level: "error" | "warn" | "info" | "debug" | "trace";
