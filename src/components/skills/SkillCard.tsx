@@ -18,13 +18,10 @@ type SkillCardSkill = DiscoverableSkill & { installed: boolean };
 
 interface SkillCardProps {
   skill: SkillCardSkill;
-<<<<<<< HEAD
   onInstall: (key: string) => Promise<void>;
   onUninstall: (key: string) => Promise<void>;
-=======
   onInstall: (directory: string) => Promise<void>;
   onUninstall: (directory: string) => Promise<void>;
->>>>>>> origin/cc-switch-cli
   installs?: number;
 }
 

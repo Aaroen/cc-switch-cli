@@ -1,8 +1,5 @@
-<<<<<<< HEAD
 import { invoke } from "@/lib/api/transport";
-=======
 import { invoke } from "@tauri-apps/api/core";
->>>>>>> origin/cc-switch-cli
 
 export type ManagedAuthProvider = "github_copilot" | "codex_oauth";
 
@@ -13,10 +10,7 @@ export interface ManagedAuthAccount {
   avatar_url: string | null;
   authenticated_at: number;
   is_default: boolean;
-<<<<<<< HEAD
   github_domain: string;
-=======
->>>>>>> origin/cc-switch-cli
 }
 
 export interface ManagedAuthStatus {
@@ -38,35 +32,26 @@ export interface ManagedAuthDeviceCodeResponse {
 
 export async function authStartLogin(
   authProvider: ManagedAuthProvider,
-<<<<<<< HEAD
   githubDomain?: string,
 ): Promise<ManagedAuthDeviceCodeResponse> {
   return invoke<ManagedAuthDeviceCodeResponse>("auth_start_login", {
     authProvider,
     githubDomain: githubDomain || null,
-=======
 ): Promise<ManagedAuthDeviceCodeResponse> {
   return invoke<ManagedAuthDeviceCodeResponse>("auth_start_login", {
     authProvider,
->>>>>>> origin/cc-switch-cli
   });
 }
 
 export async function authPollForAccount(
   authProvider: ManagedAuthProvider,
   deviceCode: string,
-<<<<<<< HEAD
   githubDomain?: string,
-=======
->>>>>>> origin/cc-switch-cli
 ): Promise<ManagedAuthAccount | null> {
   return invoke<ManagedAuthAccount | null>("auth_poll_for_account", {
     authProvider,
     deviceCode,
-<<<<<<< HEAD
     githubDomain: githubDomain || null,
-=======
->>>>>>> origin/cc-switch-cli
   });
 }
 

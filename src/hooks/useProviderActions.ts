@@ -75,10 +75,7 @@ export function useProviderActions(
         providerKey?: string;
         suggestedDefaults?: OpenClawSuggestedDefaults;
         addToLive?: boolean;
-<<<<<<< HEAD
         ensureClaudeDesktopOfficialSeed?: boolean;
-=======
->>>>>>> origin/cc-switch-cli
       },
     ) => {
       const enhanced = injectCodingPlanUsageScript(activeApp, provider);
@@ -157,7 +154,6 @@ export function useProviderActions(
       const isCopilotProvider =
         activeApp === "claude" &&
         provider.meta?.providerType === "github_copilot";
-<<<<<<< HEAD
       const isCodexChatFormat =
         activeApp === "codex" &&
         (provider.meta?.apiFormat === "openai_chat" ||
@@ -168,8 +164,6 @@ export function useProviderActions(
                 (provider.settingsConfig as Record<string, any>).config,
               ),
             )));
-=======
->>>>>>> origin/cc-switch-cli
 
       // Determine why this provider requires the proxy
       let proxyRequiredReason: string | null = null;
@@ -192,7 +186,6 @@ export function useProviderActions(
           proxyRequiredReason = t("notifications.proxyReasonOpenAIResponses", {
             defaultValue: "使用 OpenAI Responses 接口格式",
           });
-<<<<<<< HEAD
         } else if (isCodexChatFormat) {
           proxyRequiredReason = t("notifications.proxyReasonOpenAIChat", {
             defaultValue: "使用 OpenAI Chat 接口格式",
@@ -204,8 +197,6 @@ export function useProviderActions(
           proxyRequiredReason = t("notifications.proxyReasonClaudeDesktop", {
             defaultValue: "使用 Claude Desktop 本地路由模式",
           });
-=======
->>>>>>> origin/cc-switch-cli
         } else if (
           provider.meta?.isFullUrl &&
           (activeApp === "claude" || activeApp === "codex")
@@ -255,7 +246,6 @@ export function useProviderActions(
 
         // 若已弹过 proxyRequired 警告则不再弹 success
         if (!proxyRequiredReason) {
-<<<<<<< HEAD
           let messageKey = "notifications.switchSuccess";
           let defaultMessage = "切换成功！";
           if (activeApp === "codex") {
@@ -274,7 +264,6 @@ export function useProviderActions(
             messageKey = "notifications.addToConfigSuccess";
             defaultMessage = "已添加到配置";
           }
-=======
           // OpenCode/OpenClaw: show "added to config" message instead of "switched"
           const isMultiProviderApp =
             activeApp === "opencode" || activeApp === "openclaw";
@@ -285,7 +274,6 @@ export function useProviderActions(
             ? "已添加到配置"
             : "切换成功！";
 
->>>>>>> origin/cc-switch-cli
           toast.success(t(messageKey, { defaultValue: defaultMessage }), {
             closeButton: true,
           });

@@ -5,11 +5,8 @@
  * 支持多账号管理。
  */
 
-<<<<<<< HEAD
 import { invoke } from "@/lib/api/transport";
-=======
 import { invoke } from "@tauri-apps/api/core";
->>>>>>> origin/cc-switch-cli
 
 /**
  * GitHub 设备码响应
@@ -34,11 +31,8 @@ export interface GitHubAccount {
   avatar_url: string | null;
   /** 认证时间戳（Unix 秒） */
   authenticated_at: number;
-<<<<<<< HEAD
   /** GitHub 域名（github.com 或 GHES 域名） */
   github_domain: string;
-=======
->>>>>>> origin/cc-switch-cli
 }
 
 /**

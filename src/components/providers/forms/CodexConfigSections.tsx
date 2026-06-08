@@ -1,9 +1,6 @@
-<<<<<<< HEAD
 // NOTE: Codex 1M 上下文 UI 已暂时隐藏（详见下方 CodexConfigSection 内 JSX 注释）。
 // 如需恢复，请同时：
 //   - 取消下面 `@/utils/providerConfigUtils` import 的注释
-=======
->>>>>>> origin/cc-switch-cli
 import React, {
   useCallback,
   useEffect,
@@ -14,7 +11,6 @@ import React, {
 import { useTranslation } from "react-i18next";
 import JsonEditor from "@/components/JsonEditor";
 import {
-<<<<<<< HEAD
   isCodexGoalModeEnabled,
   isCodexRemoteCompactionEnabled,
   setCodexGoalMode,
@@ -22,16 +18,11 @@ import {
 } from "@/utils/providerConfigUtils";
 /*
 import {
-=======
->>>>>>> origin/cc-switch-cli
   extractCodexTopLevelInt,
   setCodexTopLevelInt,
   removeCodexTopLevelField,
 } from "@/utils/providerConfigUtils";
-<<<<<<< HEAD
 */
-=======
->>>>>>> origin/cc-switch-cli
 
 interface CodexAuthSectionProps {
   value: string;
@@ -176,7 +167,6 @@ export const CodexConfigSection: React.FC<CodexConfigSectionProps> = ({
     [onChange],
   );
 
-<<<<<<< HEAD
   const goalModeEnabled = useMemo(
     () => isCodexGoalModeEnabled(localValue),
     [localValue],
@@ -208,8 +198,6 @@ export const CodexConfigSection: React.FC<CodexConfigSectionProps> = ({
 
   // Codex 1M 上下文相关状态/回调暂时禁用——见同文件下方 JSX 注释处的恢复说明。
   /*
-=======
->>>>>>> origin/cc-switch-cli
   // Parse toggle states from TOML text
   const toggleStates = useMemo(() => {
     const contextWindow = extractCodexTopLevelInt(
@@ -277,10 +265,7 @@ export const CodexConfigSection: React.FC<CodexConfigSectionProps> = ({
   useEffect(() => {
     return () => clearTimeout(compactTimerRef.current);
   }, []);
-<<<<<<< HEAD
   */
-=======
->>>>>>> origin/cc-switch-cli
 
   return (
     <div className="space-y-2">
@@ -346,11 +331,8 @@ export const CodexConfigSection: React.FC<CodexConfigSectionProps> = ({
         </p>
       )}
 
-<<<<<<< HEAD
       {/* Codex 1M 上下文 UI 已隐藏：模型不再支持该字段。
           恢复方法：(1) 取消本段 JSX 注释；(2) 取消文件顶部 import 中 useMemo / extractCodexTopLevelInt / setCodexTopLevelInt / removeCodexTopLevelField 的注释；(3) 取消下方 toggleStates / compactTimerRef / handleContextWindowToggle / handleCompactLimitChange / cleanup useEffect 的注释。
-=======
->>>>>>> origin/cc-switch-cli
       <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
         <label className="inline-flex items-center gap-2 text-sm text-muted-foreground cursor-pointer">
           <input
@@ -375,10 +357,7 @@ export const CodexConfigSection: React.FC<CodexConfigSectionProps> = ({
           />
         </label>
       </div>
-<<<<<<< HEAD
       */}
-=======
->>>>>>> origin/cc-switch-cli
 
       <JsonEditor
         value={localValue}

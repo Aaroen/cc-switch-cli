@@ -1,8 +1,5 @@
-<<<<<<< HEAD
 import { invoke } from "@/lib/api/transport";
-=======
 import { invoke } from "@tauri-apps/api/core";
->>>>>>> origin/cc-switch-cli
 import type { TFunction } from "i18next";
 import { toast } from "sonner";
 
@@ -14,19 +11,15 @@ export interface FetchedModel {
 /**
  * 从供应商获取可用模型列表
  *
-<<<<<<< HEAD
  * 使用 OpenAI 兼容的 GET /v1/models 端点。优先用 `modelsUrl` 精确覆写；
  * 否则后端会对 baseURL 生成候选列表并按序尝试（含"剥离 /anthropic 等兼容子路径"兜底）。
-=======
  * 使用 OpenAI 兼容的 GET /v1/models 端点。
  * 主要面向第三方聚合站（硅基流动、OpenRouter 等）。
->>>>>>> origin/cc-switch-cli
  */
 export async function fetchModelsForConfig(
   baseUrl: string,
   apiKey: string,
   isFullUrl?: boolean,
-<<<<<<< HEAD
   modelsUrl?: string,
 ): Promise<FetchedModel[]> {
   return invoke("fetch_models_for_config", {
@@ -48,10 +41,8 @@ export async function fetchCodexOauthModels(
   return invoke("get_codex_oauth_models", {
     accountId: accountId || null,
   });
-=======
 ): Promise<FetchedModel[]> {
   return invoke("fetch_models_for_config", { baseUrl, apiKey, isFullUrl });
->>>>>>> origin/cc-switch-cli
 }
 
 /**
@@ -83,7 +74,6 @@ export function showFetchModelsError(
     toast.error(t("providerForm.fetchModelsAuthFailed"));
     return;
   }
-<<<<<<< HEAD
   // 所有候选端点均返回 404/405：供应商可能未开放 /models 接口，或 Base URL 有误
   if (msg.includes("All candidates failed")) {
     toast.error(t("providerForm.fetchModelsEndpointNotFound"));
@@ -91,10 +81,8 @@ export function showFetchModelsError(
   }
   if (msg.includes("HTTP 404") || msg.includes("HTTP 405")) {
     toast.error(t("providerForm.fetchModelsEndpointNotFound"));
-=======
   if (msg.includes("HTTP 404") || msg.includes("HTTP 405")) {
     toast.error(t("providerForm.fetchModelsNotSupported"));
->>>>>>> origin/cc-switch-cli
     return;
   }
   if (msg.includes("timeout") || msg.includes("timed out")) {

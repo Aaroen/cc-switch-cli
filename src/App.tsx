@@ -40,11 +40,8 @@ import {
 import { checkAllEnvConflicts, checkEnvConflicts } from "@/lib/api/env";
 import { useProviderActions } from "@/hooks/useProviderActions";
 import { openclawKeys, useOpenClawHealth } from "@/hooks/useOpenClaw";
-<<<<<<< HEAD
 import { hermesKeys, useOpenHermesWebUI } from "@/hooks/useHermes";
 import { hermesApi } from "@/lib/api/hermes";
-=======
->>>>>>> origin/cc-switch-cli
 import { useProxyStatus } from "@/hooks/useProxyStatus";
 import { useAutoCompact } from "@/hooks/useAutoCompact";
 import { useUsageCacheBridge } from "@/hooks/useUsageCacheBridge";
@@ -60,10 +57,7 @@ import {
   DRAG_REGION_ATTR,
   DRAG_REGION_STYLE,
 } from "@/lib/platform";
-<<<<<<< HEAD
 import { isTauri } from "@/lib/platform/isTauri";
-=======
->>>>>>> origin/cc-switch-cli
 import { AppSwitcher } from "@/components/AppSwitcher";
 import { ProviderList } from "@/components/providers/ProviderList";
 import { AddProviderDialog } from "@/components/providers/AddProviderDialog";
@@ -96,10 +90,7 @@ import EnvPanel from "@/components/openclaw/EnvPanel";
 import ToolsPanel from "@/components/openclaw/ToolsPanel";
 import AgentsDefaultsPanel from "@/components/openclaw/AgentsDefaultsPanel";
 import OpenClawHealthBanner from "@/components/openclaw/OpenClawHealthBanner";
-<<<<<<< HEAD
 import HermesMemoryPanel from "@/components/hermes/HermesMemoryPanel";
-=======
->>>>>>> origin/cc-switch-cli
 
 type View =
   | "providers"
@@ -189,11 +180,8 @@ function App() {
 
   const { data: settingsData } = useSettingsQuery();
   const useAppWindowControls =
-<<<<<<< HEAD
     isTauri() && isLinux() && (settingsData?.useAppWindowControls ?? false);
-=======
     isLinux() && (settingsData?.useAppWindowControls ?? false);
->>>>>>> origin/cc-switch-cli
   const dragBarHeight = useAppWindowControls ? 32 : DEFAULT_DRAG_BAR_HEIGHT;
   const contentTopOffset = dragBarHeight + HEADER_HEIGHT;
   const visibleApps: VisibleApps = settingsData?.visibleApps ?? {
@@ -290,11 +278,8 @@ function App() {
       currentView === "openclawAgents");
   const { data: openclawHealthWarnings = [] } =
     useOpenClawHealth(isOpenClawView);
-<<<<<<< HEAD
   const hasSkillsSupport = sharedFeatureApp !== "openclaw";
-=======
   const hasSkillsSupport = true;
->>>>>>> origin/cc-switch-cli
   const hasSessionSupport =
     sharedFeatureApp === "claude" ||
     sharedFeatureApp === "codex" ||
@@ -718,13 +703,10 @@ function App() {
         await queryClient.invalidateQueries({
           queryKey: openclawKeys.health,
         });
-<<<<<<< HEAD
       } else if (activeApp === "hermes") {
         await queryClient.invalidateQueries({
           queryKey: hermesKeys.liveProviderIds,
         });
-=======
->>>>>>> origin/cc-switch-cli
       }
       toast.success(
         t("notifications.removeFromConfigSuccess", {
@@ -773,15 +755,12 @@ function App() {
       iconColor: provider.iconColor,
     };
 
-<<<<<<< HEAD
     if (
       activeApp === "opencode" ||
       activeApp === "openclaw" ||
       activeApp === "hermes"
     ) {
-=======
     if (activeApp === "opencode" || activeApp === "openclaw") {
->>>>>>> origin/cc-switch-cli
       let liveProviderIds: string[] = [];
       try {
         liveProviderIds =
@@ -790,7 +769,6 @@ function App() {
                 queryKey: ["opencodeLiveProviderIds"],
                 queryFn: () => providersApi.getOpenCodeLiveProviderIds(),
               })
-<<<<<<< HEAD
             : activeApp === "openclaw"
               ? await queryClient.ensureQueryData({
                   queryKey: openclawKeys.liveProviderIds,
@@ -800,12 +778,10 @@ function App() {
                   queryKey: hermesKeys.liveProviderIds,
                   queryFn: () => providersApi.getHermesLiveProviderIds(),
                 });
-=======
             : await queryClient.ensureQueryData({
                 queryKey: openclawKeys.liveProviderIds,
                 queryFn: () => providersApi.getOpenClawLiveProviderIds(),
               });
->>>>>>> origin/cc-switch-cli
       } catch (error) {
         console.error(
           "[App] Failed to load live provider IDs for duplication",
@@ -973,26 +949,20 @@ function App() {
             <UnifiedSkillsPanel
               ref={unifiedSkillsPanelRef}
               onOpenDiscovery={() => setCurrentView("skillsDiscovery")}
-<<<<<<< HEAD
               currentApp={
                 sharedFeatureApp === "openclaw" ? "claude" : sharedFeatureApp
               }
-=======
               currentApp={activeApp === "openclaw" ? "claude" : activeApp}
->>>>>>> origin/cc-switch-cli
             />
           );
         case "skillsDiscovery":
           return (
             <SkillsPage
               ref={skillsPageRef}
-<<<<<<< HEAD
               initialApp={
                 sharedFeatureApp === "openclaw" ? "claude" : sharedFeatureApp
               }
-=======
               initialApp={activeApp === "openclaw" ? "claude" : activeApp}
->>>>>>> origin/cc-switch-cli
             />
           );
         case "mcp":
@@ -1115,11 +1085,8 @@ function App() {
 
   return (
     <div
-<<<<<<< HEAD
       className="flex flex-col h-screen overflow-hidden bg-background text-foreground selection:bg-primary/30 pb-4"
-=======
       className="flex flex-col h-screen overflow-hidden bg-background text-foreground selection:bg-primary/30"
->>>>>>> origin/cc-switch-cli
       style={{ overflowX: "hidden", paddingTop: contentTopOffset }}
     >
       {(dragBarHeight > 0 || useAppWindowControls) && (
@@ -1260,11 +1227,8 @@ function App() {
               <div className="flex items-center gap-2">
                 <div className="relative inline-flex items-center">
                   <a
-<<<<<<< HEAD
                     href="https://ccswitch.io"
-=======
                     href="https://github.com/Aaroen/cc-switch-cli"
->>>>>>> origin/cc-switch-cli
                     target="_blank"
                     rel="noreferrer"
                     className={cn(
@@ -1318,17 +1282,13 @@ function App() {
           <div className="flex flex-1 min-w-0 items-center justify-end gap-1.5">
             {currentView === "providers" &&
               activeApp !== "opencode" &&
-<<<<<<< HEAD
               activeApp !== "openclaw" &&
               activeApp !== "hermes" && (
-=======
               activeApp !== "openclaw" && (
->>>>>>> origin/cc-switch-cli
                 <div
                   className="flex shrink-0 items-center gap-1.5"
                   style={{ WebkitAppRegion: "no-drag" } as any}
                 >
-<<<<<<< HEAD
                   {activeApp === "claude-desktop" ? (
                     <ClaudeDesktopRouteToggle />
                   ) : (
@@ -1340,14 +1300,12 @@ function App() {
                     settingsData?.enableFailoverToggle && (
                       <FailoverToggle activeApp={activeApp} />
                     )}
-=======
                   {settingsData?.enableLocalProxy && (
                     <ProxyToggle activeApp={activeApp} />
                   )}
                   {settingsData?.enableFailoverToggle && (
                     <FailoverToggle activeApp={activeApp} />
                   )}
->>>>>>> origin/cc-switch-cli
                 </div>
               )}
             <div

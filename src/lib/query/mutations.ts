@@ -19,10 +19,7 @@ export const useAddProviderMutation = (appId: AppId) => {
       providerInput: Omit<Provider, "id"> & {
         providerKey?: string;
         addToLive?: boolean;
-<<<<<<< HEAD
         ensureClaudeDesktopOfficialSeed?: boolean;
-=======
->>>>>>> origin/cc-switch-cli
       },
     ) => {
       const {
@@ -61,11 +58,8 @@ export const useAddProviderMutation = (appId: AppId) => {
         id = generateUUID();
       }
 
-<<<<<<< HEAD
-=======
       const { providerKey: _providerKey, addToLive, ...rest } = providerInput;
 
->>>>>>> origin/cc-switch-cli
       const newProvider: Provider = {
         ...rest,
         id,
@@ -100,13 +94,10 @@ export const useAddProviderMutation = (appId: AppId) => {
         });
       }
 
-<<<<<<< HEAD
       if (appId === "hermes") {
         await invalidateHermesProviderCaches(queryClient);
       }
 
-=======
->>>>>>> origin/cc-switch-cli
       try {
         await providersApi.updateTrayMenu();
       } catch (trayError) {
@@ -159,12 +150,9 @@ export const useUpdateProviderMutation = (appId: AppId) => {
           queryKey: openclawKeys.health,
         });
       }
-<<<<<<< HEAD
       if (appId === "hermes") {
         await invalidateHermesProviderCaches(queryClient);
       }
-=======
->>>>>>> origin/cc-switch-cli
       toast.success(
         t("notifications.updateSuccess", {
           defaultValue: "供应商更新成功",
@@ -218,13 +206,10 @@ export const useDeleteProviderMutation = (appId: AppId) => {
         });
       }
 
-<<<<<<< HEAD
       if (appId === "hermes") {
         await invalidateHermesProviderCaches(queryClient);
       }
 
-=======
->>>>>>> origin/cc-switch-cli
       try {
         await providersApi.updateTrayMenu();
       } catch (trayError) {
@@ -294,12 +279,9 @@ export const useSwitchProviderMutation = (appId: AppId) => {
         await queryClient.invalidateQueries({
           queryKey: openclawKeys.health,
         });
-<<<<<<< HEAD
       }
       if (appId === "hermes") {
         await invalidateHermesProviderCaches(queryClient);
-=======
->>>>>>> origin/cc-switch-cli
       }
 
       try {

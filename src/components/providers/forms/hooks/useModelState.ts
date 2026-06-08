@@ -41,14 +41,11 @@ function parseModelsFromConfig(settingsConfig: string) {
     const env = cfg?.env || {};
     const model =
       typeof env.ANTHROPIC_MODEL === "string" ? env.ANTHROPIC_MODEL : "";
-<<<<<<< HEAD
-=======
     const explicitReasoning =
       typeof env.ANTHROPIC_REASONING_MODEL === "string"
         ? env.ANTHROPIC_REASONING_MODEL
         : "";
     const reasoning = explicitReasoning || model;
->>>>>>> origin/cc-switch-cli
     const small =
       typeof env.ANTHROPIC_SMALL_FAST_MODEL === "string"
         ? env.ANTHROPIC_SMALL_FAST_MODEL
@@ -134,7 +131,6 @@ export function useModelState({
     }
     lastConfigRef.current = settingsConfig;
 
-<<<<<<< HEAD
     const parsed = parseModelsFromConfig(settingsConfig);
     setClaudeModel(parsed.model);
     setDefaultHaikuModel(parsed.haiku);
@@ -143,7 +139,6 @@ export function useModelState({
     setDefaultSonnetModelName(parsed.sonnetName);
     setDefaultOpusModel(parsed.opus);
     setDefaultOpusModelName(parsed.opusName);
-=======
     try {
       const cfg = settingsConfig ? JSON.parse(settingsConfig) : {};
       const env = cfg?.env || {};
@@ -179,7 +174,6 @@ export function useModelState({
     } catch {
       // ignore
     }
->>>>>>> origin/cc-switch-cli
   }, [settingsConfig]);
 
   const handleModelChange = useCallback(

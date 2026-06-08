@@ -25,7 +25,6 @@ export interface OpenTerminalOptions {
   cwd?: string;
 }
 
-<<<<<<< HEAD
 export interface ClaudeDesktopStatus {
   supported: boolean;
   configured: boolean;
@@ -47,8 +46,6 @@ export interface ClaudeDesktopDefaultRoute {
   supports1m: boolean;
 }
 
-=======
->>>>>>> origin/cc-switch-cli
 export const providersApi = {
   async getAll(appId: AppId): Promise<Record<string, Provider>> {
     return await invoke("get_providers", { app: appId });

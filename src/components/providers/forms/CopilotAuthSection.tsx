@@ -3,10 +3,7 @@ import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
-<<<<<<< HEAD
 import { Input } from "@/components/ui/input";
-=======
->>>>>>> origin/cc-switch-cli
 import {
   Select,
   SelectContent,
@@ -49,7 +46,6 @@ export const CopilotAuthSection: React.FC<CopilotAuthSectionProps> = ({
 }) => {
   const { t } = useTranslation();
   const [copied, setCopied] = React.useState(false);
-<<<<<<< HEAD
   const [deploymentType, setDeploymentType] = React.useState<
     "github.com" | "enterprise"
   >("github.com");
@@ -63,8 +59,6 @@ export const CopilotAuthSection: React.FC<CopilotAuthSectionProps> = ({
           .replace(/^https?:\/\//, "")
           .replace(/\/$/, "")
       : undefined;
-=======
->>>>>>> origin/cc-switch-cli
 
   const {
     accounts,
@@ -83,11 +77,8 @@ export const CopilotAuthSection: React.FC<CopilotAuthSectionProps> = ({
     setDefaultAccount,
     cancelAuth,
     logout,
-<<<<<<< HEAD
   } = useCopilotAuth(effectiveGithubDomain);
-=======
   } = useCopilotAuth();
->>>>>>> origin/cc-switch-cli
 
   // 复制用户码
   const copyUserCode = async () => {
@@ -137,7 +128,6 @@ export const CopilotAuthSection: React.FC<CopilotAuthSectionProps> = ({
         </Badge>
       </div>
 
-<<<<<<< HEAD
       {/* GitHub 部署类型选择 */}
       <div className="space-y-2">
         <Label className="text-sm text-muted-foreground">
@@ -173,8 +163,6 @@ export const CopilotAuthSection: React.FC<CopilotAuthSectionProps> = ({
         )}
       </div>
 
-=======
->>>>>>> origin/cc-switch-cli
       {migrationError && (
         <p className="text-sm text-amber-600 dark:text-amber-400">
           {t("copilot.migrationFailed", {
@@ -241,15 +229,12 @@ export const CopilotAuthSection: React.FC<CopilotAuthSectionProps> = ({
                       {t("copilot.defaultAccount", "默认")}
                     </Badge>
                   )}
-<<<<<<< HEAD
                   {account.github_domain &&
                     account.github_domain !== "github.com" && (
                       <Badge variant="outline" className="text-xs">
                         {account.github_domain}
                       </Badge>
                     )}
-=======
->>>>>>> origin/cc-switch-cli
                   {selectedAccountId === account.id && (
                     <Badge variant="outline" className="text-xs">
                       {t("copilot.selected", "已选中")}
@@ -294,10 +279,7 @@ export const CopilotAuthSection: React.FC<CopilotAuthSectionProps> = ({
           onClick={addAccount}
           className="w-full"
           variant="outline"
-<<<<<<< HEAD
           disabled={deploymentType === "enterprise" && !enterpriseDomain.trim()}
-=======
->>>>>>> origin/cc-switch-cli
         >
           <Github className="mr-2 h-4 w-4" />
           {t("copilot.loginWithGitHub", "使用 GitHub 登录")}
@@ -311,14 +293,11 @@ export const CopilotAuthSection: React.FC<CopilotAuthSectionProps> = ({
           onClick={addAccount}
           className="w-full"
           variant="outline"
-<<<<<<< HEAD
           disabled={
             isAddingAccount ||
             (deploymentType === "enterprise" && !enterpriseDomain.trim())
           }
-=======
           disabled={isAddingAccount}
->>>>>>> origin/cc-switch-cli
         >
           <Plus className="mr-2 h-4 w-4" />
           {t("copilot.addAnotherAccount", "添加其他账号")}

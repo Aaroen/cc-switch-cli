@@ -101,11 +101,8 @@ export const openclawProviderPresets: OpenClawProviderPreset[] = [
   {
     name: "Shengsuanyun",
     nameKey: "providerForm.presets.shengsuanyun",
-<<<<<<< HEAD
     websiteUrl: "https://www.shengsuanyun.com/?from=CH_4HHXMRYF",
-=======
     websiteUrl: "https://www.shengsuanyun.com",
->>>>>>> origin/cc-switch-cli
     apiKeyUrl: "https://www.shengsuanyun.com/?from=CH_4HHXMRYF",
     settingsConfig: {
       baseUrl: "https://router.shengsuanyun.com/api",
@@ -113,22 +110,16 @@ export const openclawProviderPresets: OpenClawProviderPreset[] = [
       api: "anthropic-messages",
       models: [
         {
-<<<<<<< HEAD
           id: "anthropic/claude-opus-4.8",
           name: "Claude Opus 4.8",
-=======
           id: "claude-opus-4-6",
           name: "Claude Opus 4.6",
->>>>>>> origin/cc-switch-cli
           contextWindow: 1000000,
           cost: { input: 5, output: 25 },
         },
         {
-<<<<<<< HEAD
           id: "anthropic/claude-sonnet-4.6",
-=======
           id: "claude-sonnet-4-6",
->>>>>>> origin/cc-switch-cli
           name: "Claude Sonnet 4.6",
           contextWindow: 1000000,
           cost: { input: 3, output: 15 },
@@ -148,7 +139,6 @@ export const openclawProviderPresets: OpenClawProviderPreset[] = [
     },
     suggestedDefaults: {
       model: {
-<<<<<<< HEAD
         primary: "shengsuanyun/anthropic/claude-opus-4.8",
         fallbacks: ["shengsuanyun/anthropic/claude-sonnet-4.6"],
       },
@@ -267,14 +257,12 @@ export const openclawProviderPresets: OpenClawProviderPreset[] = [
       model: { primary: "doubaoseed/doubao-seed-2-0-code-preview-latest" },
       modelCatalog: {
         "doubaoseed/doubao-seed-2-0-code-preview-latest": { alias: "DouBao" },
-=======
         primary: "shengsuanyun/claude-opus-4-6",
         fallbacks: ["shengsuanyun/claude-sonnet-4-6"],
       },
       modelCatalog: {
         "shengsuanyun/claude-opus-4-6": { alias: "Opus" },
         "shengsuanyun/claude-sonnet-4-6": { alias: "Sonnet" },
->>>>>>> origin/cc-switch-cli
       },
     },
   },
@@ -515,7 +503,6 @@ export const openclawProviderPresets: OpenClawProviderPreset[] = [
   },
   {
     name: "StepFun",
-<<<<<<< HEAD
     websiteUrl: "https://platform.stepfun.com/step-plan",
     apiKeyUrl: "https://platform.stepfun.com/interface-key",
     settingsConfig: {
@@ -565,24 +552,19 @@ export const openclawProviderPresets: OpenClawProviderPreset[] = [
     apiKeyUrl: "https://platform.stepfun.ai/interface-key",
     settingsConfig: {
       baseUrl: "https://api.stepfun.ai/step_plan/v1",
-=======
     websiteUrl: "https://platform.stepfun.ai",
     apiKeyUrl: "https://platform.stepfun.ai/interface-key",
     settingsConfig: {
       baseUrl: "https://api.stepfun.ai/v1",
->>>>>>> origin/cc-switch-cli
       apiKey: "",
       api: "openai-completions",
       models: [
         {
-<<<<<<< HEAD
           id: "step-3.5-flash-2603",
           name: "Step 3.5 Flash 2603",
           contextWindow: 262144,
         },
         {
-=======
->>>>>>> origin/cc-switch-cli
           id: "step-3.5-flash",
           name: "Step 3.5 Flash",
           contextWindow: 262144,
@@ -591,21 +573,18 @@ export const openclawProviderPresets: OpenClawProviderPreset[] = [
     },
     category: "cn_official",
     icon: "stepfun",
-<<<<<<< HEAD
     iconColor: "#16D6D2",
     templateValues: {
       baseUrl: {
         label: "Base URL",
         placeholder: "https://api.stepfun.ai/step_plan/v1",
         defaultValue: "https://api.stepfun.ai/step_plan/v1",
-=======
     iconColor: "#005AFF",
     templateValues: {
       baseUrl: {
         label: "Base URL",
         placeholder: "https://api.stepfun.ai/v1",
         defaultValue: "https://api.stepfun.ai/v1",
->>>>>>> origin/cc-switch-cli
         editorValue: "",
       },
       apiKey: {
@@ -615,16 +594,13 @@ export const openclawProviderPresets: OpenClawProviderPreset[] = [
       },
     },
     suggestedDefaults: {
-<<<<<<< HEAD
       model: { primary: "stepfun-en/step-3.5-flash-2603" },
       modelCatalog: {
         "stepfun-en/step-3.5-flash-2603": { alias: "StepFun" },
         "stepfun-en/step-3.5-flash": { alias: "StepFun Flash" },
       },
-=======
       model: { primary: "stepfun/step-3.5-flash" },
       modelCatalog: { "stepfun/step-3.5-flash": { alias: "StepFun" } },
->>>>>>> origin/cc-switch-cli
     },
   },
   {
@@ -826,7 +802,6 @@ export const openclawProviderPresets: OpenClawProviderPreset[] = [
       api: "openai-completions",
       models: [
         {
-<<<<<<< HEAD
           id: "mimo-v2.5-pro",
           name: "MiMo V2.5 Pro",
           reasoning: true,
@@ -834,12 +809,10 @@ export const openclawProviderPresets: OpenClawProviderPreset[] = [
           contextWindow: 1048576,
           maxTokens: 131072,
           cost: { input: 1, output: 3, cacheRead: 0.2, cacheWrite: 0 },
-=======
           id: "mimo-v2-pro",
           name: "MiMo V2 Pro",
           contextWindow: 128000,
           cost: { input: 0.001, output: 0.004 },
->>>>>>> origin/cc-switch-cli
         },
       ],
     },
@@ -854,7 +827,6 @@ export const openclawProviderPresets: OpenClawProviderPreset[] = [
       },
     },
     suggestedDefaults: {
-<<<<<<< HEAD
       model: { primary: "xiaomimimo/mimo-v2.5-pro" },
       modelCatalog: { "xiaomimimo/mimo-v2.5-pro": { alias: "MiMo" } },
     },
@@ -906,10 +878,8 @@ export const openclawProviderPresets: OpenClawProviderPreset[] = [
           alias: "MiMo Token Plan (China) Multimodal",
         },
       },
-=======
       model: { primary: "xiaomimimo/mimo-v2-pro" },
       modelCatalog: { "xiaomimimo/mimo-v2-pro": { alias: "MiMo" } },
->>>>>>> origin/cc-switch-cli
     },
   },
 
@@ -924,13 +894,10 @@ export const openclawProviderPresets: OpenClawProviderPreset[] = [
       api: "anthropic-messages",
       models: [
         {
-<<<<<<< HEAD
           id: "claude-opus-4-8",
           name: "Claude Opus 4.8",
-=======
           id: "claude-opus-4-6",
           name: "Claude Opus 4.6",
->>>>>>> origin/cc-switch-cli
           contextWindow: 1000000,
           cost: { input: 5, output: 25 },
         },
@@ -1014,13 +981,10 @@ export const openclawProviderPresets: OpenClawProviderPreset[] = [
       api: "anthropic-messages",
       models: [
         {
-<<<<<<< HEAD
           id: "claude-opus-4-8",
           name: "Claude Opus 4.8",
-=======
           id: "claude-opus-4-6",
           name: "Claude Opus 4.6",
->>>>>>> origin/cc-switch-cli
           contextWindow: 1000000,
           cost: { input: 5, output: 25 },
         },
@@ -1159,13 +1123,10 @@ export const openclawProviderPresets: OpenClawProviderPreset[] = [
       api: "openai-completions",
       models: [
         {
-<<<<<<< HEAD
           id: "anthropic/claude-opus-4.8",
           name: "Claude Opus 4.8",
-=======
           id: "anthropic/claude-opus-4.6",
           name: "Claude Opus 4.6",
->>>>>>> origin/cc-switch-cli
           contextWindow: 1000000,
           cost: { input: 5, output: 25 },
         },
@@ -1226,17 +1187,14 @@ export const openclawProviderPresets: OpenClawProviderPreset[] = [
           cost: { input: 1.75, output: 14, cacheRead: 0.175 },
         },
         {
-<<<<<<< HEAD
           id: "google/gemini-3.5-flash",
           name: "Gemini 3.5 Flash",
           contextWindow: 1000000,
           cost: { input: 1.5, output: 9, cacheRead: 0.15 },
-=======
           id: "google/gemini-3-flash-preview",
           name: "Gemini 3 Flash Preview",
           contextWindow: 1000000,
           cost: { input: 0.5, output: 3, cacheRead: 0.05 },
->>>>>>> origin/cc-switch-cli
         },
         {
           id: "qwen/qwen3-coder-480b",
@@ -1259,21 +1217,15 @@ export const openclawProviderPresets: OpenClawProviderPreset[] = [
         primary: "therouter/anthropic/claude-sonnet-4.6",
         fallbacks: [
           "therouter/openai/gpt-5.2",
-<<<<<<< HEAD
           "therouter/google/gemini-3.5-flash",
-=======
           "therouter/google/gemini-3-flash-preview",
->>>>>>> origin/cc-switch-cli
         ],
       },
       modelCatalog: {
         "therouter/anthropic/claude-sonnet-4.6": { alias: "Sonnet" },
         "therouter/openai/gpt-5.2": { alias: "GPT-5.2" },
-<<<<<<< HEAD
         "therouter/google/gemini-3.5-flash": { alias: "Gemini Flash" },
-=======
         "therouter/google/gemini-3-flash-preview": { alias: "Gemini Flash" },
->>>>>>> origin/cc-switch-cli
         "therouter/openai/gpt-5.3-codex": { alias: "Codex" },
         "therouter/qwen/qwen3-coder-480b": { alias: "Qwen Coder" },
       },
@@ -1465,13 +1417,10 @@ export const openclawProviderPresets: OpenClawProviderPreset[] = [
       api: "anthropic-messages",
       models: [
         {
-<<<<<<< HEAD
           id: "claude-opus-4-8",
           name: "claude-opus-4-8",
-=======
           id: "claude-opus-4-6",
           name: "claude-opus-4-6",
->>>>>>> origin/cc-switch-cli
           contextWindow: 1000000,
           cost: { input: 5, output: 25 },
         },
@@ -1500,19 +1449,16 @@ export const openclawProviderPresets: OpenClawProviderPreset[] = [
     },
     suggestedDefaults: {
       model: {
-<<<<<<< HEAD
         primary: "pipellm/claude-opus-4-8",
         fallbacks: ["pipellm/claude-sonnet-4-6"],
       },
       modelCatalog: {
         "pipellm/claude-opus-4-8": { alias: "Opus" },
-=======
         primary: "pipellm/claude-opus-4-6",
         fallbacks: ["pipellm/claude-sonnet-4-6"],
       },
       modelCatalog: {
         "pipellm/claude-opus-4-6": { alias: "Opus" },
->>>>>>> origin/cc-switch-cli
         "pipellm/claude-sonnet-4-6": { alias: "Sonnet" },
         "pipellm/claude-haiku-4-5-20251001": { alias: "Haiku" },
       },
@@ -1530,13 +1476,10 @@ export const openclawProviderPresets: OpenClawProviderPreset[] = [
       api: "anthropic-messages",
       models: [
         {
-<<<<<<< HEAD
           id: "claude-opus-4-8",
           name: "Claude Opus 4.8",
-=======
           id: "claude-opus-4-6",
           name: "Claude Opus 4.6",
->>>>>>> origin/cc-switch-cli
           contextWindow: 1000000,
           cost: { input: 5, output: 25 },
         },
@@ -1725,13 +1668,10 @@ export const openclawProviderPresets: OpenClawProviderPreset[] = [
       api: "anthropic-messages",
       models: [
         {
-<<<<<<< HEAD
           id: "claude-opus-4-8",
           name: "Claude Opus 4.8",
-=======
           id: "claude-opus-4-6",
           name: "Claude Opus 4.6",
->>>>>>> origin/cc-switch-cli
           contextWindow: 1000000,
           cost: { input: 5, output: 25 },
         },
@@ -1776,13 +1716,10 @@ export const openclawProviderPresets: OpenClawProviderPreset[] = [
       api: "anthropic-messages",
       models: [
         {
-<<<<<<< HEAD
           id: "claude-opus-4-8",
           name: "Claude Opus 4.8",
-=======
           id: "claude-opus-4-6",
           name: "Claude Opus 4.6",
->>>>>>> origin/cc-switch-cli
           contextWindow: 1000000,
           cost: { input: 5, output: 25 },
         },
@@ -1827,13 +1764,10 @@ export const openclawProviderPresets: OpenClawProviderPreset[] = [
       api: "anthropic-messages",
       models: [
         {
-<<<<<<< HEAD
           id: "claude-opus-4-8",
           name: "Claude Opus 4.8",
-=======
           id: "claude-opus-4-6",
           name: "Claude Opus 4.6",
->>>>>>> origin/cc-switch-cli
           contextWindow: 1000000,
           cost: { input: 5, output: 25 },
         },
@@ -1878,13 +1812,10 @@ export const openclawProviderPresets: OpenClawProviderPreset[] = [
       api: "anthropic-messages",
       models: [
         {
-<<<<<<< HEAD
           id: "claude-opus-4-8",
           name: "Claude Opus 4.8",
-=======
           id: "claude-opus-4-6",
           name: "Claude Opus 4.6",
->>>>>>> origin/cc-switch-cli
           contextWindow: 1000000,
           cost: { input: 5, output: 25 },
         },
@@ -1920,8 +1851,6 @@ export const openclawProviderPresets: OpenClawProviderPreset[] = [
     },
   },
   {
-<<<<<<< HEAD
-=======
     name: "AICoding",
     websiteUrl: "https://aicoding.sh",
     apiKeyUrl: "https://aicoding.sh/i/CCSWITCH",
@@ -1968,7 +1897,6 @@ export const openclawProviderPresets: OpenClawProviderPreset[] = [
     },
   },
   {
->>>>>>> origin/cc-switch-cli
     name: "CrazyRouter",
     websiteUrl: "https://www.crazyrouter.com",
     apiKeyUrl: "https://www.crazyrouter.com/register?aff=OZcm&ref=cc-switch",
@@ -1978,13 +1906,10 @@ export const openclawProviderPresets: OpenClawProviderPreset[] = [
       api: "anthropic-messages",
       models: [
         {
-<<<<<<< HEAD
           id: "claude-opus-4-8",
           name: "Claude Opus 4.8",
-=======
           id: "claude-opus-4-6",
           name: "Claude Opus 4.6",
->>>>>>> origin/cc-switch-cli
           contextWindow: 1000000,
           cost: { input: 5, output: 25 },
         },
@@ -2029,13 +1954,10 @@ export const openclawProviderPresets: OpenClawProviderPreset[] = [
       api: "anthropic-messages",
       models: [
         {
-<<<<<<< HEAD
           id: "claude-opus-4-8",
           name: "Claude Opus 4.8",
-=======
           id: "claude-opus-4-6",
           name: "Claude Opus 4.6",
->>>>>>> origin/cc-switch-cli
           contextWindow: 1000000,
           cost: { input: 5, output: 25 },
         },
@@ -2082,13 +2004,10 @@ export const openclawProviderPresets: OpenClawProviderPreset[] = [
       api: "anthropic-messages",
       models: [
         {
-<<<<<<< HEAD
           id: "claude-opus-4-8",
           name: "Claude Opus 4.8",
-=======
           id: "claude-opus-4-6",
           name: "Claude Opus 4.6",
->>>>>>> origin/cc-switch-cli
           contextWindow: 1000000,
           cost: { input: 5, output: 25 },
         },
@@ -2108,7 +2027,6 @@ export const openclawProviderPresets: OpenClawProviderPreset[] = [
     },
     suggestedDefaults: {
       model: {
-<<<<<<< HEAD
         primary: "compshare/claude-opus-4-8",
       },
       modelCatalog: {
@@ -2153,39 +2071,31 @@ export const openclawProviderPresets: OpenClawProviderPreset[] = [
       },
       modelCatalog: {
         "compshare-coding/claude-opus-4-8": { alias: "Opus" },
-=======
         primary: "compshare/claude-opus-4-6",
       },
       modelCatalog: {
         "compshare/claude-opus-4-6": { alias: "Opus" },
->>>>>>> origin/cc-switch-cli
       },
     },
   },
   {
     name: "Micu",
-<<<<<<< HEAD
     websiteUrl: "https://www.micuapi.ai",
     apiKeyUrl: "https://www.micuapi.ai/register?aff=aOYQ",
     settingsConfig: {
       baseUrl: "https://www.micuapi.ai",
-=======
     websiteUrl: "https://www.openclaudecode.cn",
     apiKeyUrl: "https://www.openclaudecode.cn/register?aff=aOYQ",
     settingsConfig: {
       baseUrl: "https://www.openclaudecode.cn",
->>>>>>> origin/cc-switch-cli
       apiKey: "",
       api: "anthropic-messages",
       models: [
         {
-<<<<<<< HEAD
           id: "claude-opus-4-8",
           name: "Claude Opus 4.8",
-=======
           id: "claude-opus-4-6",
           name: "Claude Opus 4.6",
->>>>>>> origin/cc-switch-cli
           contextWindow: 1000000,
           cost: { input: 5, output: 25 },
         },
@@ -2205,17 +2115,14 @@ export const openclawProviderPresets: OpenClawProviderPreset[] = [
     },
     suggestedDefaults: {
       model: {
-<<<<<<< HEAD
         primary: "micu/claude-opus-4-8",
       },
       modelCatalog: {
         "micu/claude-opus-4-8": { alias: "Opus" },
-=======
         primary: "micu/claude-opus-4-6",
       },
       modelCatalog: {
         "micu/claude-opus-4-6": { alias: "Opus" },
->>>>>>> origin/cc-switch-cli
       },
     },
   },
@@ -2229,13 +2136,10 @@ export const openclawProviderPresets: OpenClawProviderPreset[] = [
       api: "anthropic-messages",
       models: [
         {
-<<<<<<< HEAD
           id: "claude-opus-4-8",
           name: "Claude Opus 4.8",
-=======
           id: "claude-opus-4-6",
           name: "Claude Opus 4.6",
->>>>>>> origin/cc-switch-cli
           contextWindow: 1000000,
           cost: { input: 5, output: 25 },
         },
@@ -2255,12 +2159,10 @@ export const openclawProviderPresets: OpenClawProviderPreset[] = [
     },
     suggestedDefaults: {
       model: {
-<<<<<<< HEAD
         primary: "ctok/claude-opus-4-8",
       },
       modelCatalog: {
         "ctok/claude-opus-4-8": { alias: "Opus" },
-=======
         primary: "ctok/claude-opus-4-6",
       },
       modelCatalog: {
@@ -2309,7 +2211,6 @@ export const openclawProviderPresets: OpenClawProviderPreset[] = [
       modelCatalog: {
         "lionccapi/claude-opus-4-6": { alias: "Opus" },
         "lionccapi/claude-sonnet-4-6": { alias: "Sonnet" },
->>>>>>> origin/cc-switch-cli
       },
     },
   },
@@ -2339,13 +2240,10 @@ export const openclawProviderPresets: OpenClawProviderPreset[] = [
           name: "gpt-5.3-codex",
         },
         {
-<<<<<<< HEAD
           id: "gpt-5.5",
           name: "gpt-5.5",
-=======
           id: "gpt-5.4",
           name: "gpt-5.4",
->>>>>>> origin/cc-switch-cli
         },
         {
           id: "gpt-5.2-codex",
@@ -2370,25 +2268,21 @@ export const openclawProviderPresets: OpenClawProviderPreset[] = [
     suggestedDefaults: {
       model: {
         primary: "eflowcode/gpt-5.3-codex",
-<<<<<<< HEAD
         fallbacks: ["eflowcode/gpt-5.5", "eflowcode/gpt-5.2-codex"],
       },
       modelCatalog: {
         "eflowcode/gpt-5.3-codex": { alias: "gpt-5.3-codex" },
         "eflowcode/gpt-5.5": { alias: "gpt-5.5" },
-=======
         fallbacks: ["eflowcode/gpt-5.4", "eflowcode/gpt-5.2-codex"],
       },
       modelCatalog: {
         "eflowcode/gpt-5.3-codex": { alias: "gpt-5.3-codex" },
         "eflowcode/gpt-5.4": { alias: "gpt-5.4" },
->>>>>>> origin/cc-switch-cli
         "eflowcode/gpt-5.2-codex": { alias: "gpt-5.2-codex" },
         "eflowcode/gpt-5.2": { alias: "gpt-5.2" },
       },
     },
   },
-<<<<<<< HEAD
   {
     name: "LemonData",
     websiteUrl: "https://lemondata.cc",
@@ -2425,8 +2319,6 @@ export const openclawProviderPresets: OpenClawProviderPreset[] = [
       },
     },
   },
-=======
->>>>>>> origin/cc-switch-cli
   // ========== Cloud Providers ==========
   {
     name: "AWS Bedrock",
@@ -2438,17 +2330,14 @@ export const openclawProviderPresets: OpenClawProviderPreset[] = [
       api: "bedrock-converse-stream",
       models: [
         {
-<<<<<<< HEAD
           id: "anthropic.claude-opus-4-8",
           name: "Claude Opus 4.8",
           contextWindow: 1000000,
           cost: { input: 5, output: 25, cacheRead: 0.5, cacheWrite: 6.25 },
-=======
           id: "anthropic.claude-opus-4-6-20250514-v1:0",
           name: "Claude Opus 4.6",
           contextWindow: 1000000,
           cost: { input: 15, output: 75, cacheRead: 1.5, cacheWrite: 18.75 },
->>>>>>> origin/cc-switch-cli
         },
         {
           id: "anthropic.claude-sonnet-4-6",

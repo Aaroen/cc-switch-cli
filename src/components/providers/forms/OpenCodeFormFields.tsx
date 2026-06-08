@@ -11,10 +11,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { toast } from "sonner";
-<<<<<<< HEAD
 import { Download, Plus, Trash2, ChevronRight, Loader2 } from "lucide-react";
 import { ApiKeySection, ModelDropdown } from "./shared";
-=======
 import {
   ChevronDown,
   Download,
@@ -32,7 +30,6 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { ApiKeySection } from "./shared";
->>>>>>> origin/cc-switch-cli
 import {
   fetchModelsForConfig,
   showFetchModelsError,

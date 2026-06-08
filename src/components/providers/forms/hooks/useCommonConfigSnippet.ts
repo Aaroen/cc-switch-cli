@@ -126,7 +126,6 @@ export function useCommonConfigSnippet({
         configString,
         commonConfigSnippet,
       );
-<<<<<<< HEAD
 
       // 优先级：显式设置的 initialEnabled > 从配置推断的值
       // 如果 initialEnabled 为 undefined，使用推断值
@@ -136,13 +135,11 @@ export function useCommonConfigSnippet({
 
       // 如果应该启用通用配置但配置中还没有，则自动添加
       if (hasCommon && !inferredHasCommon) {
-=======
       const hasCommon = initialEnabled ?? inferredHasCommon;
       setUseCommonConfig(hasCommon);
 
       if (hasCommon && !inferredHasCommon && !hasInitializedEditMode.current) {
         hasInitializedEditMode.current = true;
->>>>>>> origin/cc-switch-cli
         const { updatedConfig, error } = updateCommonConfigSnippet(
           settingsConfig,
           commonConfigSnippet,
@@ -155,11 +152,8 @@ export function useCommonConfigSnippet({
             isUpdatingFromCommonConfig.current = false;
           }, 0);
         }
-<<<<<<< HEAD
-=======
       } else {
         hasInitializedEditMode.current = true;
->>>>>>> origin/cc-switch-cli
       }
     }
   }, [

@@ -350,11 +350,8 @@ const UnifiedSkillsPanel = React.forwardRef<
         <AppCountBar
           totalLabel={t("skills.installed", { count: skills?.length || 0 })}
           counts={enabledCounts}
-<<<<<<< HEAD
           appIds={SKILLS_APP_IDS}
-=======
           appIds={MCP_SKILLS_APP_IDS}
->>>>>>> origin/cc-switch-cli
         />
         <div className="flex items-center gap-1.5">
           <div
@@ -606,10 +603,7 @@ interface ImportSkillsDialogProps {
     foundIn: string[];
     path: string;
   }>;
-<<<<<<< HEAD
   isImporting: boolean;
-=======
->>>>>>> origin/cc-switch-cli
   onImport: (imports: ImportSkillSelection[]) => void;
   onClose: () => void;
 }
@@ -754,10 +748,7 @@ const ImportSkillsDialog: React.FC<ImportSkillsDialogProps> = ({
           gemini: skill.foundIn.includes("gemini"),
           opencode: skill.foundIn.includes("opencode"),
           openclaw: false,
-<<<<<<< HEAD
           hermes: skill.foundIn.includes("hermes"),
-=======
->>>>>>> origin/cc-switch-cli
         },
       ]),
     ),
@@ -783,10 +774,7 @@ const ImportSkillsDialog: React.FC<ImportSkillsDialogProps> = ({
           gemini: false,
           opencode: false,
           openclaw: false,
-<<<<<<< HEAD
           hermes: false,
-=======
->>>>>>> origin/cc-switch-cli
         },
       })),
     );
@@ -829,10 +817,7 @@ const ImportSkillsDialog: React.FC<ImportSkillsDialogProps> = ({
                           gemini: false,
                           opencode: false,
                           openclaw: false,
-<<<<<<< HEAD
                           hermes: false,
-=======
->>>>>>> origin/cc-switch-cli
                         }
                       }
                       onToggle={(app, enabled) => {
@@ -845,20 +830,14 @@ const ImportSkillsDialog: React.FC<ImportSkillsDialogProps> = ({
                               gemini: false,
                               opencode: false,
                               openclaw: false,
-<<<<<<< HEAD
                               hermes: false,
-=======
->>>>>>> origin/cc-switch-cli
                             }),
                             [app]: enabled,
                           },
                         }));
                       }}
-<<<<<<< HEAD
                       appIds={SKILLS_APP_IDS}
-=======
                       appIds={MCP_SKILLS_APP_IDS}
->>>>>>> origin/cc-switch-cli
                     />
                   </div>
                   <div
@@ -873,7 +852,6 @@ const ImportSkillsDialog: React.FC<ImportSkillsDialogProps> = ({
           </div>
 
           <div className="flex justify-end gap-3">
-<<<<<<< HEAD
             <Button variant="outline" onClick={onClose} disabled={isImporting}>
               {t("common.cancel")}
             </Button>
@@ -881,12 +859,10 @@ const ImportSkillsDialog: React.FC<ImportSkillsDialogProps> = ({
               onClick={handleImport}
               disabled={selected.size === 0 || isImporting}
             >
-=======
             <Button variant="outline" onClick={onClose}>
               {t("common.cancel")}
             </Button>
             <Button onClick={handleImport} disabled={selected.size === 0}>
->>>>>>> origin/cc-switch-cli
               {t("skills.importSelected", { count: selected.size })}
             </Button>
           </div>

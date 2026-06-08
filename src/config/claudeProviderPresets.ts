@@ -66,13 +66,10 @@ export interface ProviderPreset {
 
   // 是否在 UI 中隐藏该预设（预设仍存在，仅不在列表中显示）
   hidden?: boolean;
-<<<<<<< HEAD
 
   // 获取模型列表使用的完整 URL（覆写自动候选逻辑）
   // 缺省时后端基于 baseURL 自动尝试 /v1/models、/models 以及剥离已知兼容子路径后的变体。
   modelsUrl?: string;
-=======
->>>>>>> origin/cc-switch-cli
 }
 
 export const providerPresets: ProviderPreset[] = [
@@ -93,7 +90,6 @@ export const providerPresets: ProviderPreset[] = [
     iconColor: "#D4915D",
   },
   {
-<<<<<<< HEAD
     name: "Shengsuanyun",
     nameKey: "providerForm.presets.shengsuanyun",
     websiteUrl: "https://www.shengsuanyun.com/?from=CH_4HHXMRYF",
@@ -198,8 +194,6 @@ export const providerPresets: ProviderPreset[] = [
     iconColor: "#3370FF",
   },
   {
-=======
->>>>>>> origin/cc-switch-cli
     name: "Gemini Native",
     websiteUrl: "https://ai.google.dev/gemini-api",
     apiKeyUrl: "https://aistudio.google.com/app/apikey",
@@ -208,17 +202,14 @@ export const providerPresets: ProviderPreset[] = [
       env: {
         ANTHROPIC_BASE_URL: "https://generativelanguage.googleapis.com",
         ANTHROPIC_API_KEY: "",
-<<<<<<< HEAD
         ANTHROPIC_MODEL: "gemini-3.5-flash",
         ANTHROPIC_DEFAULT_HAIKU_MODEL: "gemini-3.5-flash",
         ANTHROPIC_DEFAULT_SONNET_MODEL: "gemini-3.5-flash",
         ANTHROPIC_DEFAULT_OPUS_MODEL: "gemini-3.5-flash",
-=======
         ANTHROPIC_MODEL: "gemini-2.5-pro",
         ANTHROPIC_DEFAULT_HAIKU_MODEL: "gemini-2.5-flash",
         ANTHROPIC_DEFAULT_SONNET_MODEL: "gemini-2.5-pro",
         ANTHROPIC_DEFAULT_OPUS_MODEL: "gemini-2.5-pro",
->>>>>>> origin/cc-switch-cli
       },
     },
     category: "third_party",
@@ -228,8 +219,6 @@ export const providerPresets: ProviderPreset[] = [
     iconColor: "#4285F4",
   },
   {
-<<<<<<< HEAD
-=======
     name: "Shengsuanyun",
     nameKey: "providerForm.presets.shengsuanyun",
     websiteUrl: "https://www.shengsuanyun.com",
@@ -246,7 +235,6 @@ export const providerPresets: ProviderPreset[] = [
     icon: "shengsuanyun",
   },
   {
->>>>>>> origin/cc-switch-cli
     name: "DeepSeek",
     websiteUrl: "https://platform.deepseek.com",
     settingsConfig: {
@@ -399,7 +387,6 @@ export const providerPresets: ProviderPreset[] = [
   },
   {
     name: "StepFun",
-<<<<<<< HEAD
     websiteUrl: "https://platform.stepfun.com/step-plan",
     apiKeyUrl: "https://platform.stepfun.com/interface-key",
     settingsConfig: {
@@ -435,7 +422,6 @@ export const providerPresets: ProviderPreset[] = [
     endpointCandidates: ["https://api.stepfun.ai/step_plan"],
     icon: "stepfun",
     iconColor: "#16D6D2",
-=======
     websiteUrl: "https://platform.stepfun.ai",
     apiKeyUrl: "https://platform.stepfun.ai/interface-key",
     settingsConfig: {
@@ -453,7 +439,6 @@ export const providerPresets: ProviderPreset[] = [
     apiFormat: "openai_chat",
     icon: "stepfun",
     iconColor: "#005AFF",
->>>>>>> origin/cc-switch-cli
   },
   {
     name: "ModelScope",
@@ -904,8 +889,6 @@ export const providerPresets: ProviderPreset[] = [
     iconColor: "#000000",
   },
   {
-<<<<<<< HEAD
-=======
     name: "AICoding",
     websiteUrl: "https://aicoding.sh",
     apiKeyUrl: "https://aicoding.sh/i/CCSWITCH",
@@ -923,7 +906,6 @@ export const providerPresets: ProviderPreset[] = [
     iconColor: "#000000",
   },
   {
->>>>>>> origin/cc-switch-cli
     name: "CrazyRouter",
     websiteUrl: "https://www.crazyrouter.com",
     apiKeyUrl: "https://www.crazyrouter.com/register?aff=OZcm&ref=cc-switch",
@@ -981,7 +963,6 @@ export const providerPresets: ProviderPreset[] = [
     iconColor: "#000000",
   },
   {
-<<<<<<< HEAD
     name: "Compshare Coding Plan",
     nameKey: "providerForm.presets.ucloudCoding",
     websiteUrl: "https://www.compshare.cn",
@@ -1011,7 +992,6 @@ export const providerPresets: ProviderPreset[] = [
       },
     },
     endpointCandidates: ["https://www.micuapi.ai"],
-=======
     name: "Micu",
     websiteUrl: "https://www.openclaudecode.cn",
     apiKeyUrl: "https://www.openclaudecode.cn/register?aff=aOYQ",
@@ -1022,7 +1002,6 @@ export const providerPresets: ProviderPreset[] = [
       },
     },
     endpointCandidates: ["https://www.openclaudecode.cn"],
->>>>>>> origin/cc-switch-cli
     category: "third_party",
     isPartner: true, // 合作伙伴
     partnerPromotionKey: "micu", // 促销信息 i18n key
@@ -1046,8 +1025,6 @@ export const providerPresets: ProviderPreset[] = [
     iconColor: "#000000",
   },
   {
-<<<<<<< HEAD
-=======
     name: "DDSHub",
     websiteUrl: "https://www.ddshub.cc",
     apiKeyUrl: "https://ddshub.short.gy/ccswitch",
@@ -1064,7 +1041,6 @@ export const providerPresets: ProviderPreset[] = [
     iconColor: "#000000",
   },
   {
->>>>>>> origin/cc-switch-cli
     name: "E-FlowCode",
     websiteUrl: "https://e-flowcode.cc",
     apiKeyUrl: "https://e-flowcode.cc",
@@ -1087,8 +1063,6 @@ export const providerPresets: ProviderPreset[] = [
     iconColor: "#000000",
   },
   {
-<<<<<<< HEAD
-=======
     name: "LionCCAPI",
     websiteUrl: "https://vibecodingapi.ai",
     settingsConfig: {
@@ -1103,7 +1077,6 @@ export const providerPresets: ProviderPreset[] = [
     icon: "lioncc",
   },
   {
->>>>>>> origin/cc-switch-cli
     name: "OpenRouter",
     websiteUrl: "https://openrouter.ai",
     apiKeyUrl: "https://openrouter.ai/keys",
@@ -1133,11 +1106,8 @@ export const providerPresets: ProviderPreset[] = [
         ANTHROPIC_MODEL: "anthropic/claude-sonnet-4.6",
         ANTHROPIC_DEFAULT_HAIKU_MODEL: "anthropic/claude-haiku-4.5",
         ANTHROPIC_DEFAULT_SONNET_MODEL: "anthropic/claude-sonnet-4.6",
-<<<<<<< HEAD
         ANTHROPIC_DEFAULT_OPUS_MODEL: "anthropic/claude-opus-4.8",
-=======
         ANTHROPIC_DEFAULT_OPUS_MODEL: "anthropic/claude-opus-4.6",
->>>>>>> origin/cc-switch-cli
       },
     },
     category: "aggregator",
@@ -1168,17 +1138,14 @@ export const providerPresets: ProviderPreset[] = [
     settingsConfig: {
       env: {
         ANTHROPIC_BASE_URL: "https://api.githubcopilot.com",
-<<<<<<< HEAD
         ANTHROPIC_MODEL: "claude-sonnet-4.6",
         ANTHROPIC_DEFAULT_HAIKU_MODEL: "claude-haiku-4.5",
         ANTHROPIC_DEFAULT_SONNET_MODEL: "claude-sonnet-4.6",
         ANTHROPIC_DEFAULT_OPUS_MODEL: "claude-sonnet-4.6",
-=======
         ANTHROPIC_MODEL: "claude-opus-4.6",
         ANTHROPIC_DEFAULT_HAIKU_MODEL: "claude-haiku-4.5",
         ANTHROPIC_DEFAULT_SONNET_MODEL: "claude-sonnet-4.6",
         ANTHROPIC_DEFAULT_OPUS_MODEL: "claude-opus-4.6",
->>>>>>> origin/cc-switch-cli
       },
     },
     category: "third_party",
@@ -1196,17 +1163,14 @@ export const providerPresets: ProviderPreset[] = [
         // base_url 由代理后端强制重写为 chatgpt.com/backend-api/codex
         // 用户无需配置
         ANTHROPIC_BASE_URL: "https://chatgpt.com/backend-api/codex",
-<<<<<<< HEAD
         ANTHROPIC_MODEL: "gpt-5.5",
         ANTHROPIC_DEFAULT_HAIKU_MODEL: "gpt-5.4-mini",
         ANTHROPIC_DEFAULT_SONNET_MODEL: "gpt-5.5",
         ANTHROPIC_DEFAULT_OPUS_MODEL: "gpt-5.5",
-=======
         ANTHROPIC_MODEL: "gpt-5.4",
         ANTHROPIC_DEFAULT_HAIKU_MODEL: "gpt-5.4-mini",
         ANTHROPIC_DEFAULT_SONNET_MODEL: "gpt-5.4",
         ANTHROPIC_DEFAULT_OPUS_MODEL: "gpt-5.4",
->>>>>>> origin/cc-switch-cli
       },
     },
     category: "third_party",
@@ -1217,7 +1181,6 @@ export const providerPresets: ProviderPreset[] = [
     iconColor: "#000000",
   },
   {
-<<<<<<< HEAD
     name: "LemonData",
     websiteUrl: "https://lemondata.cc",
     apiKeyUrl: "https://lemondata.cc/r/FFX1ZDUP",
@@ -1234,8 +1197,6 @@ export const providerPresets: ProviderPreset[] = [
     icon: "lemondata",
   },
   {
-=======
->>>>>>> origin/cc-switch-cli
     name: "Nvidia",
     websiteUrl: "https://build.nvidia.com",
     apiKeyUrl: "https://build.nvidia.com/settings/api-keys",
@@ -1262,17 +1223,14 @@ export const providerPresets: ProviderPreset[] = [
       env: {
         ANTHROPIC_BASE_URL: "https://cc-api.pipellm.ai",
         ANTHROPIC_AUTH_TOKEN: "",
-<<<<<<< HEAD
         ANTHROPIC_MODEL: "claude-opus-4-8",
         ANTHROPIC_DEFAULT_HAIKU_MODEL: "claude-haiku-4-5-20251001",
         ANTHROPIC_DEFAULT_SONNET_MODEL: "claude-sonnet-4-6",
         ANTHROPIC_DEFAULT_OPUS_MODEL: "claude-opus-4-8",
-=======
         ANTHROPIC_MODEL: "claude-opus-4-6",
         ANTHROPIC_DEFAULT_HAIKU_MODEL: "claude-haiku-4-5-20251001",
         ANTHROPIC_DEFAULT_SONNET_MODEL: "claude-sonnet-4-6",
         ANTHROPIC_DEFAULT_OPUS_MODEL: "claude-opus-4-6",
->>>>>>> origin/cc-switch-cli
       },
       includeCoAuthoredBy: false,
     },
@@ -1287,7 +1245,6 @@ export const providerPresets: ProviderPreset[] = [
       env: {
         ANTHROPIC_BASE_URL: "https://api.xiaomimimo.com/anthropic",
         ANTHROPIC_AUTH_TOKEN: "",
-<<<<<<< HEAD
         ANTHROPIC_MODEL: "mimo-v2.5-pro",
         ANTHROPIC_DEFAULT_HAIKU_MODEL: "mimo-v2.5-pro",
         ANTHROPIC_DEFAULT_SONNET_MODEL: "mimo-v2.5-pro",
@@ -1310,12 +1267,10 @@ export const providerPresets: ProviderPreset[] = [
         ANTHROPIC_DEFAULT_HAIKU_MODEL: "mimo-v2.5-pro",
         ANTHROPIC_DEFAULT_SONNET_MODEL: "mimo-v2.5-pro",
         ANTHROPIC_DEFAULT_OPUS_MODEL: "mimo-v2.5-pro",
-=======
         ANTHROPIC_MODEL: "mimo-v2-pro",
         ANTHROPIC_DEFAULT_HAIKU_MODEL: "mimo-v2-pro",
         ANTHROPIC_DEFAULT_SONNET_MODEL: "mimo-v2-pro",
         ANTHROPIC_DEFAULT_OPUS_MODEL: "mimo-v2-pro",
->>>>>>> origin/cc-switch-cli
       },
     },
     category: "cn_official",

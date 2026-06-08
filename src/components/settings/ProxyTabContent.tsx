@@ -35,12 +35,9 @@ export function ProxyTabContent({
   const { t } = useTranslation();
   const [showProxyConfirm, setShowProxyConfirm] = useState(false);
   const [showFailoverConfirm, setShowFailoverConfirm] = useState(false);
-<<<<<<< HEAD
   const [weightRoundRobinDrafts, setWeightRoundRobinDrafts] = useState<
     Partial<Record<AppId, { enabled: boolean; strategy: LoadBalanceStrategy }>>
   >({});
-=======
->>>>>>> origin/cc-switch-cli
 
   const {
     isRunning,

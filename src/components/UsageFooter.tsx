@@ -19,7 +19,6 @@ interface UsageFooterProps {
 
 /** UsageData → QuotaTier 转换（Token Plan 使用） */
 function toQuotaTier(data: UsageData): QuotaTier {
-<<<<<<< HEAD
   const extra = data.extra;
   if (extra && extra.startsWith("{")) {
     try {
@@ -40,12 +39,10 @@ function toQuotaTier(data: UsageData): QuotaTier {
     name: data.planName || "",
     utilization: data.used || 0,
     resetsAt: extra || null,
-=======
   return {
     name: data.planName || "",
     utilization: data.used || 0,
     resetsAt: data.extra || null,
->>>>>>> origin/cc-switch-cli
   };
 }
 
@@ -170,7 +167,6 @@ const UsageFooter: React.FC<UsageFooterProps> = ({
         </div>
         {/* 第二行：tier 徽章（复用官方订阅的 TierBadge） */}
         <div className="flex items-center gap-2">
-<<<<<<< HEAD
           {(() => {
             const tiers = usageDataList.map((d) => toQuotaTier(d));
             const planLabel = tiers[0]?.planLabel;
@@ -187,11 +183,9 @@ const UsageFooter: React.FC<UsageFooterProps> = ({
               </>
             );
           })()}
-=======
           {usageDataList.map((data, index) => (
             <TierBadge key={index} tier={toQuotaTier(data)} t={t} />
           ))}
->>>>>>> origin/cc-switch-cli
         </div>
       </div>
     );

@@ -1,8 +1,5 @@
 import React, { useState } from "react";
-<<<<<<< HEAD
 import { useTranslation } from "react-i18next";
-=======
->>>>>>> origin/cc-switch-cli
 import { CodexAuthSection, CodexConfigSection } from "./CodexConfigSections";
 import { CodexCommonConfigModal } from "./CodexCommonConfigModal";
 

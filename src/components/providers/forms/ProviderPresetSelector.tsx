@@ -144,7 +144,6 @@ export function ProviderPresetSelector({
           {t("providerPreset.custom")}
         </button>
 
-<<<<<<< HEAD
         {presetEntries.map((entry) => {
           const isSelected = selectedPresetId === entry.id;
           const isPartner = entry.preset.isPartner;
@@ -172,7 +171,6 @@ export function ProviderPresetSelector({
               )}
             </button>
           );
-=======
         {categoryKeys.map((category) => {
           const entries = groupedPresets[category];
           if (!entries || entries.length === 0) return null;
@@ -202,7 +200,6 @@ export function ProviderPresetSelector({
               </button>
             );
           });
->>>>>>> origin/cc-switch-cli
         })}
       </div>
 

@@ -16,15 +16,12 @@ import type {
 import type { UsageResult } from "@/types";
 import type { AppId } from "./types";
 import type { TemplateType } from "@/config/constants";
-<<<<<<< HEAD
 
 /** 用量数据时间边界（Unix 秒），用于首屏自适应日期范围。无数据时字段为 null。 */
 export interface UsageDateBounds {
   minDate: number | null;
   maxDate: number | null;
 }
-=======
->>>>>>> origin/cc-switch-cli
 
 export const usageApi = {
   // Provider usage script methods
@@ -63,7 +60,6 @@ export const usageApi = {
     appType?: string,
   ): Promise<UsageSummary> => {
     return invoke("get_usage_summary", { startDate, endDate, appType });
-<<<<<<< HEAD
   },
 
   // 用量数据时间边界（首屏自适应日期范围用）
@@ -76,8 +72,6 @@ export const usageApi = {
     endDate?: number,
   ): Promise<UsageSummaryByApp[]> => {
     return invoke("get_usage_summary_by_app", { startDate, endDate });
-=======
->>>>>>> origin/cc-switch-cli
   },
 
   getUsageTrends: async (

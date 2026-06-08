@@ -18,7 +18,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useRequestLogs } from "@/lib/query/usage";
-<<<<<<< HEAD
 import {
   KNOWN_APP_TYPES,
   getFreshInputTokens,
@@ -26,9 +25,7 @@ import {
   type LogFilters,
   type UsageRangeSelection,
 } from "@/types/usage";
-=======
 import type { LogFilters, UsageRangeSelection } from "@/types/usage";
->>>>>>> origin/cc-switch-cli
 import { ChevronLeft, ChevronRight, Search, X } from "lucide-react";
 import { UsageDateRangePicker } from "./UsageDateRangePicker";
 import {
@@ -298,7 +295,6 @@ export function RequestLogTable({
                     </TableCell>
                   </TableRow>
                 ) : (
-<<<<<<< HEAD
                   logs.map((log) => {
                     const unpriced = isUnpricedUsage(log);
                     return (
@@ -420,7 +416,6 @@ export function RequestLogTable({
                       </TableRow>
                     );
                   })
-=======
                   logs.map((log) => (
                     <TableRow key={log.requestId}>
                       <TableCell className="text-center whitespace-nowrap text-xs px-1.5">
@@ -516,7 +511,6 @@ export function RequestLogTable({
                       </TableCell>
                     </TableRow>
                   ))
->>>>>>> origin/cc-switch-cli
                 )}
               </TableBody>
             </Table>

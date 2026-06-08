@@ -39,11 +39,8 @@ interface ProviderActionsProps {
   isInFailoverQueue?: boolean;
   onToggleFailover?: (enabled: boolean) => void;
   isOfficialBlockedByProxy?: boolean;
-<<<<<<< HEAD
   // Hermes v12+ providers: dict overlay — edit/delete must go through Web UI
   isReadOnly?: boolean;
-=======
->>>>>>> origin/cc-switch-cli
   // OpenClaw: default model
   isDefaultModel?: boolean;
   onSetAsDefault?: () => void;
@@ -69,10 +66,7 @@ export function ProviderActions({
   isInFailoverQueue = false,
   onToggleFailover,
   isOfficialBlockedByProxy = false,
-<<<<<<< HEAD
   isReadOnly = false,
-=======
->>>>>>> origin/cc-switch-cli
   // OpenClaw: default model
   isDefaultModel = false,
   onSetAsDefault,
@@ -298,11 +292,8 @@ export function ProviderActions({
           size="icon"
           variant="ghost"
           onClick={onTest || undefined}
-<<<<<<< HEAD
           disabled={isTesting || !onTest}
-=======
           disabled={isTesting}
->>>>>>> origin/cc-switch-cli
           title={t("modelTest.testProvider", "测试模型")}
           className={cn(
             iconButtonClass,
@@ -320,10 +311,7 @@ export function ProviderActions({
           size="icon"
           variant="ghost"
           onClick={onConfigureUsage || undefined}
-<<<<<<< HEAD
           disabled={!onConfigureUsage}
-=======
->>>>>>> origin/cc-switch-cli
           title={t("provider.configureUsage")}
           className={cn(
             iconButtonClass,

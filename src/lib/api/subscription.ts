@@ -1,8 +1,5 @@
-<<<<<<< HEAD
 import { invoke } from "@/lib/api/transport";
-=======
 import { invoke } from "@tauri-apps/api/core";
->>>>>>> origin/cc-switch-cli
 import type { SubscriptionQuota } from "@/types/subscription";
 
 export const subscriptionApi = {

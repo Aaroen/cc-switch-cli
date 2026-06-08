@@ -1,13 +1,10 @@
 import type { GitHubAccount } from "@/lib/api";
 import { useManagedAuth } from "./useManagedAuth";
 
-<<<<<<< HEAD
 export function useCopilotAuth(githubDomain?: string) {
   const managedAuth = useManagedAuth("github_copilot", githubDomain);
-=======
 export function useCopilotAuth() {
   const managedAuth = useManagedAuth("github_copilot");
->>>>>>> origin/cc-switch-cli
   const defaultAccount =
     managedAuth.accounts.find(
       (account) => account.id === managedAuth.defaultAccountId,

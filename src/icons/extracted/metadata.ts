@@ -495,7 +495,6 @@ export const iconMetadata: Record<string, IconMetadata> = {
     keywords: ["pipellm", "pipe"],
     defaultColor: "currentColor",
   },
-<<<<<<< HEAD
   runapi: {
     name: "runapi",
     displayName: "RunAPI",
@@ -508,8 +507,6 @@ export const iconMetadata: Record<string, IconMetadata> = {
     category: "ai-provider",
     keywords: ["relaxycode", "relaxcode", "relax"],
   },
-=======
->>>>>>> origin/cc-switch-cli
   eflowcode: {
     name: "eflowcode",
     displayName: "E-FlowCode",

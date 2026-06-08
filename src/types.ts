@@ -142,7 +142,6 @@ export interface AuthBinding {
   accountId?: string;
 }
 
-<<<<<<< HEAD
 export interface ClaudeDesktopModelRoute {
   model: string;
   labelOverride?: string;
@@ -185,21 +184,16 @@ export interface CodexChatReasoning {
   outputFormat?: CodexChatReasoningOutputFormat;
 }
 
-=======
->>>>>>> origin/cc-switch-cli
 // 供应商元数据（字段名与后端一致，保持 snake_case）
 export interface ProviderMeta {
   // 自定义端点：以 URL 为键，值为端点信息
   custom_endpoints?: Record<string, CustomEndpoint>;
   // 是否在切换/同步到 live 时应用通用配置片段
   commonConfigEnabled?: boolean;
-<<<<<<< HEAD
   // Claude Desktop 3P 配置写入模式
   claudeDesktopMode?: "direct" | "proxy";
   // Claude Desktop 本地路由模式：Claude-safe route -> upstream model
   claudeDesktopModelRoutes?: Record<string, ClaudeDesktopModelRoute>;
-=======
->>>>>>> origin/cc-switch-cli
   // 用量查询脚本配置
   usage_script?: UsageScript;
   // 请求地址管理：测速后自动选择最佳端点
@@ -236,13 +230,10 @@ export interface ProviderMeta {
   isFullUrl?: boolean;
   // Prompt cache key for OpenAI Responses-compatible endpoints (improves cache hit rate)
   promptCacheKey?: string;
-<<<<<<< HEAD
   // Codex OAuth FAST mode: injects service_tier="priority" on ChatGPT Codex requests
   codexFastMode?: boolean;
   // Codex Responses -> Chat Completions reasoning capability metadata
   codexChatReasoning?: CodexChatReasoning;
-=======
->>>>>>> origin/cc-switch-cli
   // 供应商类型（用于识别 Copilot 等特殊供应商）
   providerType?: string;
   // GitHub Copilot 关联账号 ID（旧字段，保留兼容读取）
@@ -266,7 +257,6 @@ export type ClaudeApiFormat =
   | "openai_responses"
   | "gemini_native";
 
-<<<<<<< HEAD
 // Codex API 格式类型
 // - "openai_responses": OpenAI Responses API 格式，直接透传
 // - "openai_chat": OpenAI Chat Completions 格式，需要本地路由转换
@@ -278,8 +268,6 @@ export interface CodexCatalogModel {
   contextWindow?: string | number;
 }
 
-=======
->>>>>>> origin/cc-switch-cli
 // Claude 认证字段类型
 export type ClaudeApiKeyField = "ANTHROPIC_AUTH_TOKEN" | "ANTHROPIC_API_KEY";
 
@@ -360,11 +348,8 @@ export interface Settings {
   streamCheckConfirmed?: boolean;
   // Whether to show the failover toggle independently on the main page
   enableFailoverToggle?: boolean;
-<<<<<<< HEAD
   // Preserve Codex ChatGPT login in auth.json when switching third-party providers
   preserveCodexOfficialAuthOnSwitch?: boolean;
-=======
->>>>>>> origin/cc-switch-cli
   // User has confirmed the failover toggle first-run notice
   failoverConfirmed?: boolean;
   // User has confirmed the first-run welcome notice

@@ -8,12 +8,9 @@ export interface QuotaTier {
   name: string;
   utilization: number; // 0-100
   resetsAt: string | null;
-<<<<<<< HEAD
   usedValueUsd?: number | null;
   maxValueUsd?: number | null;
   planLabel?: string | null;
-=======
->>>>>>> origin/cc-switch-cli
 }
 
 export interface ExtraUsage {

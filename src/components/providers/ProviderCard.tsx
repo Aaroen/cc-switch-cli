@@ -15,7 +15,6 @@ import SubscriptionQuotaFooter from "@/components/SubscriptionQuotaFooter";
 import CopilotQuotaFooter from "@/components/CopilotQuotaFooter";
 import CodexOauthQuotaFooter from "@/components/CodexOauthQuotaFooter";
 import { PROVIDER_TYPES } from "@/config/constants";
-<<<<<<< HEAD
 import { isHermesReadOnlyProvider } from "@/config/hermesProviderPresets";
 import { ProviderHealthBadge } from "@/components/providers/ProviderHealthBadge";
 import { FailoverPriorityBadge } from "@/components/providers/FailoverPriorityBadge";
@@ -25,11 +24,9 @@ import {
   extractCodexWireApi,
   isCodexChatWireApi,
 } from "@/utils/providerConfigUtils";
-=======
 import { ProviderHealthBadge } from "@/components/providers/ProviderHealthBadge";
 import { FailoverPriorityBadge } from "@/components/providers/FailoverPriorityBadge";
 import { extractCodexBaseUrl } from "@/utils/providerConfigUtils";
->>>>>>> origin/cc-switch-cli
 import { useProviderHealth } from "@/lib/query/failover";
 import { useUsageQuery } from "@/lib/query/queries";
 
@@ -73,13 +70,10 @@ interface ProviderCardProps {
 
 /** 判断是否为官方供应商（无自定义 base URL / API key，直连官方 API） */
 function isOfficialProvider(provider: Provider, appId: AppId): boolean {
-<<<<<<< HEAD
   if (provider.category === "official") {
     return true;
   }
 
-=======
->>>>>>> origin/cc-switch-cli
   const config = provider.settingsConfig as Record<string, any>;
   if (appId === "claude") {
     const baseUrl = config?.env?.ANTHROPIC_BASE_URL;
@@ -88,7 +82,6 @@ function isOfficialProvider(provider: Provider, appId: AppId): boolean {
   if (appId === "codex") {
     // 无 OPENAI_API_KEY → 使用 Codex CLI 内置 OAuth（官方）
     const apiKey = config?.auth?.OPENAI_API_KEY;
-<<<<<<< HEAD
     const bearerToken =
       typeof config?.config === "string"
         ? extractCodexExperimentalBearerToken(config.config)
@@ -97,9 +90,7 @@ function isOfficialProvider(provider: Provider, appId: AppId): boolean {
       !bearerToken &&
       (!apiKey || (typeof apiKey === "string" && apiKey.trim() === ""))
     );
-=======
     return !apiKey || (typeof apiKey === "string" && apiKey.trim() === "");
->>>>>>> origin/cc-switch-cli
   }
   if (appId === "gemini") {
     // 无 GEMINI_API_KEY 且无 GOOGLE_GEMINI_BASE_URL → Google OAuth 官方模式
@@ -210,7 +201,6 @@ export function ProviderCard({
   const isCopilot =
     provider.meta?.providerType === PROVIDER_TYPES.GITHUB_COPILOT ||
     provider.meta?.usage_script?.templateType === "github_copilot";
-<<<<<<< HEAD
   // Hermes v12+ overlay entries live under the `providers:` dict and are
   // read-only here — writes have to go through Hermes Web UI.
   const isHermesReadOnly =
@@ -233,10 +223,8 @@ export function ProviderCard({
   ]);
   const isClaudeThirdParty =
     appId === "claude" && provider.category === "third_party";
-=======
   const isCodexOauth =
     provider.meta?.providerType === PROVIDER_TYPES.CODEX_OAUTH;
->>>>>>> origin/cc-switch-cli
 
   // 获取用量数据以判断是否有多套餐
   // 累加模式应用（OpenCode/OpenClaw/Hermes）：使用 isInConfig 代替 isCurrent
@@ -296,8 +284,6 @@ export function ProviderCard({
     (!isAnyOmo &&
       !isProxyTakeover &&
       (isActiveProvider || hasPersistentConfigHighlight));
-<<<<<<< HEAD
-=======
   const supportsWeightRoundRobin =
     appId === "claude" || appId === "codex" || appId === "gemini";
   const routingWeight = provider.weight ?? provider.meta?.routingWeight ?? 1;
@@ -311,7 +297,6 @@ export function ProviderCard({
           defaultValue: `轮询 1/${routingWeight}`,
         });
 
->>>>>>> origin/cc-switch-cli
   return (
     <div
       className={cn(
@@ -558,24 +543,18 @@ export function ProviderCard({
               isTesting={isTesting}
               isProxyTakeover={isProxyTakeover}
               isOfficialBlockedByProxy={isOfficialBlockedByProxy}
-<<<<<<< HEAD
               isReadOnly={isHermesReadOnly}
-=======
->>>>>>> origin/cc-switch-cli
               isOmo={isAnyOmo}
               onSwitch={() => onSwitch(provider)}
               onEdit={() => onEdit(provider)}
               onDuplicate={() => onDuplicate(provider)}
               onTest={
-<<<<<<< HEAD
                 onTest &&
                 !isOfficial &&
                 !isCopilot &&
                 !isCodexOauth &&
                 !isClaudeThirdParty
-=======
                 onTest && !isOfficial && !isCopilot && !isCodexOauth
->>>>>>> origin/cc-switch-cli
                   ? () => onTest(provider)
                   : undefined
               }

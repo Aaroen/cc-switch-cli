@@ -14,12 +14,9 @@ import type {
   ProviderMeta,
   ProviderTestConfig,
   ClaudeApiFormat,
-<<<<<<< HEAD
   CodexApiFormat,
   CodexCatalogModel,
   CodexChatReasoning,
-=======
->>>>>>> origin/cc-switch-cli
   ClaudeApiKeyField,
 } from "@/types";
 import {
@@ -99,10 +96,7 @@ import {
   useOpencodeFormState,
   useOmoDraftState,
   useOpenclawFormState,
-<<<<<<< HEAD
   useHermesFormState,
-=======
->>>>>>> origin/cc-switch-cli
   useCopilotAuth,
   useCodexOauth,
 } from "./hooks";
@@ -116,15 +110,12 @@ import {
   OPENCLAW_DEFAULT_CONFIG,
   normalizePricingSource,
 } from "./helpers/opencodeFormUtils";
-<<<<<<< HEAD
 import { HERMES_DEFAULT_CONFIG } from "./hooks/useHermesFormState";
 import { resolveManagedAccountId } from "@/lib/authBinding";
 import { useOpenClawLiveProviderIds } from "@/hooks/useOpenClaw";
 import { useHermesLiveProviderIds } from "@/hooks/useHermes";
-=======
 import { resolveManagedAccountId } from "@/lib/authBinding";
 import { useOpenClawLiveProviderIds } from "@/hooks/useOpenClaw";
->>>>>>> origin/cc-switch-cli
 
 type PresetEntry = {
   id: string;
@@ -365,10 +356,7 @@ function ProviderFormFull({
         initialData?.meta?.pricingModelSource,
       ),
     });
-<<<<<<< HEAD
     setCodexChatReasoning(initialData?.meta?.codexChatReasoning ?? {});
-=======
->>>>>>> origin/cc-switch-cli
   }, [appId, initialData, supportsFullUrl]);
 
   const defaultValues: ProviderFormData = useMemo(
@@ -421,7 +409,6 @@ function ProviderFormFull({
     },
   );
 
-<<<<<<< HEAD
   // 软校验：收集"业务约束"类问题（空值/缺项），由用户决定是否仍要保存
   const [softIssues, setSoftIssues] = useState<string[] | null>(null);
   const [pendingFormValues, setPendingFormValues] =
@@ -432,11 +419,9 @@ function ProviderFormFull({
   useEffect(() => {
     onSubmittingChange?.(isSubmitting || isConfirmSubmitting);
   }, [isSubmitting, isConfirmSubmitting, onSubmittingChange]);
-=======
   useEffect(() => {
     onSubmittingChange?.(isSubmitting);
   }, [isSubmitting, onSubmittingChange]);
->>>>>>> origin/cc-switch-cli
 
   const {
     apiKey,
@@ -522,7 +507,6 @@ function ProviderFormFull({
   const [selectedCodexAccountId, setSelectedCodexAccountId] = useState<
     string | null
   >(() => resolveManagedAccountId(initialData?.meta, "codex_oauth"));
-<<<<<<< HEAD
   const [codexFastMode, setCodexFastMode] = useState<boolean>(
     () => initialData?.meta?.codexFastMode ?? false,
   );
@@ -530,8 +514,6 @@ function ProviderFormFull({
     useState<CodexChatReasoning>(
       () => initialData?.meta?.codexChatReasoning ?? {},
     );
-=======
->>>>>>> origin/cc-switch-cli
 
   const {
     codexAuth,
@@ -844,7 +826,6 @@ function ProviderFormFull({
     isLoading: isOpenclawLiveProviderIdsLoading,
   } = useOpenClawLiveProviderIds(appId === "openclaw");
 
-<<<<<<< HEAD
   const hermesForm = useHermesFormState({
     initialData,
     appId,
@@ -857,8 +838,6 @@ function ProviderFormFull({
     isLoading: isHermesLiveProviderIdsLoading,
   } = useHermesLiveProviderIds(appId === "hermes");
 
-=======
->>>>>>> origin/cc-switch-cli
   const additiveExistingProviderKeys = useMemo(() => {
     if (appId === "opencode" && !isAnyOmoCategory) {
       return Array.from(
@@ -881,7 +860,6 @@ function ProviderFormFull({
       );
     }
 
-<<<<<<< HEAD
     if (appId === "hermes") {
       return Array.from(
         new Set(
@@ -892,17 +870,12 @@ function ProviderFormFull({
       );
     }
 
-=======
->>>>>>> origin/cc-switch-cli
     return [];
   }, [
     appId,
     existingOpencodeKeys,
-<<<<<<< HEAD
     hermesForm.existingHermesKeys,
     hermesLiveProviderIds,
-=======
->>>>>>> origin/cc-switch-cli
     isAnyOmoCategory,
     openclawForm.existingOpenclawKeys,
     openclawLiveProviderIds,
@@ -918,21 +891,15 @@ function ProviderFormFull({
     if (appId === "openclaw") {
       return isOpenclawLiveProviderIdsLoading;
     }
-<<<<<<< HEAD
     if (appId === "hermes") {
       return isHermesLiveProviderIdsLoading;
     }
-=======
->>>>>>> origin/cc-switch-cli
     return false;
   }, [
     appId,
     isAnyOmoCategory,
     isEditMode,
-<<<<<<< HEAD
     isHermesLiveProviderIdsLoading,
-=======
->>>>>>> origin/cc-switch-cli
     isOpenclawLiveProviderIdsLoading,
     isOpencodeLiveProviderIdsLoading,
   ]);
@@ -945,7 +912,6 @@ function ProviderFormFull({
     if (appId === "openclaw") {
       return openclawLiveProviderIds.includes(providerId);
     }
-<<<<<<< HEAD
     if (appId === "hermes") {
       return hermesLiveProviderIds.includes(providerId);
     }
@@ -953,11 +919,9 @@ function ProviderFormFull({
   }, [
     appId,
     hermesLiveProviderIds,
-=======
     return false;
   }, [
     appId,
->>>>>>> origin/cc-switch-cli
     isAnyOmoCategory,
     isEditMode,
     openclawLiveProviderIds,
@@ -968,13 +932,10 @@ function ProviderFormFull({
   const [isCommonConfigModalOpen, setIsCommonConfigModalOpen] = useState(false);
 
   const handleSubmit = async (values: ProviderFormData) => {
-<<<<<<< HEAD
     // 软性问题（业务约束，用户可选择仍要保存）
     const issues: string[] = [];
 
     // 模板变量未填：A 类（空值）
-=======
->>>>>>> origin/cc-switch-cli
     if (appId === "claude" && templateValueEntries.length > 0) {
       const validation = validateTemplateValues();
       if (!validation.isValid && validation.missingField) {
@@ -1185,22 +1146,16 @@ function ProviderFormFull({
     if (category !== "official" && category !== "cloud_provider") {
       if (appId === "claude") {
         if (!isCodexOauthProvider && !baseUrl.trim()) {
-<<<<<<< HEAD
           issues.push(
-=======
           toast.error(
->>>>>>> origin/cc-switch-cli
             t("providerForm.endpointRequired", {
               defaultValue: "非官方供应商请填写 API 端点",
             }),
           );
         }
         if (!isCopilotProvider && !isCodexOauthProvider && !apiKey.trim()) {
-<<<<<<< HEAD
           issues.push(
-=======
           toast.error(
->>>>>>> origin/cc-switch-cli
             t("providerForm.apiKeyRequired", {
               defaultValue: "非官方供应商请填写 API Key",
             }),
@@ -1429,11 +1384,8 @@ function ProviderFormFull({
     const providerType =
       templatePreset?.providerType || initialData?.meta?.providerType;
 
-<<<<<<< HEAD
     const nextMeta: ProviderMeta = {
-=======
     payload.meta = {
->>>>>>> origin/cc-switch-cli
       ...(baseMeta ?? {}),
       commonConfigEnabled:
         appId === "claude"
@@ -1444,10 +1396,7 @@ function ProviderFormFull({
               ? useGeminiCommonConfigFlag
               : undefined,
       endpointAutoSelect,
-<<<<<<< HEAD
       claudeDesktopMode: undefined,
-=======
->>>>>>> origin/cc-switch-cli
       // 保存 providerType（用于识别 Copilot / Codex OAuth 等特殊供应商）
       providerType,
       authBinding: isCopilotProvider
@@ -1468,7 +1417,6 @@ function ProviderFormFull({
         isCopilotProvider && selectedGitHubAccountId
           ? selectedGitHubAccountId
           : undefined,
-<<<<<<< HEAD
       codexFastMode: isCodexOauthProvider ? codexFastMode : undefined,
       codexChatReasoning:
         appId === "codex" &&
@@ -1476,8 +1424,6 @@ function ProviderFormFull({
         localCodexApiFormat === "openai_chat"
           ? normalizeCodexChatReasoningForSave(codexChatReasoning)
           : undefined,
-=======
->>>>>>> origin/cc-switch-cli
       testConfig: testConfig.enabled ? testConfig : undefined,
       costMultiplier: pricingConfig.enabled
         ? pricingConfig.costMultiplier
@@ -1514,15 +1460,12 @@ function ProviderFormFull({
           : undefined,
     };
 
-<<<<<<< HEAD
     if (!isCodexOauthProvider && "codexFastMode" in nextMeta) {
       delete nextMeta.codexFastMode;
     }
 
     payload.meta = nextMeta;
 
-=======
->>>>>>> origin/cc-switch-cli
     await onSubmit(payload);
   };
 
@@ -1750,7 +1693,6 @@ function ProviderFormFull({
       // Update form fields
       form.reset({
         name: preset.nameKey ? t(preset.nameKey) : preset.name,
-<<<<<<< HEAD
         websiteUrl: preset.websiteUrl ?? "",
         settingsConfig: JSON.stringify(config, null, 2),
         icon: preset.icon ?? "",
@@ -1768,8 +1710,6 @@ function ProviderFormFull({
 
       form.reset({
         name: preset.nameKey ? t(preset.nameKey) : preset.name,
-=======
->>>>>>> origin/cc-switch-cli
         websiteUrl: preset.websiteUrl ?? "",
         settingsConfig: JSON.stringify(config, null, 2),
         icon: preset.icon ?? "",
@@ -1825,12 +1765,9 @@ function ProviderFormFull({
           {!initialData && (
             <ProviderPresetSelector
               selectedPresetId={selectedPresetId}
-<<<<<<< HEAD
               presetEntries={presetEntries}
-=======
               groupedPresets={groupedPresets}
               categoryKeys={categoryKeys}
->>>>>>> origin/cc-switch-cli
               presetCategoryLabels={presetCategoryLabels}
               onPresetChange={handlePresetChange}
               onUniversalPresetSelect={onUniversalPresetSelect}
@@ -1974,7 +1911,6 @@ function ProviderFormFull({
                       </p>
                     )}
                 </div>
-<<<<<<< HEAD
               ) : appId === "hermes" ? (
                 <div className="space-y-2">
                   <Label htmlFor="hermes-key">
@@ -2048,8 +1984,6 @@ function ProviderFormFull({
                       </p>
                     )}
                 </div>
-=======
->>>>>>> origin/cc-switch-cli
               ) : undefined
             }
           />
@@ -2092,11 +2026,8 @@ function ProviderFormFull({
               isCodexOauthAuthenticated={isCodexOauthAuthenticated}
               selectedCodexAccountId={selectedCodexAccountId}
               onCodexAccountSelect={setSelectedCodexAccountId}
-<<<<<<< HEAD
               codexFastMode={codexFastMode}
               onCodexFastModeChange={setCodexFastMode}
-=======
->>>>>>> origin/cc-switch-cli
               templateValueEntries={templateValueEntries}
               templateValues={templateValues}
               templatePresetName={templatePreset?.name || ""}
@@ -2111,7 +2042,6 @@ function ProviderFormFull({
               }
               autoSelect={endpointAutoSelect}
               onAutoSelectChange={setEndpointAutoSelect}
-<<<<<<< HEAD
               showEndpointTools
               shouldShowModelSelector={category !== "official"}
               claudeModel={claudeModel}
@@ -2121,14 +2051,12 @@ function ProviderFormFull({
               defaultSonnetModelName={defaultSonnetModelName}
               defaultOpusModel={defaultOpusModel}
               defaultOpusModelName={defaultOpusModelName}
-=======
               shouldShowModelSelector={category !== "official"}
               claudeModel={claudeModel}
               reasoningModel={reasoningModel}
               defaultHaikuModel={defaultHaikuModel}
               defaultSonnetModel={defaultSonnetModel}
               defaultOpusModel={defaultOpusModel}
->>>>>>> origin/cc-switch-cli
               onModelChange={handleModelChange}
               speedTestEndpoints={speedTestEndpoints}
               apiFormat={localApiFormat}
@@ -2162,18 +2090,15 @@ function ProviderFormFull({
               }
               autoSelect={endpointAutoSelect}
               onAutoSelectChange={setEndpointAutoSelect}
-<<<<<<< HEAD
               apiFormat={localCodexApiFormat}
               onApiFormatChange={handleCodexApiFormatChange}
               codexChatReasoning={codexChatReasoning}
               onCodexChatReasoningChange={setCodexChatReasoning}
               catalogModels={codexCatalogModels}
               onCatalogModelsChange={setCodexCatalogModels}
-=======
               shouldShowModelField={category !== "official"}
               modelName={codexModelName}
               onModelNameChange={handleCodexModelNameChange}
->>>>>>> origin/cc-switch-cli
               speedTestEndpoints={speedTestEndpoints}
             />
           )}
@@ -2270,7 +2195,6 @@ function ProviderFormFull({
             />
           )}
 
-<<<<<<< HEAD
           {/* Hermes 专属字段 */}
           {appId === "hermes" && (
             <HermesFormFields
@@ -2294,20 +2218,15 @@ function ProviderFormFull({
             />
           )}
 
-=======
->>>>>>> origin/cc-switch-cli
           {/* 配置编辑器：Codex、Claude、Gemini 分别使用不同的编辑器 */}
           {appId === "codex" ? (
             <>
               <CodexConfigEditor
                 authValue={codexAuth}
                 configValue={codexConfig}
-<<<<<<< HEAD
                 providerName={form.watch("name")}
                 showRemoteCompaction={category !== "official"}
                 isProxyTakeover={isProxyTakeover}
-=======
->>>>>>> origin/cc-switch-cli
                 onAuthChange={setCodexAuth}
                 onConfigChange={handleCodexConfigChange}
                 useCommonConfig={useCodexCommonConfigFlag}
@@ -2385,11 +2304,8 @@ function ProviderFormFull({
               </div>
               {settingsConfigErrorField}
             </>
-<<<<<<< HEAD
           ) : appId === "openclaw" || appId === "hermes" ? (
-=======
           ) : appId === "openclaw" ? (
->>>>>>> origin/cc-switch-cli
             <>
               <div className="space-y-2">
                 <Label htmlFor="settingsConfig">
@@ -2398,7 +2314,6 @@ function ProviderFormFull({
                 <JsonEditor
                   value={form.getValues("settingsConfig")}
                   onChange={(config) => form.setValue("settingsConfig", config)}
-<<<<<<< HEAD
                   placeholder={
                     appId === "hermes"
                       ? `{
@@ -2407,19 +2322,14 @@ function ProviderFormFull({
   "api_key": ""
 }`
                       : `{
-=======
                   placeholder={`{
->>>>>>> origin/cc-switch-cli
   "baseUrl": "https://api.example.com/v1",
   "apiKey": "your-api-key-here",
   "api": "openai-completions",
   "models": []
-<<<<<<< HEAD
 }`
                   }
-=======
 }`}
->>>>>>> origin/cc-switch-cli
                   rows={14}
                   showValidation={true}
                   language="json"
@@ -2457,12 +2367,9 @@ function ProviderFormFull({
 
           {!isAnyOmoCategory &&
             appId !== "opencode" &&
-<<<<<<< HEAD
             appId !== "openclaw" &&
             appId !== "hermes" && (
-=======
             appId !== "openclaw" && (
->>>>>>> origin/cc-switch-cli
               <ProviderAdvancedConfig
                 testConfig={testConfig}
                 pricingConfig={pricingConfig}
@@ -2476,14 +2383,11 @@ function ProviderFormFull({
               <Button variant="outline" type="button" onClick={onCancel}>
                 {t("common.cancel")}
               </Button>
-<<<<<<< HEAD
               <Button
                 type="submit"
                 disabled={isSubmitting || isConfirmSubmitting}
               >
-=======
               <Button type="submit" disabled={isSubmitting}>
->>>>>>> origin/cc-switch-cli
                 {submitLabel}
               </Button>
             </div>
@@ -2500,7 +2404,6 @@ function ProviderFormFull({
         onConfirm={() => void handleCommonConfigConfirm()}
         onCancel={() => void handleCommonConfigConfirm()}
       />
-<<<<<<< HEAD
 
       <ConfirmDialog
         isOpen={softIssues !== null && softIssues.length > 0}
@@ -2545,8 +2448,6 @@ function ProviderFormFull({
           setPendingFormValues(null);
         }}
       />
-=======
->>>>>>> origin/cc-switch-cli
     </>
   );
 }

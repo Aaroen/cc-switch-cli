@@ -3,10 +3,7 @@ import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
-<<<<<<< HEAD
 import { Switch } from "@/components/ui/switch";
-=======
->>>>>>> origin/cc-switch-cli
 import {
   Select,
   SelectContent,
@@ -34,13 +31,10 @@ interface CodexOAuthSectionProps {
   selectedAccountId?: string | null;
   /** 账号选择回调 */
   onAccountSelect?: (accountId: string | null) => void;
-<<<<<<< HEAD
   /** 是否开启 Codex FAST mode */
   fastModeEnabled?: boolean;
   /** FAST mode 切换回调 */
   onFastModeChange?: (enabled: boolean) => void;
-=======
->>>>>>> origin/cc-switch-cli
 }
 
 /**
@@ -53,11 +47,8 @@ export const CodexOAuthSection: React.FC<CodexOAuthSectionProps> = ({
   className,
   selectedAccountId,
   onAccountSelect,
-<<<<<<< HEAD
   fastModeEnabled = false,
   onFastModeChange,
-=======
->>>>>>> origin/cc-switch-cli
 }) => {
   const { t } = useTranslation();
   const [copied, setCopied] = React.useState(false);
@@ -156,7 +147,6 @@ export const CodexOAuthSection: React.FC<CodexOAuthSectionProps> = ({
         </div>
       )}
 
-<<<<<<< HEAD
       {onFastModeChange && (
         <div className="flex items-center justify-between rounded-md border bg-muted/30 p-3">
           <div className="space-y-1 pr-4">
@@ -178,8 +168,6 @@ export const CodexOAuthSection: React.FC<CodexOAuthSectionProps> = ({
         </div>
       )}
 
-=======
->>>>>>> origin/cc-switch-cli
       {/* 已登录账号列表 */}
       {hasAnyAccount && (
         <div className="space-y-2">

@@ -53,28 +53,22 @@ export const geminiProviderPresets: GeminiProviderPreset[] = [
   {
     name: "Shengsuanyun",
     nameKey: "providerForm.presets.shengsuanyun",
-<<<<<<< HEAD
     websiteUrl: "https://www.shengsuanyun.com/?from=CH_4HHXMRYF",
-=======
     websiteUrl: "https://www.shengsuanyun.com",
->>>>>>> origin/cc-switch-cli
     apiKeyUrl: "https://www.shengsuanyun.com/?from=CH_4HHXMRYF",
     settingsConfig: {
       env: {
         GOOGLE_GEMINI_BASE_URL: "https://router.shengsuanyun.com/api",
-<<<<<<< HEAD
         GEMINI_MODEL: "google/gemini-3.5-flash",
       },
     },
     baseURL: "https://router.shengsuanyun.com/api",
     model: "google/gemini-3.5-flash",
-=======
         GEMINI_MODEL: "gemini-3.1-pro",
       },
     },
     baseURL: "https://router.shengsuanyun.com/api",
     model: "gemini-3.1-pro",
->>>>>>> origin/cc-switch-cli
     description: "Shengsuanyun",
     category: "aggregator",
     isPartner: true,
@@ -88,19 +82,16 @@ export const geminiProviderPresets: GeminiProviderPreset[] = [
     settingsConfig: {
       env: {
         GOOGLE_GEMINI_BASE_URL: "https://www.packyapi.com",
-<<<<<<< HEAD
         GEMINI_MODEL: "gemini-3.5-flash",
       },
     },
     baseURL: "https://www.packyapi.com",
     model: "gemini-3.5-flash",
-=======
         GEMINI_MODEL: "gemini-3.1-pro",
       },
     },
     baseURL: "https://www.packyapi.com",
     model: "gemini-3.1-pro",
->>>>>>> origin/cc-switch-cli
     description: "PackyCode",
     category: "third_party",
     isPartner: true,
@@ -178,19 +169,16 @@ export const geminiProviderPresets: GeminiProviderPreset[] = [
     settingsConfig: {
       env: {
         GOOGLE_GEMINI_BASE_URL: "https://api.cubence.com",
-<<<<<<< HEAD
         GEMINI_MODEL: "gemini-3.5-flash",
       },
     },
     baseURL: "https://api.cubence.com",
     model: "gemini-3.5-flash",
-=======
         GEMINI_MODEL: "gemini-3.1-pro",
       },
     },
     baseURL: "https://api.cubence.com",
     model: "gemini-3.1-pro",
->>>>>>> origin/cc-switch-cli
     description: "Cubence",
     category: "third_party",
     isPartner: true,
@@ -211,19 +199,16 @@ export const geminiProviderPresets: GeminiProviderPreset[] = [
     settingsConfig: {
       env: {
         GOOGLE_GEMINI_BASE_URL: "https://api.aigocode.com",
-<<<<<<< HEAD
         GEMINI_MODEL: "gemini-3.5-flash",
       },
     },
     baseURL: "https://api.aigocode.com",
     model: "gemini-3.5-flash",
-=======
         GEMINI_MODEL: "gemini-3.1-pro",
       },
     },
     baseURL: "https://api.aigocode.com",
     model: "gemini-3.1-pro",
->>>>>>> origin/cc-switch-cli
     description: "AIGoCode",
     category: "third_party",
     isPartner: true,
@@ -239,19 +224,16 @@ export const geminiProviderPresets: GeminiProviderPreset[] = [
     settingsConfig: {
       env: {
         GOOGLE_GEMINI_BASE_URL: "https://api.aicodemirror.com/api/gemini",
-<<<<<<< HEAD
         GEMINI_MODEL: "gemini-3.5-flash",
       },
     },
     baseURL: "https://api.aicodemirror.com/api/gemini",
     model: "gemini-3.5-flash",
-=======
         GEMINI_MODEL: "gemini-3.1-pro",
       },
     },
     baseURL: "https://api.aicodemirror.com/api/gemini",
     model: "gemini-3.1-pro",
->>>>>>> origin/cc-switch-cli
     description: "AICodeMirror",
     category: "third_party",
     isPartner: true,
@@ -264,8 +246,6 @@ export const geminiProviderPresets: GeminiProviderPreset[] = [
     iconColor: "#000000",
   },
   {
-<<<<<<< HEAD
-=======
     name: "AICoding",
     websiteUrl: "https://aicoding.sh",
     apiKeyUrl: "https://aicoding.sh/i/CCSWITCH",
@@ -286,27 +266,23 @@ export const geminiProviderPresets: GeminiProviderPreset[] = [
     iconColor: "#000000",
   },
   {
->>>>>>> origin/cc-switch-cli
     name: "CrazyRouter",
     websiteUrl: "https://www.crazyrouter.com",
     apiKeyUrl: "https://www.crazyrouter.com/register?aff=OZcm&ref=cc-switch",
     settingsConfig: {
       env: {
-<<<<<<< HEAD
         GOOGLE_GEMINI_BASE_URL: "https://cn.crazyrouter.com",
         GEMINI_MODEL: "gemini-3.5-flash",
       },
     },
     baseURL: "https://cn.crazyrouter.com",
     model: "gemini-3.5-flash",
-=======
         GOOGLE_GEMINI_BASE_URL: "https://crazyrouter.com",
         GEMINI_MODEL: "gemini-3.1-pro",
       },
     },
     baseURL: "https://crazyrouter.com",
     model: "gemini-3.1-pro",
->>>>>>> origin/cc-switch-cli
     description: "CrazyRouter",
     category: "third_party",
     isPartner: true,
@@ -322,19 +298,16 @@ export const geminiProviderPresets: GeminiProviderPreset[] = [
     settingsConfig: {
       env: {
         GOOGLE_GEMINI_BASE_URL: "https://node-hk.sssaicode.com/api",
-<<<<<<< HEAD
         GEMINI_MODEL: "gemini-3.5-flash",
       },
     },
     baseURL: "https://node-hk.sssaicode.com/api",
     model: "gemini-3.5-flash",
-=======
         GEMINI_MODEL: "gemini-3.1-pro",
       },
     },
     baseURL: "https://node-hk.sssaicode.com/api",
     model: "gemini-3.1-pro",
->>>>>>> origin/cc-switch-cli
     description: "SSSAiCode",
     category: "third_party",
     isPartner: true,
@@ -354,19 +327,16 @@ export const geminiProviderPresets: GeminiProviderPreset[] = [
     settingsConfig: {
       env: {
         GOOGLE_GEMINI_BASE_URL: "https://api.ctok.ai/v1beta",
-<<<<<<< HEAD
         GEMINI_MODEL: "gemini-3.5-flash",
       },
     },
     baseURL: "https://api.ctok.ai/v1beta",
     model: "gemini-3.5-flash",
-=======
         GEMINI_MODEL: "gemini-3.1-pro",
       },
     },
     baseURL: "https://api.ctok.ai/v1beta",
     model: "gemini-3.1-pro",
->>>>>>> origin/cc-switch-cli
     description: "CTok",
     category: "third_party",
     isPartner: true,
@@ -376,8 +346,6 @@ export const geminiProviderPresets: GeminiProviderPreset[] = [
     iconColor: "#000000",
   },
   {
-<<<<<<< HEAD
-=======
     name: "LionCCAPI",
     websiteUrl: "https://vibecodingapi.ai",
     settingsConfig: {
@@ -395,7 +363,6 @@ export const geminiProviderPresets: GeminiProviderPreset[] = [
     icon: "lioncc",
   },
   {
->>>>>>> origin/cc-switch-cli
     name: "E-FlowCode",
     websiteUrl: "https://e-flowcode.cc",
     apiKeyUrl: "https://e-flowcode.cc",
@@ -403,11 +370,8 @@ export const geminiProviderPresets: GeminiProviderPreset[] = [
       env: {
         GOOGLE_GEMINI_BASE_URL: "https://e-flowcode.cc",
         GEMINI_API_KEY: "",
-<<<<<<< HEAD
         GEMINI_MODEL: "gemini-3.5-flash",
-=======
         GEMINI_MODEL: "gemini-3.1-pro-preview",
->>>>>>> origin/cc-switch-cli
       },
       config: {
         general: {
@@ -427,11 +391,8 @@ export const geminiProviderPresets: GeminiProviderPreset[] = [
       },
     },
     baseURL: "https://e-flowcode.cc",
-<<<<<<< HEAD
     model: "gemini-3.5-flash",
-=======
     model: "gemini-3.1-pro-preview",
->>>>>>> origin/cc-switch-cli
     description: "E-FlowCode",
     category: "third_party",
     endpointCandidates: ["https://e-flowcode.cc"],
@@ -439,7 +400,6 @@ export const geminiProviderPresets: GeminiProviderPreset[] = [
     iconColor: "#000000",
   },
   {
-<<<<<<< HEAD
     name: "LemonData",
     websiteUrl: "https://lemondata.cc",
     apiKeyUrl: "https://lemondata.cc/r/FFX1ZDUP",
@@ -477,27 +437,22 @@ export const geminiProviderPresets: GeminiProviderPreset[] = [
     icon: "cherryin",
   },
   {
-=======
->>>>>>> origin/cc-switch-cli
     name: "OpenRouter",
     websiteUrl: "https://openrouter.ai",
     apiKeyUrl: "https://openrouter.ai/keys",
     settingsConfig: {
       env: {
         GOOGLE_GEMINI_BASE_URL: "https://openrouter.ai/api",
-<<<<<<< HEAD
         GEMINI_MODEL: "gemini-3.5-flash",
       },
     },
     baseURL: "https://openrouter.ai/api",
     model: "gemini-3.5-flash",
-=======
         GEMINI_MODEL: "gemini-3.1-pro",
       },
     },
     baseURL: "https://openrouter.ai/api",
     model: "gemini-3.1-pro",
->>>>>>> origin/cc-switch-cli
     description: "OpenRouter",
     category: "aggregator",
     icon: "openrouter",
@@ -510,19 +465,16 @@ export const geminiProviderPresets: GeminiProviderPreset[] = [
     settingsConfig: {
       env: {
         GOOGLE_GEMINI_BASE_URL: "https://api.therouter.ai",
-<<<<<<< HEAD
         GEMINI_MODEL: "gemini-3.5-flash",
       },
     },
     baseURL: "https://api.therouter.ai",
     model: "gemini-3.5-flash",
-=======
         GEMINI_MODEL: "gemini-2.5-pro",
       },
     },
     baseURL: "https://api.therouter.ai",
     model: "gemini-2.5-pro",
->>>>>>> origin/cc-switch-cli
     description: "TheRouter",
     category: "aggregator",
     endpointCandidates: ["https://api.therouter.ai"],
@@ -533,17 +485,14 @@ export const geminiProviderPresets: GeminiProviderPreset[] = [
     settingsConfig: {
       env: {
         GOOGLE_GEMINI_BASE_URL: "",
-<<<<<<< HEAD
         GEMINI_MODEL: "gemini-3.5-flash",
       },
     },
     model: "gemini-3.5-flash",
-=======
         GEMINI_MODEL: "gemini-3.1-pro",
       },
     },
     model: "gemini-3.1-pro",
->>>>>>> origin/cc-switch-cli
     description: "自定义 Gemini API 端点",
     category: "custom",
   },

@@ -87,10 +87,7 @@ export const ProviderIcon: React.FC<ProviderIconProps> = ({
       <img
         src={iconUrl}
         alt={name}
-<<<<<<< HEAD
         title={name}
-=======
->>>>>>> origin/cc-switch-cli
         className={cn(
           "inline-flex items-center justify-center flex-shrink-0 object-contain",
           className,

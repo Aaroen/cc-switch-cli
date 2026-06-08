@@ -17,10 +17,7 @@ const MACOS_TERMINALS = [
   { value: "ghostty", labelKey: "settings.terminal.options.macos.ghostty" },
   { value: "wezterm", labelKey: "settings.terminal.options.macos.wezterm" },
   { value: "kaku", labelKey: "settings.terminal.options.macos.kaku" },
-<<<<<<< HEAD
   { value: "warp", labelKey: "settings.terminal.options.macos.warp" },
-=======
->>>>>>> origin/cc-switch-cli
 ] as const;
 
 const WINDOWS_TERMINALS = [
