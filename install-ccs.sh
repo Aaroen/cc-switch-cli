@@ -118,6 +118,25 @@ detect_package_manager() {
     fi
 }
 
+# 检测图形/无头环境
+#   返回 "graphical" 或 "headless"
+#   依据：存在 X11 (DISPLAY) 或 Wayland (WAYLAND_DISPLAY) 显示服务即视为图形环境；
+#   否则（典型如 SSH 远程、服务器、容器）视为无头环境。
+#   可用环境变量 CC_SWITCH_FORCE_ENV=graphical|headless 强制覆盖检测结果。
+detect_display_environment() {
+    case "${CC_SWITCH_FORCE_ENV:-}" in
+        graphical|headless)
+            echo "$CC_SWITCH_FORCE_ENV"
+            return 0
+            ;;
+    esac
+    if [ -n "${DISPLAY:-}" ] || [ -n "${WAYLAND_DISPLAY:-}" ]; then
+        echo "graphical"
+    else
+        echo "headless"
+    fi
+}
+
 # 安装系统依赖
 install_system_deps() {
     local pkg_manager=$1
@@ -435,6 +454,18 @@ if [ -d "$SCRIPT_DIR/.git" ]; then
     IS_GIT_REPO=1
 fi
 
+# 预构建 tar.gz「解压即用」：未显式 --prebuilt、且当前目录无源码 (src-tauri)、
+# 但脚本同目录存在可执行的预构建二进制时，自动按预构建二进制安装，免去手动 --prebuilt。
+if [ -z "${ARG_PREBUILT_BIN:-}" ] && [ ! -d "$SCRIPT_DIR/src-tauri" ]; then
+    if [ -x "$SCRIPT_DIR/cc-switch-cli" ]; then
+        ARG_PREBUILT_BIN="$SCRIPT_DIR/cc-switch-cli"
+        echo -e "${BLUE}检测到同目录预构建二进制，采用预构建安装: $ARG_PREBUILT_BIN${NC}"
+    elif [ -x "$SCRIPT_DIR/cc-switch" ]; then
+        ARG_PREBUILT_BIN="$SCRIPT_DIR/cc-switch"
+        echo -e "${BLUE}检测到同目录预构建二进制，采用预构建安装: $ARG_PREBUILT_BIN${NC}"
+    fi
+fi
+
 # ============================================================================
 # 预检查: 系统环境和依赖
 # ============================================================================
@@ -562,20 +593,77 @@ if [ -n "$MISSING_DEPS" ]; then
     echo ""
 fi
 
-# 检查部署模式（默认CLI）
-CLI_MODE="${CLI_MODE:-true}"
-if [ "${ARG_GUI:-0}" -eq 1 ]; then
-    CLI_MODE="false"
-    echo -e "${YELLOW}GUI 模式已启用${NC}"
-    echo ""
-elif [ "$CLI_MODE" = "true" ]; then
-    echo -e "${GREEN}CLI 模式${NC}"
-    echo ""
+# ============================================================================
+# 部署模式决策：显式 --gui > 显式环境变量 CLI_MODE > 预构建(无头) > 自动环境检测
+#   自动检测：图形环境默认 GUI；无头环境(SSH/服务器/容器)默认无头 CLI
+# ============================================================================
+DISPLAY_ENV="$(detect_display_environment)"
+echo -e "  显示环境: ${GREEN}${DISPLAY_ENV}${NC}"
+
+# 在套用默认值之前，判断用户是否显式设置了 CLI_MODE 环境变量
+CLI_MODE_EXPLICIT=0
+if [ -n "${CLI_MODE+x}" ]; then
+    CLI_MODE_EXPLICIT=1
 fi
+
+if [ "${ARG_GUI:-0}" -eq 1 ]; then
+    CLI_MODE="false"                       # 显式 --gui
+elif [ "$CLI_MODE_EXPLICIT" -eq 1 ]; then
+    CLI_MODE="${CLI_MODE}"                 # 显式环境变量，原样尊重
+elif [ -n "${ARG_PREBUILT_BIN:-}" ]; then
+    CLI_MODE="true"                        # 预构建二进制仅含无头版，强制无头
+    if [ "$DISPLAY_ENV" = "graphical" ]; then
+        echo -e "${YELLOW}提示: 预构建包仅含无头版本；如需图形 GUI 请使用 .deb/.AppImage 或从源码 --gui 构建${NC}"
+    fi
+elif [ "$DISPLAY_ENV" = "graphical" ]; then
+    CLI_MODE="false"                       # 自动：图形环境 → GUI
+else
+    CLI_MODE="true"                        # 自动：无头环境 → CLI
+fi
+
+if [ "$CLI_MODE" = "false" ]; then
+    echo -e "${YELLOW}图形 (GUI) 模式${NC}"
+else
+    echo -e "${GREEN}无头 (CLI) 模式${NC}"
+fi
+echo ""
 
 if [ -n "${ARG_PREBUILT_BIN:-}" ] && [ "$CLI_MODE" != "true" ]; then
     echo -e "${YELLOW}⚠ 检测到 --prebuilt，已自动切换为 CLI 模式（预构建包仅支持无头部署）${NC}"
     CLI_MODE="true"
+fi
+
+# Web 控制台（仅无头/CLI 模式）：交互式询问是否启用；非交互场景可用环境变量
+#   CC_SWITCH_WEB_PORT 指定端口（设置即启用），CC_SWITCH_WEB_BIND 指定监听地址（默认 0.0.0.0，允许局域网访问）。
+WEB_PANEL_ENABLED=0
+WEB_PORT=""
+WEB_BIND="${CC_SWITCH_WEB_BIND:-0.0.0.0}"
+if [ "$CLI_MODE" = "true" ]; then
+    if [ -n "${CC_SWITCH_WEB_PORT:-}" ]; then
+        WEB_PANEL_ENABLED=1
+        WEB_PORT="$CC_SWITCH_WEB_PORT"
+        echo -e "${GREEN}已按环境变量启用 Web 控制台 (端口 $WEB_PORT, 监听 $WEB_BIND)${NC}"
+        echo ""
+    elif [ "$IS_TTY" -eq 1 ]; then
+        printf "是否启用 Web 控制台？(浏览器管理供应商/用量统计) [y/N] "
+        _ans=""
+        read -r _ans < /dev/tty 2>/dev/null || _ans=""
+        case "$_ans" in
+            y|Y|yes|YES)
+                WEB_PANEL_ENABLED=1
+                printf "Web 控制台端口 [默认 8888]: "
+                _port=""
+                read -r _port < /dev/tty 2>/dev/null || _port=""
+                WEB_PORT="${_port:-8888}"
+                echo -e "${GREEN}将启用 Web 控制台 (端口 $WEB_PORT, 监听 $WEB_BIND, 允许局域网访问)${NC}"
+                echo ""
+                ;;
+            *)
+                echo -e "${BLUE}已跳过 Web 控制台 (之后可执行: ccs server start --web-port 8888 --web-bind 0.0.0.0)${NC}"
+                echo ""
+                ;;
+        esac
+    fi
 fi
 
 # 总步骤数
@@ -1421,8 +1509,12 @@ if [ "$CLI_MODE" = "true" ]; then
     MAX_PORT_RETRY=10
 
     while [ $PORT_RETRY -le $MAX_PORT_RETRY ]; do
-        # CLI 模式：自动启动无头服务器
-        nohup "$CLI_LAUNCHER" server start --host 127.0.0.1 --port "$PROXY_PORT" >> "$LOG_DIR/server.log" 2>&1 &
+        # CLI 模式：自动启动无头服务器（按需附加 Web 控制台 --web-port/--web-bind）
+        CCS_START_ARGS=(server start --host 127.0.0.1 --port "$PROXY_PORT")
+        if [ "${WEB_PANEL_ENABLED:-0}" -eq 1 ] && [ -n "${WEB_PORT:-}" ]; then
+            CCS_START_ARGS+=(--web-port "$WEB_PORT" --web-bind "$WEB_BIND")
+        fi
+        nohup "$CLI_LAUNCHER" "${CCS_START_ARGS[@]}" >> "$LOG_DIR/server.log" 2>&1 &
 
         # 等待服务启动（最多10秒）
         WAIT_TIME=0
@@ -1600,6 +1692,18 @@ else
     echo -e "   状态: ${RED}✗ 未运行${NC}"
 fi
 echo ""
+
+# Web 控制台状态
+if [ "${WEB_PANEL_ENABLED:-0}" -eq 1 ] && [ -n "${WEB_PORT:-}" ]; then
+    echo -e "${BLUE}   Web 控制台 (端口 ${WEB_PORT})${NC}"
+    echo -e "   本机访问: http://127.0.0.1:${WEB_PORT}"
+    if [ "${WEB_BIND:-}" = "0.0.0.0" ]; then
+        _lan_ip="$(hostname -I 2>/dev/null | awk '{print $1}')"
+        [ -n "$_lan_ip" ] && echo -e "   局域网访问: http://${_lan_ip}:${WEB_PORT}"
+    fi
+    echo -e "   首次访问请在浏览器中设置访问密码"
+    echo ""
+fi
 
 # 数据库状态
 echo -e "${BLUE}   数据库${NC}"

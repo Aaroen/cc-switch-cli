@@ -4,6 +4,12 @@ on:
   push:
     tags:
       - "v*"
+  workflow_dispatch:
+    inputs:
+      reason:
+        description: "构建原因（dispatch 不创建公开 Release，仅产出可下载产物供验收；确认后再推 v* tag 发布）"
+        required: false
+        default: "verification build"
 
 permissions:
   contents: write
@@ -30,13 +36,14 @@ jobs:
             artifact_name: linux-x86_64
             arch: x86_64
             cli_archive: cc-switch-cli-linux-x86_64.tar.gz
-          - os: ubuntu-22.04-arm
-            artifact_name: linux-arm64
-            arch: arm64
-            cli_archive: cc-switch-cli-linux-arm64.tar.gz
-          - os: macos-14
-            artifact_name: macos-universal
-            cli_archive: cc-switch-cli-macos-universal.tar.gz
+          # macOS / arm64 暂不构建（仅产出 Linux + Windows）；保留以便日后恢复
+          # - os: ubuntu-22.04-arm
+          #   artifact_name: linux-arm64
+          #   arch: arm64
+          #   cli_archive: cc-switch-cli-linux-arm64.tar.gz
+          # - os: macos-14
+          #   artifact_name: macos-universal
+          #   cli_archive: cc-switch-cli-macos-universal.tar.gz
     continue-on-error: ${{ matrix.os != 'ubuntu-22.04' }}
 
     steps:
@@ -569,6 +576,8 @@ jobs:
     name: Publish GitHub Release
     runs-on: ubuntu-22.04
     needs: build-release
+    # 仅在推送 v* tag 时发布；workflow_dispatch 验收构建只产出可下载产物，不创建公开 Release
+    if: startsWith(github.ref, 'refs/tags/')
     permissions:
       contents: write
     steps:
