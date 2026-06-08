@@ -1,11 +1,7 @@
 {
   "name": "cc-switch",
-<<<<<<< HEAD
-  "version": "3.16.2",
-=======
   "version": "3.16.2",
   "packageManager": "pnpm@10.10.0",
->>>>>>> origin/cc-switch-cli
   "description": "All-in-One Assistant for Claude Code, Codex & Gemini CLI",
   "type": "module",
   "scripts": {
