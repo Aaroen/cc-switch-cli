@@ -244,6 +244,7 @@ export function useGeminiCommonConfig({
         env,
         parsed.env as Record<string, string>,
       );
+<<<<<<< HEAD
 
       // 优先级：显式设置的 initialEnabled > 从配置推断的值
       // 如果 initialEnabled 为 undefined，使用推断值
@@ -256,6 +257,11 @@ export function useGeminiCommonConfig({
         !inferredHasCommon &&
         Object.keys(parsed.env).length > 0
       ) {
+=======
+      const hasCommon = initialEnabled ?? inferredHasCommon;
+
+      if (hasCommon && !inferredHasCommon) {
+>>>>>>> origin/cc-switch-cli
         const currentEnv = envStringToObj(envValue);
         const merged = applySnippetToEnv(currentEnv, parsed.env);
         const nextEnvString = envObjToString(merged);

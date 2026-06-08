@@ -9,8 +9,11 @@ use super::{AuthInfo, AuthStrategy, ProviderAdapter};
 use crate::provider::{CodexChatReasoningConfig, Provider};
 use crate::proxy::error::ProxyError;
 use regex::Regex;
+<<<<<<< HEAD
 use serde_json::Value as JsonValue;
 use std::collections::HashSet;
+=======
+>>>>>>> origin/cc-switch-cli
 use std::sync::LazyLock;
 use toml::Value as TomlValue;
 
@@ -563,6 +566,7 @@ impl ProviderAdapter for CodexAdapter {
         url
     }
 
+<<<<<<< HEAD
     fn get_auth_headers(
         &self,
         auth: &AuthInfo,
@@ -573,6 +577,14 @@ impl ProviderAdapter for CodexAdapter {
             http::HeaderName::from_static("authorization"),
             auth_header_value(&bearer)?,
         )])
+=======
+    fn get_auth_headers(&self, auth: &AuthInfo) -> Vec<(http::HeaderName, http::HeaderValue)> {
+        let bearer = format!("Bearer {}", auth.api_key);
+        vec![(
+            http::HeaderName::from_static("authorization"),
+            http::HeaderValue::from_str(&bearer).unwrap(),
+        )]
+>>>>>>> origin/cc-switch-cli
     }
 }
 

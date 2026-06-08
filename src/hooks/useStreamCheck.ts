@@ -62,6 +62,7 @@ export function useStreamCheck(appId: AppId) {
               closeButton: true,
             },
           );
+<<<<<<< HEAD
         } else if (result.errorCategory === "quotaExceeded") {
           toast.warning(
             t("streamCheck.quotaExceeded", {
@@ -76,6 +77,8 @@ export function useStreamCheck(appId: AppId) {
               closeButton: true,
             },
           );
+=======
+>>>>>>> origin/cc-switch-cli
         } else {
           const httpStatus = result.httpStatus;
           const hintKey = httpStatus

@@ -714,7 +714,10 @@ fn sync_all_enabled_removes_known_disabled_but_preserves_unknown_live_entries() 
                 codex: false,
                 gemini: false,
                 opencode: false,
+<<<<<<< HEAD
                 hermes: false,
+=======
+>>>>>>> origin/cc-switch-cli
             },
             description: None,
             homepage: None,
@@ -736,7 +739,10 @@ fn sync_all_enabled_removes_known_disabled_but_preserves_unknown_live_entries() 
                 codex: false,
                 gemini: false,
                 opencode: false,
+<<<<<<< HEAD
                 hermes: false,
+=======
+>>>>>>> origin/cc-switch-cli
             },
             description: None,
             homepage: None,

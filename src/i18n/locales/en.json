@@ -40,8 +40,12 @@
     "deleting": "Deleting...",
     "auto": "Auto",
     "enabled": "Enabled",
+<<<<<<< HEAD
     "notSet": "Not Set",
     "desktopOnly": "This feature is available in the desktop app only"
+=======
+    "notSet": "Not Set"
+>>>>>>> origin/cc-switch-cli
   },
   "firstRunNotice": {
     "title": "Welcome to CC Switch",
@@ -81,7 +85,11 @@
     "hideAttribution": "Hide AI Attribution",
     "enableTeammates": "Teammates Mode",
     "enableToolSearch": "Enable Tool Search",
+<<<<<<< HEAD
     "effortMax": "Max Effort Thinking",
+=======
+    "effortHigh": "High Effort Thinking",
+>>>>>>> origin/cc-switch-cli
     "disableAutoUpgrade": "Disable Auto-Upgrade"
   },
   "header": {
@@ -386,6 +394,18 @@
         "cacheTtl5m": "5 minutes",
         "cacheTtl1h": "1 hour"
       },
+      "optimizer": {
+        "title": "Bedrock Request Optimizer",
+        "description": "Automatically optimize Thinking and Cache configuration before sending requests (only applies to Bedrock providers)",
+        "enabled": "Enable Optimizer",
+        "thinkingOptimizer": "Thinking Optimization",
+        "thinkingOptimizerDescription": "Automatically enable Adaptive Thinking for Opus/Sonnet, and inject Extended Thinking for legacy models",
+        "cacheInjection": "Cache Injection",
+        "cacheInjectionDescription": "Automatically inject cache breakpoints at key positions in requests to reduce duplicate token billing",
+        "cacheTtl": "Cache TTL",
+        "cacheTtl5m": "5 minutes",
+        "cacheTtl1h": "1 hour"
+      },
       "logConfig": {
         "title": "Log Management",
         "description": "Control log output level",
@@ -609,8 +629,12 @@
           "kitty": "Kitty",
           "ghostty": "Ghostty",
           "wezterm": "WezTerm",
+<<<<<<< HEAD
           "kaku": "Kaku",
           "warp": "Warp"
+=======
+          "kaku": "Kaku"
+>>>>>>> origin/cc-switch-cli
         },
         "windows": {
           "cmd": "Command Prompt",
@@ -897,6 +921,7 @@
       "ucloud": "Compshare offers an exclusive bonus for CC Switch users — register via this link to get ¥5 platform trial credit!",
       "micu": "Micu is an official partner of CC Switch",
       "ctok": "Join the CTok community on the official website and subscribe to a plan.",
+<<<<<<< HEAD
       "shengsuanyun": "Shengsuanyun offers exclusive benefits for CC Switch users. New users who register via this link get ¥10 free credits and 10% bonus on first top-up!",
       "lemondata": "Lemon Code offers a special promotion for CC Switch users. Sign up via this link to receive $1 in free credits.",
       "doubaoseed": "DouBao offers exclusive benefits for CC Switch users: register via this link to get 500K tokens of inference credits for all DouBao text models and 5M tokens of free Seedance 2.0 credits.",
@@ -910,6 +935,14 @@
       "openrouter": "OpenRouter",
       "deepseek": "DeepSeek",
       "together": "Together AI"
+=======
+      "ddshub": "DDSHub offers a special bonus for CC Switch users — register via this link and get 10% extra credit on your first top-up (contact group admin to claim)!",
+      "lionccapi": "LionCCAPI offers exclusive benefits for CC Switch users. After registration, add WeChat HSQBJ088888888 and mention 'cc-switch' to receive $10 free credits!",
+      "shengsuanyun": "Shengsuanyun offers exclusive benefits for CC Switch users. New users who register via this link get ¥10 free credits and 10% bonus on first top-up!"
+    },
+    "presets": {
+      "ucloud": "Compshare"
+>>>>>>> origin/cc-switch-cli
     },
     "parameterConfig": "Parameter Config - {{name}} *",
     "mainModel": "Main Model (optional)",
@@ -951,9 +984,12 @@
     "apiFormatOpenAIChat": "OpenAI Chat Completions (Requires routing)",
     "apiFormatOpenAIResponses": "OpenAI Responses API (Requires routing)",
     "apiFormatGeminiNative": "Gemini Native generateContent (Requires routing)",
+<<<<<<< HEAD
     "codexApiFormatResponses": "OpenAI Responses API (Native)",
     "codexApiFormatOpenAIChat": "OpenAI Chat Completions (Requires routing)",
     "codexApiFormatHint": "Select the Codex API format actually supported by this provider; the config stays on Responses for newer Codex versions, while Chat Completions is converted through local routing.",
+=======
+>>>>>>> origin/cc-switch-cli
     "authField": "Auth Field",
     "authFieldAuthToken": "ANTHROPIC_AUTH_TOKEN (Default)",
     "authFieldApiKey": "ANTHROPIC_API_KEY",
@@ -967,6 +1003,7 @@
     "haikuModelPlaceholder": "",
     "modelHelper": "Optional: Specify default Claude model to use, leave blank to use system default.",
     "modelMappingLabel": "Model Mapping",
+<<<<<<< HEAD
     "modelMappingHint": "Display names only affect the /model menu; 1M is only a Claude Code context-capability declaration.",
     "modelRoleLabel": "Model role",
     "modelRoleSonnet": "Sonnet",
@@ -981,6 +1018,9 @@
     "fallbackModelHint": "Used only when a Claude Code request does not clearly map to Sonnet, Opus, or Haiku. Usually safe to leave blank.",
     "quickSetModels": "Quick Set",
     "quickSetSuccess": "Model name applied to all roles",
+=======
+    "modelMappingHint": "Usually not needed if the provider natively serves Claude models. Only configure when you need to map requests to different model names.",
+>>>>>>> origin/cc-switch-cli
     "advancedOptionsToggle": "Advanced Options",
     "advancedOptionsHint": "Includes API format, auth field, and model mapping. Defaults work for most use cases.",
     "categoryOfficial": "Official",
@@ -997,7 +1037,10 @@
     "fetchModelsNeedConfig": "Please fill in API endpoint and API Key first",
     "fetchModelsAuthFailed": "API Key is invalid or lacks permission",
     "fetchModelsNotSupported": "This provider does not support fetching model list",
+<<<<<<< HEAD
     "fetchModelsEndpointNotFound": "No reachable models endpoint found. Please check the Base URL or confirm whether the provider exposes this API.",
+=======
+>>>>>>> origin/cc-switch-cli
     "fetchModelsTimeout": "Request timed out, please check network connection"
   },
   "copilot": {
@@ -1028,11 +1071,15 @@
     "retry": "Retry",
     "copyCode": "Copy code",
     "migrationFailed": "Legacy auth migration failed: {{error}}",
+<<<<<<< HEAD
     "loadModelsFailed": "Failed to load Copilot models",
     "deploymentType": "GitHub Deployment Type",
     "deploymentGitHubCom": "GitHub.com",
     "deploymentEnterprise": "GitHub Enterprise Server",
     "enterpriseDomainPlaceholder": "e.g. company.ghe.com"
+=======
+    "loadModelsFailed": "Failed to load Copilot models"
+>>>>>>> origin/cc-switch-cli
   },
   "codexOauth": {
     "authStatus": "Auth status",
@@ -1053,9 +1100,13 @@
     "addAnotherAccount": "Add another account",
     "logoutAll": "Logout all accounts",
     "retry": "Retry",
+<<<<<<< HEAD
     "copyCode": "Copy code",
     "fastMode": "FAST mode",
     "fastModeDescription": "Send service_tier=\"priority\" for lower latency. Off by default — enabling it consumes your ChatGPT quota at a higher rate."
+=======
+    "copyCode": "Copy code"
+>>>>>>> origin/cc-switch-cli
   },
   "endpointTest": {
     "title": "API Endpoint Management",
@@ -1128,6 +1179,7 @@
     "saveFailed": "Save failed: {{error}}",
     "modelNameHint": "Specify the model to use, will be auto-updated in config.toml",
     "modelName": "Model Name",
+<<<<<<< HEAD
     "localRoutingToggle": "Needs Local Routing",
     "localRoutingOffHint": "If your provider is not native OpenAI Responses API, or the model name is not Codex's default GPT series, please enable this switch.",
     "localRoutingOnHint": "Codex currently only natively supports OpenAI Responses API and GPT series models. If your provider uses the Chat Completions protocol or non-GPT models (such as DeepSeek or Kimi), enable this switch and keep local routing running while in use.",
@@ -1158,6 +1210,12 @@
     "reasoningEffortHint": "Enable when the upstream supports thinking-depth control such as low/high/max. Enabling this also turns on thinking mode and converts Codex's reasoning.effort into the upstream Chat parameter.",
     "reasoningSectionToggle": "Reasoning Capability (Advanced · usually auto-detected)",
     "reasoningSectionHint": "Preset providers are configured automatically; custom providers are inferred from name/URL. Expand to override manually only when auto-detection is wrong."
+=======
+    "modelNamePlaceholder": "e.g., gpt-5-codex",
+    "contextWindow1M": "1M Context Window",
+    "autoCompactLimit": "Auto Compact Limit",
+    "autoCompactLimitHint": "Auto-compacts history when context reaches this token limit"
+>>>>>>> origin/cc-switch-cli
   },
   "geminiConfig": {
     "envFile": "Environment Variables (.env)",
@@ -1276,7 +1334,10 @@
       "codex": "Codex",
       "gemini": "Gemini"
     },
+<<<<<<< HEAD
     "rawInputLabel": "Raw",
+=======
+>>>>>>> origin/cc-switch-cli
     "dataSources": "Data Sources",
     "dataSource": {
       "proxy": "Routing",
@@ -1805,6 +1866,7 @@
     },
     "primaryModel": "Primary Model",
     "fallbackModel": "Fallback Model"
+<<<<<<< HEAD
   },
   "hermes": {
     "form": {
@@ -1868,6 +1930,8 @@
       "openConfig": "Adjust limits in Hermes Web UI",
       "runtimeNote": "Changes apply on Hermes restart or new session."
     }
+=======
+>>>>>>> origin/cc-switch-cli
   },
   "env": {
     "warning": {
@@ -2287,7 +2351,11 @@
         "saveFailed": "Save failed: {{error}}"
       },
       "invalidPort": "Invalid port, please enter a number between 1024-65535",
+<<<<<<< HEAD
       "invalidAddress": "Invalid address. Enter an IPv4 (e.g. 127.0.0.1), IPv6 (e.g. ::1), or localhost",
+=======
+      "invalidAddress": "Invalid address, please enter a valid IP address (e.g. 127.0.0.1) or localhost",
+>>>>>>> origin/cc-switch-cli
       "configSaved": "Routing configuration saved",
       "configSaveFailed": "Failed to save configuration",
       "restartRequired": "Restart routing service for address or port changes to take effect"
@@ -2297,7 +2365,11 @@
       "hint": "Select apps to route — once enabled, requests from that app will go through local routing",
       "enabled": "{{app}} routing enabled",
       "disabled": "{{app}} routing disabled",
+<<<<<<< HEAD
       "failed": "Failed to toggle routing: {{detail}}",
+=======
+      "failed": "Failed to toggle routing",
+>>>>>>> origin/cc-switch-cli
       "tooltip": {
         "active": "{{appLabel}} is routing - {{address}}:{{port}}\nSwitch provider for hot switching",
         "broken": "{{appLabel}} is routing, but routing service is not running",
@@ -2431,8 +2503,11 @@
     "error": "{{providerName}} check error: {{error}}",
     "modelNotFound": "{{providerName}} test model {{model}} does not exist or has been deprecated",
     "modelNotFoundHint": "This model may have been retired by the provider. Update the default test model in \"Model Test Config\".",
+<<<<<<< HEAD
     "quotaExceeded": "{{providerName}} Coding Plan quota has been exceeded",
     "quotaExceededHint": "Baidu Qianfan returned a Coding Plan quota-limit error. Wait for the 5-hour, weekly, or monthly quota refresh, or adjust the plan in the Qianfan console.",
+=======
+>>>>>>> origin/cc-switch-cli
     "httpHint": {
       "400": "Provider rejected request format. Health check probe may differ from actual usage.",
       "401": "API key may be invalid, or provider uses OAuth auth. Check failure doesn't mean it's unusable.",

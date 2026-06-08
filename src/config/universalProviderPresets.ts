@@ -47,7 +47,11 @@ const NEWAPI_DEFAULT_MODELS: UniversalProviderModels = {
     opusModel: "claude-opus-4-8",
   },
   codex: {
+<<<<<<< HEAD
     model: "gpt-5.5",
+=======
+    model: "gpt-5.4",
+>>>>>>> origin/cc-switch-cli
     reasoningEffort: "high",
   },
   gemini: {

@@ -10,10 +10,14 @@ import type {
 
 type PollingState = "idle" | "polling" | "success" | "error";
 
+<<<<<<< HEAD
 export function useManagedAuth(
   authProvider: ManagedAuthProvider,
   githubDomain?: string,
 ) {
+=======
+export function useManagedAuth(authProvider: ManagedAuthProvider) {
+>>>>>>> origin/cc-switch-cli
   const queryClient = useQueryClient();
   const queryKey = ["managed-auth-status", authProvider];
 
@@ -55,7 +59,11 @@ export function useManagedAuth(
   }, [stopPolling]);
 
   const startLoginMutation = useMutation({
+<<<<<<< HEAD
     mutationFn: () => authApi.authStartLogin(authProvider, githubDomain),
+=======
+    mutationFn: () => authApi.authStartLogin(authProvider),
+>>>>>>> origin/cc-switch-cli
     onSuccess: async (response) => {
       setDeviceCode(response);
       setPollingState("polling");
@@ -90,7 +98,10 @@ export function useManagedAuth(
           const newAccount = await authApi.authPollForAccount(
             authProvider,
             response.device_code,
+<<<<<<< HEAD
             githubDomain,
+=======
+>>>>>>> origin/cc-switch-cli
           );
           if (newAccount) {
             stopPolling();

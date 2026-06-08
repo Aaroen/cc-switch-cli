@@ -17,6 +17,9 @@ export { useOmoModelSource } from "./useOmoModelSource";
 export { useOpencodeFormState } from "./useOpencodeFormState";
 export { useOmoDraftState } from "./useOmoDraftState";
 export { useOpenclawFormState } from "./useOpenclawFormState";
+<<<<<<< HEAD
 export { useHermesFormState } from "./useHermesFormState";
+=======
+>>>>>>> origin/cc-switch-cli
 export { useCopilotAuth } from "./useCopilotAuth";
 export { useCodexOauth } from "./useCodexOauth";

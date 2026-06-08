@@ -66,11 +66,18 @@ pub(crate) fn append_utf8_safe(buffer: &mut String, remainder: &mut Vec<u8>, new
             }
             Err(e) => {
                 let valid_up_to = pos + e.valid_up_to();
+<<<<<<< HEAD
                 let valid_slice = &input[pos..valid_up_to];
                 match std::str::from_utf8(valid_slice) {
                     Ok(valid) => buffer.push_str(valid),
                     Err(_) => buffer.push_str(&String::from_utf8_lossy(valid_slice)),
                 }
+=======
+                buffer.push_str(
+                    // Safety: from_utf8 guarantees [pos..valid_up_to] is valid UTF-8.
+                    std::str::from_utf8(&input[pos..valid_up_to]).unwrap(),
+                );
+>>>>>>> origin/cc-switch-cli
                 if let Some(invalid_len) = e.error_len() {
                     // Genuinely invalid byte(s) – emit U+FFFD and continue.
                     buffer.push('\u{FFFD}');

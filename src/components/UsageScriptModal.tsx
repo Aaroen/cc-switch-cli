@@ -8,10 +8,14 @@ import { usageApi, settingsApi, type AppId } from "@/lib/api";
 import { copilotGetUsage, copilotGetUsageForAccount } from "@/lib/api/copilot";
 import { useSettingsQuery } from "@/lib/query";
 import { resolveManagedAccountId } from "@/lib/authBinding";
+<<<<<<< HEAD
 import {
   extractCodexBaseUrl,
   extractCodexExperimentalBearerToken,
 } from "@/utils/providerConfigUtils";
+=======
+import { extractCodexBaseUrl } from "@/utils/providerConfigUtils";
+>>>>>>> origin/cc-switch-cli
 import JsonEditor from "./JsonEditor";
 import * as prettier from "prettier/standalone";
 import * as parserBabel from "prettier/parser-babel";
@@ -24,11 +28,14 @@ import { FullScreenPanel } from "@/components/common/FullScreenPanel";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { cn } from "@/lib/utils";
 import { TEMPLATE_TYPES, PROVIDER_TYPES } from "@/config/constants";
+<<<<<<< HEAD
 import {
   CODING_PLAN_PROVIDERS,
   detectCodingPlanProvider,
 } from "@/config/codingPlanProviders";
 import { formatUsageDataSummary } from "@/utils/usageDisplay";
+=======
+>>>>>>> origin/cc-switch-cli
 
 interface UsageScriptModalProps {
   provider: Provider;
@@ -122,6 +129,24 @@ const TEMPLATE_NAME_KEYS: Record<string, string> = {
   [TEMPLATE_TYPES.BALANCE]: "usageScript.templateBalance",
 };
 
+<<<<<<< HEAD
+=======
+/** Coding Plan 供应商选项 */
+const TOKEN_PLAN_PROVIDERS = [
+  { id: "kimi", label: "Kimi For Coding", pattern: /api\.kimi\.com\/coding/i },
+  {
+    id: "zhipu",
+    label: "Zhipu GLM (智谱)",
+    pattern: /bigmodel\.cn|api\.z\.ai/i,
+  },
+  {
+    id: "minimax",
+    label: "MiniMax",
+    pattern: /api\.minimaxi?\.com|api\.minimax\.io/i,
+  },
+] as const;
+
+>>>>>>> origin/cc-switch-cli
 /** 官方余额查询供应商检测 */
 const BALANCE_PROVIDERS = [
   { id: "deepseek", label: "DeepSeek", pattern: /api\.deepseek\.com/i },
@@ -141,6 +166,18 @@ function detectBalanceProvider(baseUrl: string | undefined): boolean {
   return BALANCE_PROVIDERS.some((bp) => bp.pattern.test(baseUrl));
 }
 
+<<<<<<< HEAD
+=======
+/** 根据 Base URL 自动检测 Coding Plan 供应商 */
+function detectTokenPlanProvider(baseUrl: string | undefined): string | null {
+  if (!baseUrl) return null;
+  for (const cp of TOKEN_PLAN_PROVIDERS) {
+    if (cp.pattern.test(baseUrl)) return cp.id;
+  }
+  return null;
+}
+
+>>>>>>> origin/cc-switch-cli
 const UsageScriptModal: React.FC<UsageScriptModalProps> = ({
   provider,
   appId,
@@ -250,12 +287,17 @@ const UsageScriptModal: React.FC<UsageScriptModalProps> = ({
         return {
           ...savedScript,
           codingPlanProvider:
+<<<<<<< HEAD
             detectCodingPlanProvider(providerCredentials.baseUrl) || "kimi",
+=======
+            detectTokenPlanProvider(providerCredentials.baseUrl) || "kimi",
+>>>>>>> origin/cc-switch-cli
         };
       }
       return savedScript;
     }
 
+<<<<<<< HEAD
     const autoDetected = detectCodingPlanProvider(providerCredentials.baseUrl);
     if (autoDetected) {
       return createUsageScript({ codingPlanProvider: autoDetected });
@@ -268,6 +310,39 @@ const UsageScriptModal: React.FC<UsageScriptModalProps> = ({
     return createUsageScript({
       code: PRESET_TEMPLATES[TEMPLATE_TYPES.GENERAL],
     });
+=======
+    // 新配置：如果 URL 匹配 Coding Plan，自动初始化
+    const autoDetected = detectTokenPlanProvider(providerCredentials.baseUrl);
+    if (autoDetected) {
+      return {
+        enabled: false,
+        language: "javascript" as const,
+        code: "",
+        timeout: 10,
+        autoQueryInterval: 5,
+        codingPlanProvider: autoDetected,
+      };
+    }
+
+    // 新配置：如果 URL 匹配官方余额查询供应商，自动初始化
+    if (detectBalanceProvider(providerCredentials.baseUrl)) {
+      return {
+        enabled: false,
+        language: "javascript" as const,
+        code: "",
+        timeout: 10,
+        autoQueryInterval: 5,
+      };
+    }
+
+    return {
+      enabled: false,
+      language: "javascript" as const,
+      code: PRESET_TEMPLATES[TEMPLATE_TYPES.GENERAL],
+      timeout: 10,
+      autoQueryInterval: 5,
+    };
+>>>>>>> origin/cc-switch-cli
   });
 
   const [testing, setTesting] = useState(false);
@@ -340,7 +415,11 @@ const UsageScriptModal: React.FC<UsageScriptModalProps> = ({
         return TEMPLATE_TYPES.GENERAL;
       }
       // 新配置：如果 URL 匹配 Coding Plan 供应商，自动选择 Coding Plan 模板
+<<<<<<< HEAD
       if (detectCodingPlanProvider(providerCredentials.baseUrl)) {
+=======
+      if (detectTokenPlanProvider(providerCredentials.baseUrl)) {
+>>>>>>> origin/cc-switch-cli
         return TEMPLATE_TYPES.TOKEN_PLAN;
       }
       // 新配置：如果 URL 匹配官方余额查询供应商，自动选择 Balance 模板
@@ -414,12 +493,22 @@ const UsageScriptModal: React.FC<UsageScriptModalProps> = ({
     try {
       // 官方余额查询模板使用专用 API
       if (selectedTemplate === TEMPLATE_TYPES.BALANCE) {
+<<<<<<< HEAD
         const baseUrl = providerCredentials.baseUrl ?? "";
         const apiKey = providerCredentials.apiKey ?? "";
+=======
+        const config = provider.settingsConfig as Record<string, any>;
+        const baseUrl: string = config?.env?.ANTHROPIC_BASE_URL ?? "";
+        const apiKey: string =
+          config?.env?.ANTHROPIC_AUTH_TOKEN ??
+          config?.env?.ANTHROPIC_API_KEY ??
+          "";
+>>>>>>> origin/cc-switch-cli
         const { subscriptionApi } = await import("@/lib/api/subscription");
         const result = await subscriptionApi.getBalance(baseUrl, apiKey);
         if (result.success && result.data && result.data.length > 0) {
           const summary = result.data
+<<<<<<< HEAD
             .map((d) =>
               formatUsageDataSummary(d, {
                 invalid: t("usage.invalid"),
@@ -427,6 +516,12 @@ const UsageScriptModal: React.FC<UsageScriptModalProps> = ({
                 used: t("usage.used"),
               }),
             )
+=======
+            .map((d) => {
+              const name = d.planName ? `[${d.planName}] ` : "";
+              return `${name}${t("usage.remaining")} ${d.remaining?.toFixed(2)} ${d.unit || ""}`;
+            })
+>>>>>>> origin/cc-switch-cli
             .join(", ");
           toast.success(`${t("usageScript.testSuccess")}${summary}`, {
             duration: 3000,
@@ -444,6 +539,7 @@ const UsageScriptModal: React.FC<UsageScriptModalProps> = ({
 
       // Coding Plan 模板使用专用 API
       if (selectedTemplate === TEMPLATE_TYPES.TOKEN_PLAN) {
+<<<<<<< HEAD
         // ZenMux 使用用户在脚本配置中手动填入的 API Key 和 Base URL
         const isZenMux = script.codingPlanProvider === "zenmux";
         const baseUrl = isZenMux
@@ -452,6 +548,14 @@ const UsageScriptModal: React.FC<UsageScriptModalProps> = ({
         const apiKey = isZenMux
           ? (script.apiKey ?? "")
           : (providerCredentials.apiKey ?? "");
+=======
+        const config = provider.settingsConfig as Record<string, any>;
+        const baseUrl: string = config?.env?.ANTHROPIC_BASE_URL ?? "";
+        const apiKey: string =
+          config?.env?.ANTHROPIC_AUTH_TOKEN ??
+          config?.env?.ANTHROPIC_API_KEY ??
+          "";
+>>>>>>> origin/cc-switch-cli
         const { subscriptionApi } = await import("@/lib/api/subscription");
         const quota = await subscriptionApi.getCodingPlanQuota(baseUrl, apiKey);
         if (quota.success && quota.tiers.length > 0) {
@@ -629,6 +733,7 @@ const UsageScriptModal: React.FC<UsageScriptModalProps> = ({
         });
       } else if (presetName === TEMPLATE_TYPES.TOKEN_PLAN) {
         // Coding Plan 模板不需要脚本，使用 Rust 原生查询
+<<<<<<< HEAD
         const autoDetected = detectCodingPlanProvider(
           providerCredentials.baseUrl,
         );
@@ -643,6 +748,20 @@ const UsageScriptModal: React.FC<UsageScriptModalProps> = ({
           accessToken: undefined,
           userId: undefined,
           codingPlanProvider: provider,
+=======
+        const autoDetected = detectTokenPlanProvider(
+          providerCredentials.baseUrl,
+        );
+        setScript({
+          ...script,
+          code: "",
+          apiKey: undefined,
+          baseUrl: undefined,
+          accessToken: undefined,
+          userId: undefined,
+          codingPlanProvider:
+            script.codingPlanProvider || autoDetected || "kimi",
+>>>>>>> origin/cc-switch-cli
         });
       } else if (presetName === TEMPLATE_TYPES.BALANCE) {
         // 官方余额查询模板不需要脚本，使用 Rust 原生查询
@@ -661,9 +780,13 @@ const UsageScriptModal: React.FC<UsageScriptModalProps> = ({
 
   const shouldShowCredentialsConfig =
     selectedTemplate === TEMPLATE_TYPES.GENERAL ||
+<<<<<<< HEAD
     selectedTemplate === TEMPLATE_TYPES.NEW_API ||
     (selectedTemplate === TEMPLATE_TYPES.TOKEN_PLAN &&
       script.codingPlanProvider === "zenmux");
+=======
+    selectedTemplate === TEMPLATE_TYPES.NEW_API;
+>>>>>>> origin/cc-switch-cli
 
   const footer = (
     <>
@@ -872,7 +995,11 @@ const UsageScriptModal: React.FC<UsageScriptModalProps> = ({
                   {t("usageScript.tokenPlanHint")}
                 </p>
                 <div className="flex gap-2 flex-wrap">
+<<<<<<< HEAD
                   {CODING_PLAN_PROVIDERS.map((cp) => (
+=======
+                  {TOKEN_PLAN_PROVIDERS.map((cp) => (
+>>>>>>> origin/cc-switch-cli
                     <Button
                       key={cp.id}
                       type="button"

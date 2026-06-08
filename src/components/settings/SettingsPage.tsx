@@ -44,7 +44,10 @@ import { ModelTestConfigPanel } from "@/components/usage/ModelTestConfigPanel";
 import { UsageDashboard } from "@/components/usage/UsageDashboard";
 import { LogConfigPanel } from "@/components/settings/LogConfigPanel";
 import { AuthCenterPanel } from "@/components/settings/AuthCenterPanel";
+<<<<<<< HEAD
 import { CodexAuthSettings } from "@/components/settings/CodexAuthSettings";
+=======
+>>>>>>> origin/cc-switch-cli
 import { useInstalledSkills } from "@/hooks/useSkills";
 import { useSettings } from "@/hooks/useSettings";
 import { useImportExport } from "@/hooks/useImportExport";
@@ -242,10 +245,13 @@ export function SettingsPage({
                         handleAutoSave({ skillSyncMethod: method })
                       }
                     />
+<<<<<<< HEAD
                     <CodexAuthSettings
                       settings={settings}
                       onChange={handleAutoSave}
                     />
+=======
+>>>>>>> origin/cc-switch-cli
                     <WindowSettings
                       settings={settings}
                       onChange={handleAutoSave}

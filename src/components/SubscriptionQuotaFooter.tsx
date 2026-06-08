@@ -31,7 +31,11 @@ export const TIER_I18N_KEYS: Record<string, string> = {
   gemini_flash: "subscription.geminiFlash",
   gemini_flash_lite: "subscription.geminiFlashLite",
   // Token Plan（five_hour 已在上方官方映射中）
+<<<<<<< HEAD
   weekly_limit: "subscription.sevenDay",
+=======
+  weekly_limit: "subscription.weeklyLimit",
+>>>>>>> origin/cc-switch-cli
   // GitHub Copilot
   premium: "subscription.copilotPremium",
 };
@@ -205,9 +209,13 @@ export const SubscriptionQuotaView: React.FC<SubscriptionQuotaViewProps> = ({
   }
 
   // 成功获取数据
+<<<<<<< HEAD
   const tiers = (quota.tiers || []).filter(
     (tier) => tier.name in TIER_I18N_KEYS,
   );
+=======
+  const tiers = quota.tiers || [];
+>>>>>>> origin/cc-switch-cli
   if (tiers.length === 0) return null;
 
   // ── inline 模式：紧凑两行显示 ──
@@ -309,8 +317,11 @@ export const TierBadge: React.FC<{
     : tier.name;
   const countdown = countdownStr(tier.resetsAt);
 
+<<<<<<< HEAD
   const hasUsd = tier.usedValueUsd != null && tier.maxValueUsd != null;
 
+=======
+>>>>>>> origin/cc-switch-cli
   return (
     <div className="flex items-center gap-0.5">
       <span className="text-gray-500 dark:text-gray-400">{label}:</span>
@@ -319,11 +330,14 @@ export const TierBadge: React.FC<{
       >
         {t("subscription.utilization", { value: Math.round(tier.utilization) })}
       </span>
+<<<<<<< HEAD
       {hasUsd && (
         <span className="text-muted-foreground/60">
           (${tier.usedValueUsd!.toFixed(2)}/${tier.maxValueUsd!.toFixed(2)})
         </span>
       )}
+=======
+>>>>>>> origin/cc-switch-cli
       {countdown && (
         <span className="text-muted-foreground/60 ml-0.5 flex items-center gap-px">
           <Clock size={10} />

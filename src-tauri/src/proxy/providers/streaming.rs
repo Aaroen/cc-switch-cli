@@ -6,7 +6,11 @@ use crate::proxy::sse::{strip_sse_field, take_sse_block};
 use bytes::Bytes;
 use futures::stream::{Stream, StreamExt};
 use serde::{Deserialize, Serialize};
+<<<<<<< HEAD
 use serde_json::{json, Value};
+=======
+use serde_json::json;
+>>>>>>> origin/cc-switch-cli
 use std::collections::{HashMap, HashSet};
 
 /// OpenAI 流式响应数据结构
@@ -73,6 +77,7 @@ struct Usage {
     cache_read_input_tokens: Option<u32>,
     #[serde(default)]
     cache_creation_input_tokens: Option<u32>,
+<<<<<<< HEAD
 }
 
 /// Nested token details from OpenAI format
@@ -133,7 +138,33 @@ fn build_message_delta_event(stop_reason: Option<String>, usage_json: Option<Val
         },
         "usage": usage
     })
+=======
+>>>>>>> origin/cc-switch-cli
 }
+
+/// Nested token details from OpenAI format
+#[derive(Debug, Deserialize)]
+struct PromptTokensDetails {
+    #[serde(default)]
+    cached_tokens: u32,
+}
+
+#[derive(Debug, Clone)]
+struct ToolBlockState {
+    anthropic_index: u32,
+    id: String,
+    name: String,
+    started: bool,
+    pending_args: String,
+    /// 连续空白字符计数 — 用于检测 Copilot 无限换行 bug
+    /// 当 function call 参数中出现连续 20+ 空白字符时，强制终止流
+    consecutive_whitespace: usize,
+    /// 是否已因无限空白 bug 被中止
+    aborted: bool,
+}
+
+/// 无限空白 bug 的连续空白字符阈值
+const INFINITE_WHITESPACE_THRESHOLD: usize = 20;
 
 /// 创建 Anthropic SSE 流
 pub fn create_anthropic_sse_stream<E: std::error::Error + Send + 'static>(
@@ -146,6 +177,7 @@ pub fn create_anthropic_sse_stream<E: std::error::Error + Send + 'static>(
         let mut current_model = None;
         let mut next_content_index: u32 = 0;
         let mut has_sent_message_start = false;
+<<<<<<< HEAD
         // 某些上游 provider（如 OpenRouter 的 kimi-k2.6）会在 tool_use 后发送多个
         // 带 finish_reason 的 SSE chunk。Anthropic 协议要求每个消息流只能有一个
         // message_delta，重复会导致 Claude Code abort 连接。因此需要：
@@ -156,6 +188,8 @@ pub fn create_anthropic_sse_stream<E: std::error::Error + Send + 'static>(
         let mut has_sent_message_stop = false;
         let mut stream_ended_with_error = false;
         let mut latest_usage: Option<Value> = None;
+=======
+>>>>>>> origin/cc-switch-cli
         let mut current_non_tool_block_type: Option<&'static str> = None;
         let mut current_non_tool_block_index: Option<u32> = None;
         let mut tool_blocks_by_index: HashMap<usize, ToolBlockState> = HashMap::new();
@@ -341,6 +375,7 @@ pub fn create_anthropic_sse_stream<E: std::error::Error + Send + 'static>(
 
                                         // 处理工具调用
                                         if let Some(tool_calls) = &choice.delta.tool_calls {
+<<<<<<< HEAD
                                             if !tool_calls.is_empty() {
                                                 if let Some(index) = current_non_tool_block_index.take() {
                                                     let event = json!({
@@ -487,7 +522,153 @@ pub fn create_anthropic_sse_stream<E: std::error::Error + Send + 'static>(
                                                         let sse_data = format!("event: content_block_delta\ndata: {}\n\n",
                                                             serde_json::to_string(&event).unwrap_or_default());
                                                         yield Ok(Bytes::from(sse_data));
+=======
+                                            if let Some(index) = current_non_tool_block_index.take() {
+                                                let event = json!({
+                                                    "type": "content_block_stop",
+                                                    "index": index
+                                                });
+                                                let sse_data = format!("event: content_block_stop\ndata: {}\n\n",
+                                                    serde_json::to_string(&event).unwrap_or_default());
+                                                yield Ok(Bytes::from(sse_data));
+                                            }
+                                            current_non_tool_block_type = None;
+
+                                            for tool_call in tool_calls {
+                                                let (
+                                                    anthropic_index,
+                                                    id,
+                                                    name,
+                                                    should_start,
+                                                    pending_after_start,
+                                                    immediate_delta,
+                                                ) = {
+                                                    let state = tool_blocks_by_index
+                                                        .entry(tool_call.index)
+                                                        .or_insert_with(|| {
+                                                            let index = next_content_index;
+                                                            next_content_index += 1;
+                                                            ToolBlockState {
+                                                                anthropic_index: index,
+                                                                id: String::new(),
+                                                                name: String::new(),
+                                                                started: false,
+                                                                pending_args: String::new(),
+                                                                consecutive_whitespace: 0,
+                                                                aborted: false,
+                                                            }
+                                                        });
+
+                                                    // 如果此 tool call 已被中止（无限空白 bug），跳过后续处理
+                                                    if state.aborted {
+                                                        continue;
                                                     }
+
+                                                    if let Some(id) = &tool_call.id {
+                                                        state.id = id.clone();
+>>>>>>> origin/cc-switch-cli
+                                                    }
+                                                    if let Some(function) = &tool_call.function {
+                                                        if let Some(name) = &function.name {
+                                                            state.name = name.clone();
+                                                        }
+                                                    }
+
+                                                    let should_start =
+                                                        !state.started
+                                                            && !state.id.is_empty()
+                                                            && !state.name.is_empty();
+                                                    if should_start {
+                                                        state.started = true;
+                                                    }
+                                                    let pending_after_start = if should_start
+                                                        && !state.pending_args.is_empty()
+                                                    {
+                                                        Some(std::mem::take(&mut state.pending_args))
+                                                    } else {
+                                                        None
+                                                    };
+                                                    let args_delta = tool_call
+                                                        .function
+                                                        .as_ref()
+                                                        .and_then(|f| f.arguments.clone());
+                                                    let immediate_delta = if let Some(args) = args_delta {
+                                                        // 无限空白 bug 检测：跟踪连续空白字符
+                                                        for ch in args.chars() {
+                                                            if ch.is_whitespace() {
+                                                                state.consecutive_whitespace += 1;
+                                                            } else {
+                                                                state.consecutive_whitespace = 0;
+                                                            }
+                                                        }
+                                                        if state.consecutive_whitespace >= INFINITE_WHITESPACE_THRESHOLD {
+                                                            log::warn!(
+                                                                "[Copilot] 检测到无限空白 bug (tool: {}), 中止此 tool call 流",
+                                                                state.name
+                                                            );
+                                                            state.aborted = true;
+                                                            None
+                                                        } else if state.started {
+                                                            Some(args)
+                                                        } else {
+                                                            state.pending_args.push_str(&args);
+                                                            None
+                                                        }
+                                                    } else {
+                                                        None
+                                                    };
+                                                    (
+                                                        state.anthropic_index,
+                                                        state.id.clone(),
+                                                        state.name.clone(),
+                                                        should_start,
+                                                        pending_after_start,
+                                                        immediate_delta,
+                                                    )
+                                                };
+
+                                                if should_start {
+                                                    let event = json!({
+                                                        "type": "content_block_start",
+                                                        "index": anthropic_index,
+                                                        "content_block": {
+                                                            "type": "tool_use",
+                                                            "id": id,
+                                                            "name": name
+                                                        }
+                                                    });
+                                                    let sse_data = format!("event: content_block_start\ndata: {}\n\n",
+                                                        serde_json::to_string(&event).unwrap_or_default());
+                                                    yield Ok(Bytes::from(sse_data));
+                                                    open_tool_block_indices.insert(anthropic_index);
+                                                }
+
+                                                if let Some(args) = pending_after_start {
+                                                    let event = json!({
+                                                        "type": "content_block_delta",
+                                                        "index": anthropic_index,
+                                                        "delta": {
+                                                            "type": "input_json_delta",
+                                                            "partial_json": args
+                                                        }
+                                                    });
+                                                    let sse_data = format!("event: content_block_delta\ndata: {}\n\n",
+                                                        serde_json::to_string(&event).unwrap_or_default());
+                                                    yield Ok(Bytes::from(sse_data));
+                                                }
+
+                                                if let Some(args) = immediate_delta {
+                                                    let event = json!({
+                                                        "type": "content_block_delta",
+                                                        "index": anthropic_index,
+                                                        "delta": {
+                                                            "type": "input_json_delta",
+                                                            "partial_json": args
+                                                        }
+                                                    });
+                                                    let sse_data = format!("event: content_block_delta\ndata: {}\n\n",
+                                                        serde_json::to_string(&event).unwrap_or_default());
+                                                    yield Ok(Bytes::from(sse_data));
                                                 }
                                             }
                                         }
@@ -497,6 +678,7 @@ pub fn create_anthropic_sse_stream<E: std::error::Error + Send + 'static>(
                                         // （第一个 usage 为 null，后续才补全）。此处只做缓存，不立即发送，
                                         // 等到 [DONE] 或流末尾再统一发出，确保 usage 完整且只发一次。
                                         if let Some(finish_reason) = &choice.finish_reason {
+<<<<<<< HEAD
                                             let stop_reason = map_stop_reason(Some(finish_reason));
                                             let usage_json =
                                                 chunk_usage_json.clone().or_else(|| latest_usage.clone());
@@ -510,6 +692,8 @@ pub fn create_anthropic_sse_stream<E: std::error::Error + Send + 'static>(
                                             }
                                             has_emitted_message_delta = true;
 
+=======
+>>>>>>> origin/cc-switch-cli
                                             if let Some(index) = current_non_tool_block_index.take() {
                                                 let event = json!({
                                                     "type": "content_block_stop",
@@ -520,6 +704,7 @@ pub fn create_anthropic_sse_stream<E: std::error::Error + Send + 'static>(
                                                 yield Ok(Bytes::from(sse_data));
                                             }
                                             current_non_tool_block_type = None;
+<<<<<<< HEAD
 
                                             // Late start for blocks that accumulated args before id/name arrived.
                                             let mut late_tool_starts: Vec<(u32, String, String, String)> =
@@ -601,6 +786,113 @@ pub fn create_anthropic_sse_stream<E: std::error::Error + Send + 'static>(
 
                                             // 缓存 message_delta，等到 [DONE] 时发送（以便收集完整的 usage）
                                             pending_message_delta = Some((stop_reason, usage_json));
+=======
+
+                                            // Late start for blocks that accumulated args before id/name arrived.
+                                            let mut late_tool_starts: Vec<(u32, String, String, String)> =
+                                                Vec::new();
+                                            for (tool_idx, state) in tool_blocks_by_index.iter_mut() {
+                                                if state.started {
+                                                    continue;
+                                                }
+                                                let has_payload = !state.pending_args.is_empty()
+                                                    || !state.id.is_empty()
+                                                    || !state.name.is_empty();
+                                                if !has_payload {
+                                                    continue;
+                                                }
+                                                let fallback_id = if state.id.is_empty() {
+                                                    format!("tool_call_{tool_idx}")
+                                                } else {
+                                                    state.id.clone()
+                                                };
+                                                let fallback_name = if state.name.is_empty() {
+                                                    "unknown_tool".to_string()
+                                                } else {
+                                                    state.name.clone()
+                                                };
+                                                state.started = true;
+                                                let pending = std::mem::take(&mut state.pending_args);
+                                                late_tool_starts.push((
+                                                    state.anthropic_index,
+                                                    fallback_id,
+                                                    fallback_name,
+                                                    pending,
+                                                ));
+                                            }
+                                            late_tool_starts.sort_unstable_by_key(|(index, _, _, _)| *index);
+                                            for (index, id, name, pending) in late_tool_starts {
+                                                let event = json!({
+                                                    "type": "content_block_start",
+                                                    "index": index,
+                                                    "content_block": {
+                                                        "type": "tool_use",
+                                                        "id": id,
+                                                        "name": name
+                                                    }
+                                                });
+                                                let sse_data = format!("event: content_block_start\ndata: {}\n\n",
+                                                    serde_json::to_string(&event).unwrap_or_default());
+                                                yield Ok(Bytes::from(sse_data));
+                                                open_tool_block_indices.insert(index);
+                                                if !pending.is_empty() {
+                                                    let delta_event = json!({
+                                                        "type": "content_block_delta",
+                                                        "index": index,
+                                                        "delta": {
+                                                            "type": "input_json_delta",
+                                                            "partial_json": pending
+                                                        }
+                                                    });
+                                                    let delta_sse = format!("event: content_block_delta\ndata: {}\n\n",
+                                                        serde_json::to_string(&delta_event).unwrap_or_default());
+                                                    yield Ok(Bytes::from(delta_sse));
+                                                }
+                                            }
+
+                                            if !open_tool_block_indices.is_empty() {
+                                                let mut tool_indices: Vec<u32> =
+                                                    open_tool_block_indices.iter().copied().collect();
+                                                tool_indices.sort_unstable();
+                                                for index in tool_indices {
+                                                    let event = json!({
+                                                        "type": "content_block_stop",
+                                                        "index": index
+                                                    });
+                                                    let sse_data = format!("event: content_block_stop\ndata: {}\n\n",
+                                                        serde_json::to_string(&event).unwrap_or_default());
+                                                    yield Ok(Bytes::from(sse_data));
+                                                }
+                                                open_tool_block_indices.clear();
+                                            }
+
+                                            let stop_reason = map_stop_reason(Some(finish_reason));
+                                            // Build usage with cache token fields
+                                            let usage_json = chunk.usage.as_ref().map(|u| {
+                                                let mut uj = json!({
+                                                    "input_tokens": u.prompt_tokens,
+                                                    "output_tokens": u.completion_tokens
+                                                });
+                                                if let Some(cached) = extract_cache_read_tokens(u) {
+                                                    uj["cache_read_input_tokens"] = json!(cached);
+                                                }
+                                                if let Some(created) = u.cache_creation_input_tokens {
+                                                    uj["cache_creation_input_tokens"] = json!(created);
+                                                }
+                                                uj
+                                            });
+                                            let event = json!({
+                                                "type": "message_delta",
+                                                "delta": {
+                                                    "stop_reason": stop_reason,
+                                                    "stop_sequence": null
+                                                },
+                                                "usage": usage_json
+                                            });
+                                            let sse_data = format!("event: message_delta\ndata: {}\n\n",
+                                                serde_json::to_string(&event).unwrap_or_default());
+                                            yield Ok(Bytes::from(sse_data));
+>>>>>>> origin/cc-switch-cli
                                         }
                                     }
                                 }
@@ -692,6 +984,7 @@ mod tests {
     use serde_json::Value;
     use std::collections::HashMap;
 
+<<<<<<< HEAD
     async fn collect_anthropic_events(input: &str) -> Vec<Value> {
         let upstream = stream::iter(vec![Ok::<_, std::io::Error>(Bytes::from(
             input.as_bytes().to_vec(),
@@ -718,6 +1011,8 @@ mod tests {
         event.get("type").and_then(|v| v.as_str())
     }
 
+=======
+>>>>>>> origin/cc-switch-cli
     #[test]
     fn test_map_stop_reason_legacy_and_filtered_values() {
         assert_eq!(
@@ -934,6 +1229,7 @@ mod tests {
             "output must not contain U+FFFD replacement characters"
         );
     }
+<<<<<<< HEAD
 
     #[tokio::test]
     async fn test_duplicate_finish_reason_emits_only_one_message_delta() {
@@ -1140,4 +1436,6 @@ mod tests {
             .iter()
             .any(|e| e.get("type").and_then(|v| v.as_str()) == Some("message_stop")));
     }
+=======
+>>>>>>> origin/cc-switch-cli
 }

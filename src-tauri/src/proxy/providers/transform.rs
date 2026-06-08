@@ -6,6 +6,7 @@
 use crate::proxy::{error::ProxyError, json_canonical::canonical_json_string};
 use serde_json::{json, Value};
 
+<<<<<<< HEAD
 const ANTHROPIC_BILLING_HEADER_PREFIX: &str = "x-anthropic-billing-header:";
 
 /// Strip only a leading Claude Code attribution line from system text.
@@ -46,6 +47,8 @@ pub(crate) fn strip_leading_anthropic_billing_header(text: &str) -> &str {
     }
 }
 
+=======
+>>>>>>> origin/cc-switch-cli
 /// Detect OpenAI o-series reasoning models (o1, o3, o4-mini, etc.)
 /// These models require `max_completion_tokens` instead of `max_tokens`.
 pub fn is_openai_o_series(model: &str) -> bool {
@@ -145,10 +148,13 @@ pub fn anthropic_to_openai_with_reasoning_content(
             // 多个 system message — preserve cache_control for compatible proxies
             for msg in arr {
                 if let Some(text) = msg.get("text").and_then(|t| t.as_str()) {
+<<<<<<< HEAD
                     let text = strip_leading_anthropic_billing_header(text);
                     if text.is_empty() {
                         continue;
                     }
+=======
+>>>>>>> origin/cc-switch-cli
                     let mut sys_msg = json!({"role": "system", "content": text});
                     if let Some(cc) = msg.get("cache_control") {
                         sys_msg["cache_control"] = cc.clone();
@@ -234,6 +240,7 @@ pub fn anthropic_to_openai_with_reasoning_content(
     Ok(result)
 }
 
+<<<<<<< HEAD
 /// Translate an Anthropic `tool_choice` into the OpenAI Chat Completions form.
 ///
 /// Anthropic forms:
@@ -271,6 +278,8 @@ fn map_tool_choice_to_chat(tool_choice: &Value) -> Value {
     }
 }
 
+=======
+>>>>>>> origin/cc-switch-cli
 fn normalize_openai_system_messages(messages: &mut Vec<Value>) {
     let system_count = messages
         .iter()
@@ -538,6 +547,7 @@ pub fn openai_to_anthropic(body: Value) -> Result<Value, ProxyError> {
     let mut content = Vec::new();
     let mut has_tool_use = false;
 
+<<<<<<< HEAD
     // DeepSeek provider 会把思考内容放在 message.reasoning_content。
     if let Some(reasoning_content) = message.get("reasoning_content").and_then(|r| r.as_str()) {
         if !reasoning_content.is_empty() {
@@ -581,6 +591,44 @@ pub fn openai_to_anthropic(body: Value) -> Result<Value, ProxyError> {
         }
     }
 
+=======
+    // 文本/拒绝内容
+    if let Some(msg_content) = message.get("content") {
+        if let Some(text) = msg_content.as_str() {
+            if !text.is_empty() {
+                content.push(json!({"type": "text", "text": text}));
+            }
+        } else if let Some(parts) = msg_content.as_array() {
+            for part in parts {
+                let part_type = part.get("type").and_then(|t| t.as_str()).unwrap_or("");
+                match part_type {
+                    "text" | "output_text" => {
+                        if let Some(text) = part.get("text").and_then(|t| t.as_str()) {
+                            if !text.is_empty() {
+                                content.push(json!({"type": "text", "text": text}));
+                            }
+                        }
+                    }
+                    "refusal" => {
+                        if let Some(refusal) = part.get("refusal").and_then(|r| r.as_str()) {
+                            if !refusal.is_empty() {
+                                content.push(json!({"type": "text", "text": refusal}));
+                            }
+                        }
+                    }
+                    _ => {}
+                }
+            }
+        }
+    }
+    // Some providers put refusal at message-level.
+    if let Some(refusal) = message.get("refusal").and_then(|r| r.as_str()) {
+        if !refusal.is_empty() {
+            content.push(json!({"type": "text", "text": refusal}));
+        }
+    }
+
+>>>>>>> origin/cc-switch-cli
     // 工具调用（tool_calls）
     if let Some(tool_calls) = message.get("tool_calls").and_then(|t| t.as_array()) {
         if !tool_calls.is_empty() {
@@ -1575,6 +1623,7 @@ mod tests {
         assert_eq!(result["max_tokens"], 1024);
         assert!(result.get("max_completion_tokens").is_none());
     }
+<<<<<<< HEAD
 
     fn run_tool_choice(value: Value) -> Value {
         let input = json!({
@@ -1622,4 +1671,6 @@ mod tests {
             json!({"type": "function", "function": {"name": "search"}}),
         );
     }
+=======
+>>>>>>> origin/cc-switch-cli
 }

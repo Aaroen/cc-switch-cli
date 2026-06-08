@@ -144,6 +144,7 @@ export function ProviderPresetSelector({
           {t("providerPreset.custom")}
         </button>
 
+<<<<<<< HEAD
         {presetEntries.map((entry) => {
           const isSelected = selectedPresetId === entry.id;
           const isPartner = entry.preset.isPartner;
@@ -171,6 +172,37 @@ export function ProviderPresetSelector({
               )}
             </button>
           );
+=======
+        {categoryKeys.map((category) => {
+          const entries = groupedPresets[category];
+          if (!entries || entries.length === 0) return null;
+          return entries.map((entry) => {
+            const isSelected = selectedPresetId === entry.id;
+            const isPartner = entry.preset.isPartner;
+            return (
+              <button
+                key={entry.id}
+                type="button"
+                onClick={() => onPresetChange(entry.id)}
+                className={`${getPresetButtonClass(isSelected, entry.preset)} relative`}
+                style={getPresetButtonStyle(isSelected, entry.preset)}
+                title={
+                  presetCategoryLabels[category] ?? t("providerPreset.other")
+                }
+              >
+                {renderPresetIcon(entry.preset)}
+                {entry.preset.nameKey
+                  ? t(entry.preset.nameKey)
+                  : entry.preset.name}
+                {isPartner && (
+                  <span className="absolute -top-1 -right-1 flex items-center gap-0.5 rounded-full bg-gradient-to-r from-amber-500 to-yellow-500 px-1.5 py-0.5 text-[10px] font-bold text-white shadow-md">
+                    <Star className="h-2.5 w-2.5 fill-current" />
+                  </span>
+                )}
+              </button>
+            );
+          });
+>>>>>>> origin/cc-switch-cli
         })}
       </div>
 

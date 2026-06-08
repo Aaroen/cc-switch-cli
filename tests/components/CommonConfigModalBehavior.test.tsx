@@ -3,7 +3,10 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import CodexConfigEditor from "@/components/providers/forms/CodexConfigEditor";
 import GeminiConfigEditor from "@/components/providers/forms/GeminiConfigEditor";
+<<<<<<< HEAD
 import { isCodexGoalModeEnabled } from "@/utils/providerConfigUtils";
+=======
+>>>>>>> origin/cc-switch-cli
 
 vi.mock("@/components/common/FullScreenPanel", () => ({
   FullScreenPanel: ({
@@ -69,9 +72,13 @@ describe("Common config modals", () => {
     expect(screen.queryByTestId("common-config-panel")).not.toBeInTheDocument();
 
     fireEvent.click(
+<<<<<<< HEAD
       screen.getByRole("button", {
         name: /codexConfig.editCommonConfig|编辑通用配置/,
       }),
+=======
+      screen.getByRole("button", { name: /codexConfig.editCommonConfig|编辑通用配置/ }),
+>>>>>>> origin/cc-switch-cli
     );
 
     expect(screen.getByTestId("common-config-panel")).toBeInTheDocument();
@@ -85,6 +92,7 @@ describe("Common config modals", () => {
     );
   });
 
+<<<<<<< HEAD
   it("toggles Codex Goal mode in config.toml from the provider editor", () => {
     const onConfigChange = vi.fn();
     const configValue = [
@@ -131,6 +139,8 @@ describe("Common config modals", () => {
     expect(disabledConfig).not.toContain("goals = true");
   });
 
+=======
+>>>>>>> origin/cc-switch-cli
   it("keeps the Gemini common config modal closed after user closes it with an error present", async () => {
     render(
       <GeminiConfigEditor

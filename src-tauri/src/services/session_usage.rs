@@ -13,9 +13,12 @@ use crate::database::{lock_conn, Database};
 use crate::error::AppError;
 use crate::proxy::usage::calculator::{CostCalculator, ModelPricing};
 use crate::proxy::usage::parser::TokenUsage;
+<<<<<<< HEAD
 use crate::services::usage_stats::{
     effective_usage_log_filter, find_model_pricing, should_skip_session_insert, DedupKey,
 };
+=======
+>>>>>>> origin/cc-switch-cli
 use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -57,6 +60,7 @@ struct ParsedAssistantUsage {
     session_id: Option<String>,
 }
 
+<<<<<<< HEAD
 /// 将指定 app 的“会话占位”用量行归并到当前激活供应商，使统计显示具体供应商名而非
 /// “X (Session)”。
 ///
@@ -88,6 +92,8 @@ pub(crate) fn reattribute_session_rows(db: &Database, app_type: &str, placeholde
     }
 }
 
+=======
+>>>>>>> origin/cc-switch-cli
 /// 同步 Claude Code 会话日志到使用统计数据库
 pub fn sync_claude_session_logs(db: &Database) -> Result<SessionSyncResult, AppError> {
     let projects_dir = get_claude_config_dir().join("projects");
@@ -135,6 +141,7 @@ pub fn sync_claude_session_logs(db: &Database) -> Result<SessionSyncResult, AppE
         );
     }
 
+<<<<<<< HEAD
     // 把会话占位 provider 归并到当前供应商，避免显示 “Claude (Session)”
     reattribute_session_rows(db, "claude", "_session");
 
@@ -146,6 +153,12 @@ pub fn sync_claude_session_logs(db: &Database) -> Result<SessionSyncResult, AppE
 /// 扫描三层固定深度，不使用递归，避免死循环：
 ///   projects_dir/项目目录/*.jsonl                          (主会话)
 ///   projects_dir/项目目录/SESSION_ID/subagents/*.jsonl      (子 agent)
+=======
+    Ok(result)
+}
+
+/// 收集目录下所有 .jsonl 文件
+>>>>>>> origin/cc-switch-cli
 fn collect_jsonl_files(projects_dir: &Path) -> Vec<PathBuf> {
     let mut files = Vec::new();
 
@@ -164,6 +177,7 @@ fn collect_jsonl_files(projects_dir: &Path) -> Vec<PathBuf> {
             for sub_entry in sub_entries.flatten() {
                 let sub_path = sub_entry.path();
                 if sub_path.extension().and_then(|e| e.to_str()) == Some("jsonl") {
+<<<<<<< HEAD
                     // 主会话 JSONL 文件
                     files.push(sub_path);
                 } else if sub_path.is_dir() {
@@ -180,6 +194,9 @@ fn collect_jsonl_files(projects_dir: &Path) -> Vec<PathBuf> {
                             }
                         }
                     }
+=======
+                    files.push(sub_path);
+>>>>>>> origin/cc-switch-cli
                 }
             }
         }
@@ -195,7 +212,16 @@ fn sync_single_file(db: &Database, file_path: &Path) -> Result<(u32, u32), AppEr
     // 获取文件元数据
     let metadata = fs::metadata(file_path)
         .map_err(|e| AppError::Config(format!("无法读取文件元数据: {e}")))?;
+<<<<<<< HEAD
     let file_modified = metadata_modified_nanos(&metadata);
+=======
+    let file_modified = metadata
+        .modified()
+        .ok()
+        .and_then(|t| t.duration_since(SystemTime::UNIX_EPOCH).ok())
+        .map(|d| d.as_secs() as i64)
+        .unwrap_or(0);
+>>>>>>> origin/cc-switch-cli
 
     // 检查同步状态
     let (last_modified, last_offset) = get_sync_state(db, &file_path_str)?;
@@ -356,10 +382,15 @@ fn sync_single_file(db: &Database, file_path: &Path) -> Result<(u32, u32), AppEr
     Ok((imported, skipped))
 }
 
+<<<<<<< HEAD
 /// 获取 session_log_sync 表中某条目的同步进度。
 ///
 /// Shared by all session_usage_* parsers.
 pub(crate) fn get_sync_state(db: &Database, file_path: &str) -> Result<(i64, i64), AppError> {
+=======
+/// 获取文件的同步状态
+fn get_sync_state(db: &Database, file_path: &str) -> Result<(i64, i64), AppError> {
+>>>>>>> origin/cc-switch-cli
     let conn = lock_conn!(db.conn);
     let result = conn.query_row(
         "SELECT last_modified, last_line_offset FROM session_log_sync WHERE file_path = ?1",
@@ -369,6 +400,7 @@ pub(crate) fn get_sync_state(db: &Database, file_path: &str) -> Result<(i64, i64
     Ok(result.unwrap_or((0, 0)))
 }
 
+<<<<<<< HEAD
 /// 返回文件 mtime 的纳秒时间戳。
 ///
 /// `session_log_sync.last_modified` 旧数据是秒级时间戳；新写入纳秒值不需要
@@ -386,6 +418,10 @@ pub(crate) fn metadata_modified_nanos(metadata: &fs::Metadata) -> i64 {
 ///
 /// Shared by all session_usage_* parsers.
 pub(crate) fn update_sync_state(
+=======
+/// 更新文件的同步状态
+fn update_sync_state(
+>>>>>>> origin/cc-switch-cli
     db: &Database,
     file_path: &str,
     last_modified: i64,
@@ -414,10 +450,31 @@ fn insert_session_log_entry(
 ) -> Result<bool, AppError> {
     let conn = lock_conn!(db.conn);
 
+<<<<<<< HEAD
+=======
+    // 检查是否已存在
+    let exists: bool = conn
+        .query_row(
+            "SELECT COUNT(*) FROM proxy_request_logs WHERE request_id = ?1",
+            rusqlite::params![request_id],
+            |row| row.get::<_, i64>(0).map(|c| c > 0),
+        )
+        .unwrap_or(false);
+
+    if exists {
+        return Ok(false);
+    }
+
+    // 解析时间戳
+>>>>>>> origin/cc-switch-cli
     let created_at = msg
         .timestamp
         .as_ref()
         .and_then(|ts| {
+<<<<<<< HEAD
+=======
+            // 尝试解析 ISO 8601 时间戳
+>>>>>>> origin/cc-switch-cli
             chrono::DateTime::parse_from_rfc3339(ts)
                 .ok()
                 .map(|dt| dt.timestamp())
@@ -429,6 +486,7 @@ fn insert_session_log_entry(
                 .unwrap_or(0)
         });
 
+<<<<<<< HEAD
     let dedup_key = DedupKey {
         app_type: "claude",
         model: &msg.model,
@@ -442,6 +500,8 @@ fn insert_session_log_entry(
         return Ok(false);
     }
 
+=======
+>>>>>>> origin/cc-switch-cli
     // 计算费用
     let usage = TokenUsage {
         input_tokens: msg.input_tokens,
@@ -475,15 +535,21 @@ fn insert_session_log_entry(
         ),
     };
 
+<<<<<<< HEAD
     let inserted_rows = conn
         .execute(
             "INSERT OR IGNORE INTO proxy_request_logs (
+=======
+    conn.execute(
+        "INSERT OR IGNORE INTO proxy_request_logs (
+>>>>>>> origin/cc-switch-cli
             request_id, provider_id, app_type, model, request_model,
             input_tokens, output_tokens, cache_read_tokens, cache_creation_tokens,
             input_cost_usd, output_cost_usd, cache_read_cost_usd, cache_creation_cost_usd, total_cost_usd,
             latency_ms, first_token_ms, status_code, error_message, session_id,
             provider_type, is_streaming, cost_multiplier, created_at, data_source
         ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, ?21, ?22, ?23, ?24)",
+<<<<<<< HEAD
             rusqlite::params![
                 request_id,
                 "_session",         // provider_id: 标记为会话来源
@@ -517,6 +583,36 @@ fn insert_session_log_entry(
     if inserted_rows > 0 {
         crate::usage_events::notify_log_recorded();
     }
+=======
+        rusqlite::params![
+            request_id,
+            "_session",         // provider_id: 标记为会话来源
+            "claude",           // app_type
+            msg.model,
+            msg.model,          // request_model = model
+            msg.input_tokens,
+            msg.output_tokens,
+            msg.cache_read_tokens,
+            msg.cache_creation_tokens,
+            input_cost,
+            output_cost,
+            cache_read_cost,
+            cache_creation_cost,
+            total_cost,
+            0i64,               // latency_ms: 会话日志无此数据
+            Option::<i64>::None, // first_token_ms
+            200i64,             // status_code: 有 stop_reason 说明请求成功
+            Option::<String>::None, // error_message
+            msg.session_id,
+            Some("session_log"), // provider_type
+            1i64,               // is_streaming: Claude Code 通常使用流式
+            "1.0",              // cost_multiplier
+            created_at,
+            "session_log",      // data_source
+        ],
+    )
+    .map_err(|e| AppError::Database(format!("插入会话日志失败: {e}")))?;
+>>>>>>> origin/cc-switch-cli
 
     Ok(true)
 }
@@ -526,13 +622,88 @@ fn find_model_pricing_for_session(
     conn: &rusqlite::Connection,
     model_id: &str,
 ) -> Option<ModelPricing> {
+<<<<<<< HEAD
     find_model_pricing(conn, model_id)
+=======
+    // 精确匹配
+    if let Ok(Some(pricing)) = try_find_pricing(conn, model_id) {
+        return Some(pricing);
+    }
+
+    // 模糊匹配：去掉日期后缀
+    // 例如 "claude-opus-4-6-20260206" -> "claude-opus-4-6"
+    let parts: Vec<&str> = model_id.rsplitn(2, '-').collect();
+    if parts.len() == 2 {
+        if let Some(suffix) = parts.first() {
+            if suffix.len() == 8 && suffix.chars().all(|c| c.is_ascii_digit()) {
+                if let Ok(Some(pricing)) = try_find_pricing(conn, parts[1]) {
+                    return Some(pricing);
+                }
+            }
+        }
+    }
+
+    // 尝试 LIKE 匹配
+    let pattern = format!("{model_id}%");
+    let result = conn.query_row(
+        "SELECT input_cost_per_million, output_cost_per_million,
+                cache_read_cost_per_million, cache_creation_cost_per_million
+         FROM model_pricing WHERE model_id LIKE ?1 LIMIT 1",
+        rusqlite::params![pattern],
+        |row| {
+            Ok((
+                row.get::<_, String>(0)?,
+                row.get::<_, String>(1)?,
+                row.get::<_, String>(2)?,
+                row.get::<_, String>(3)?,
+            ))
+        },
+    );
+
+    match result {
+        Ok((input, output, cache_read, cache_creation)) => {
+            ModelPricing::from_strings(&input, &output, &cache_read, &cache_creation).ok()
+        }
+        Err(_) => None,
+    }
+}
+
+fn try_find_pricing(
+    conn: &rusqlite::Connection,
+    model_id: &str,
+) -> Result<Option<ModelPricing>, AppError> {
+    let result = conn.query_row(
+        "SELECT input_cost_per_million, output_cost_per_million,
+                cache_read_cost_per_million, cache_creation_cost_per_million
+         FROM model_pricing WHERE model_id = ?1",
+        rusqlite::params![model_id],
+        |row| {
+            Ok((
+                row.get::<_, String>(0)?,
+                row.get::<_, String>(1)?,
+                row.get::<_, String>(2)?,
+                row.get::<_, String>(3)?,
+            ))
+        },
+    );
+
+    match result {
+        Ok((input, output, cache_read, cache_creation)) => {
+            ModelPricing::from_strings(&input, &output, &cache_read, &cache_creation)
+                .map(Some)
+                .map_err(|e| AppError::Database(format!("解析定价失败: {e}")))
+        }
+        Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
+        Err(e) => Err(AppError::Database(format!("查询定价失败: {e}"))),
+    }
+>>>>>>> origin/cc-switch-cli
 }
 
 /// 查询数据来源分布统计
 pub fn get_data_source_breakdown(db: &Database) -> Result<Vec<DataSourceSummary>, AppError> {
     let conn = lock_conn!(db.conn);
 
+<<<<<<< HEAD
     let effective_filter = effective_usage_log_filter("l");
     let sql = format!(
         "SELECT COALESCE(l.data_source, 'proxy') as ds, COUNT(*) as cnt,
@@ -544,6 +715,15 @@ pub fn get_data_source_breakdown(db: &Database) -> Result<Vec<DataSourceSummary>
     );
 
     let mut stmt = conn.prepare(&sql)?;
+=======
+    let mut stmt = conn.prepare(
+        "SELECT COALESCE(data_source, 'proxy') as ds, COUNT(*) as cnt,
+                COALESCE(SUM(CAST(total_cost_usd AS REAL)), 0) as cost
+         FROM proxy_request_logs
+         GROUP BY ds
+         ORDER BY cnt DESC",
+    )?;
+>>>>>>> origin/cc-switch-cli
 
     let rows = stmt.query_map([], |row| {
         Ok(DataSourceSummary {
@@ -642,6 +822,7 @@ mod tests {
         messages.insert("msg_1".to_string(), final_entry);
         assert_eq!(messages.get("msg_1").unwrap().output_tokens, 1349);
     }
+<<<<<<< HEAD
 
     #[test]
     fn test_insert_claude_session_skips_matching_proxy_log() -> Result<(), AppError> {
@@ -719,4 +900,6 @@ mod tests {
 
         fs::remove_dir_all(&tmp).ok();
     }
+=======
+>>>>>>> origin/cc-switch-cli
 }

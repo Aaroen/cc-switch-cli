@@ -95,7 +95,10 @@ impl Database {
             enabled_codex BOOLEAN NOT NULL DEFAULT 0,
             enabled_gemini BOOLEAN NOT NULL DEFAULT 0,
             enabled_opencode BOOLEAN NOT NULL DEFAULT 0,
+<<<<<<< HEAD
             enabled_hermes BOOLEAN NOT NULL DEFAULT 0,
+=======
+>>>>>>> origin/cc-switch-cli
             installed_at INTEGER NOT NULL DEFAULT 0,
             content_hash TEXT,
             updated_at INTEGER NOT NULL DEFAULT 0
@@ -449,11 +452,14 @@ impl Database {
                         Self::migrate_v8_to_v9(conn)?;
                         Self::set_user_version(conn, 9)?;
                     }
+<<<<<<< HEAD
                     9 => {
                         log::info!("迁移数据库从 v9 到 v10（添加 Hermes Agent 支持）");
                         Self::migrate_v9_to_v10(conn)?;
                         Self::set_user_version(conn, 10)?;
                     }
+=======
+>>>>>>> origin/cc-switch-cli
                     _ => {
                         return Err(AppError::Database(format!(
                             "未知的数据库版本 {version}，无法迁移到 {SCHEMA_VERSION}"
@@ -1257,7 +1263,10 @@ impl Database {
                 "data_source",
                 "TEXT NOT NULL DEFAULT 'proxy'",
             )?;
+<<<<<<< HEAD
             Self::create_request_logs_usage_indexes_if_supported(conn)?;
+=======
+>>>>>>> origin/cc-switch-cli
         }
 
         // 2. 创建会话日志同步状态表
@@ -1326,6 +1335,7 @@ impl Database {
         Ok(())
     }
 
+<<<<<<< HEAD
     /// v9 -> v10 迁移：添加 Hermes Agent 支持
     fn migrate_v9_to_v10(conn: &Connection) -> Result<(), AppError> {
         Self::add_column_if_missing(
@@ -1349,6 +1359,8 @@ impl Database {
         Ok(())
     }
 
+=======
+>>>>>>> origin/cc-switch-cli
     /// 插入默认模型定价数据
     /// 格式: (model_id, display_name, input, output, cache_read, cache_creation)
     /// 注意: model_id 使用短横线格式（如 claude-haiku-4-5），与 API 返回的模型名称标准化后一致
@@ -1456,6 +1468,7 @@ impl Database {
                 "0.30",
                 "3.75",
             ),
+<<<<<<< HEAD
             // GPT-5.5 系列
             ("gpt-5.5", "GPT-5.5", "5", "30", "0.50", "0"),
             ("gpt-5.5-low", "GPT-5.5", "5", "30", "0.50", "0"),
@@ -1463,6 +1476,8 @@ impl Database {
             ("gpt-5.5-high", "GPT-5.5", "5", "30", "0.50", "0"),
             ("gpt-5.5-xhigh", "GPT-5.5", "5", "30", "0.50", "0"),
             ("gpt-5.5-minimal", "GPT-5.5", "5", "30", "0.50", "0"),
+=======
+>>>>>>> origin/cc-switch-cli
             // GPT-5.4 系列
             ("gpt-5.4", "GPT-5.4", "2.50", "15", "0.25", "0"),
             ("gpt-5.4-mini", "GPT-5.4 Mini", "0.75", "4.50", "0.075", "0"),
@@ -1634,6 +1649,7 @@ impl Database {
             ("gpt-4.1", "GPT-4.1", "2", "8", "0.50", "0"),
             ("gpt-4.1-mini", "GPT-4.1 Mini", "0.40", "1.60", "0.10", "0"),
             ("gpt-4.1-nano", "GPT-4.1 Nano", "0.10", "0.40", "0.025", "0"),
+<<<<<<< HEAD
             // Gemini 3.5 系列
             (
                 "gemini-3.5-flash",
@@ -1643,6 +1659,8 @@ impl Database {
                 "0.15",
                 "0",
             ),
+=======
+>>>>>>> origin/cc-switch-cli
             // Gemini 3.1 系列
             (
                 "gemini-3.1-pro-preview",
@@ -1653,6 +1671,7 @@ impl Database {
                 "0",
             ),
             (
+<<<<<<< HEAD
                 "gemini-3.1-flash-lite",
                 "Gemini 3.1 Flash Lite",
                 "0.25",
@@ -1661,6 +1680,8 @@ impl Database {
                 "0",
             ),
             (
+=======
+>>>>>>> origin/cc-switch-cli
                 "gemini-3.1-flash-lite-preview",
                 "Gemini 3.1 Flash Lite Preview",
                 "0.25",
@@ -1728,6 +1749,7 @@ impl Database {
                 "0.02",
                 "0",
             ),
+<<<<<<< HEAD
             (
                 "step-3.5-flash-2603",
                 "Step 3.5 Flash 2603",
@@ -1736,6 +1758,8 @@ impl Database {
                 "0.02",
                 "0",
             ),
+=======
+>>>>>>> origin/cc-switch-cli
             // ====== 国产模型 (USD/1M tokens) ======
             // Doubao (字节跳动)
             (
@@ -1763,6 +1787,7 @@ impl Database {
                 "0",
             ),
             (
+<<<<<<< HEAD
                 "doubao-seed-2-0-code-preview-latest",
                 "Doubao Seed 2.0 Code Preview",
                 "0.47",
@@ -1771,6 +1796,8 @@ impl Database {
                 "0",
             ),
             (
+=======
+>>>>>>> origin/cc-switch-cli
                 "doubao-seed-2-0-lite",
                 "Doubao Seed 2.0 Lite",
                 "0.25",
@@ -1818,6 +1845,7 @@ impl Database {
                 "0.55",
                 "2.19",
                 "0.14",
+<<<<<<< HEAD
                 "0",
             ),
             // DeepSeek V4 系列（官方 CNY 按 1 USD ≈ 7.14 折算）
@@ -1835,6 +1863,8 @@ impl Database {
                 "0.435",
                 "0.87",
                 "0.003625",
+=======
+>>>>>>> origin/cc-switch-cli
                 "0",
             ),
             // Kimi (月之暗面)
@@ -1856,7 +1886,10 @@ impl Database {
                 "0",
             ),
             ("kimi-k2.5", "Kimi K2.5", "0.60", "2.50", "0.10", "0"),
+<<<<<<< HEAD
             ("kimi-k2.6", "Kimi K2.6", "0.95", "4.00", "0.16", "0"),
+=======
+>>>>>>> origin/cc-switch-cli
             // MiniMax 系列
             ("minimax-m2.1", "MiniMax M2.1", "0.27", "0.95", "0.03", "0"),
             (
@@ -1893,12 +1926,20 @@ impl Database {
                 "0.06",
                 "0.375",
             ),
+<<<<<<< HEAD
             ("minimax-m3", "MiniMax M3", "0.60", "2.40", "0.12", "0"),
             // GLM (智谱)
             ("glm-4.7", "GLM-4.7", "0.39", "1.75", "0.04", "0"),
             ("glm-4.6", "GLM-4.6", "0.28", "1.11", "0.03", "0"),
             ("glm-5", "GLM-5", "1", "3.2", "0.2", "0"),
             ("glm-5.1", "GLM-5.1", "1.4", "4.4", "0.26", "0"),
+=======
+            // GLM (智谱)
+            ("glm-4.7", "GLM-4.7", "0.39", "1.75", "0.04", "0"),
+            ("glm-4.6", "GLM-4.6", "0.28", "1.11", "0.03", "0"),
+            ("glm-5", "GLM-5", "0.72", "2.30", "0", "0"),
+            ("glm-5.1", "GLM-5.1", "0.95", "3.15", "0", "0"),
+>>>>>>> origin/cc-switch-cli
             // MiMo (小米)
             (
                 "mimo-v2-flash",
@@ -1909,8 +1950,11 @@ impl Database {
                 "0",
             ),
             ("mimo-v2-pro", "MiMo V2 Pro", "1", "3", "0", "0"),
+<<<<<<< HEAD
             ("mimo-v2.5", "MiMo V2.5", "0.09", "0.29", "0.009", "0"),
             ("mimo-v2.5-pro", "MiMo V2.5 Pro", "1", "3", "0", "0"),
+=======
+>>>>>>> origin/cc-switch-cli
             // Qwen 系列 (阿里巴巴)
             ("qwen3.6-plus", "Qwen3.6 Plus", "0.325", "1.95", "0", "0"),
             ("qwen3.5-plus", "Qwen3.5 Plus", "0.26", "1.56", "0", "0"),
@@ -1932,6 +1976,7 @@ impl Database {
                 "0",
             ),
             (
+<<<<<<< HEAD
                 "qwen3-coder-480b",
                 "Qwen3 Coder 480B",
                 "0.65",
@@ -1948,6 +1993,8 @@ impl Database {
                 "0",
             ),
             (
+=======
+>>>>>>> origin/cc-switch-cli
                 "qwen3-coder-flash",
                 "Qwen3 Coder Flash",
                 "0.195",
@@ -2002,6 +2049,7 @@ impl Database {
             ("grok-4", "Grok 4", "3", "15", "0.75", "0"),
             (
                 "grok-code-fast-1",
+<<<<<<< HEAD
                 "Grok Build 0.1 (Code Fast Alias)",
                 "1",
                 "2",
@@ -2009,6 +2057,14 @@ impl Database {
                 "0",
             ),
             ("grok-build-0.1", "Grok Build 0.1", "1", "2", "0.20", "0"),
+=======
+                "Grok Code Fast",
+                "0.20",
+                "1.50",
+                "0.02",
+                "0",
+            ),
+>>>>>>> origin/cc-switch-cli
             ("grok-3", "Grok 3", "3", "15", "0.75", "0"),
             ("grok-3-mini", "Grok 3 Mini", "0.25", "0.50", "0.075", "0"),
             // Mistral 系列
@@ -2082,6 +2138,7 @@ impl Database {
                     model_id, display_name, input_cost_per_million, output_cost_per_million,
                     cache_read_cost_per_million, cache_creation_cost_per_million
                 ) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+<<<<<<< HEAD
             )
             .map_err(|e| AppError::Database(format!("准备模型定价语句失败: {e}")))?;
         for (model_id, display_name, input, output, cache_read, cache_creation) in pricing_data {
@@ -2185,6 +2242,20 @@ impl Database {
                 ],
             )
             .map_err(|e| AppError::Database(format!("修复模型 {model_id} 定价失败: {e}")))?;
+=======
+            )
+            .map_err(|e| AppError::Database(format!("准备模型定价语句失败: {e}")))?;
+        for (model_id, display_name, input, output, cache_read, cache_creation) in pricing_data {
+            stmt.execute(rusqlite::params![
+                model_id,
+                display_name,
+                input,
+                output,
+                cache_read,
+                cache_creation
+            ])
+            .map_err(|e| AppError::Database(format!("插入模型定价失败: {e}")))?;
+>>>>>>> origin/cc-switch-cli
         }
 
         Ok(())

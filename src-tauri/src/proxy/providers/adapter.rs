@@ -30,6 +30,7 @@ pub trait ProviderAdapter: Send + Sync {
     ///
     /// The forwarder inserts these at the position of the original auth header
     /// so that header order is preserved.
+<<<<<<< HEAD
     ///
     /// Returns `ProxyError::AuthError` when the credential contains characters
     /// that cannot be encoded as an HTTP header value (e.g. control chars,
@@ -38,6 +39,9 @@ pub trait ProviderAdapter: Send + Sync {
         &self,
         auth: &AuthInfo,
     ) -> Result<Vec<(http::HeaderName, http::HeaderValue)>, ProxyError>;
+=======
+    fn get_auth_headers(&self, auth: &AuthInfo) -> Vec<(http::HeaderName, http::HeaderValue)>;
+>>>>>>> origin/cc-switch-cli
 
     /// 是否需要格式转换
     fn needs_transform(&self, _provider: &Provider) -> bool {

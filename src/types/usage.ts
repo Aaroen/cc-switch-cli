@@ -138,6 +138,7 @@ export interface UsageRangeSelection {
   customEndDate?: number;
 }
 
+<<<<<<< HEAD
 /**
  * App types whose token usage is reliably collected by the proxy.
  *
@@ -238,6 +239,9 @@ export function isUnpricedUsage(log: UsageCostLog): boolean {
     totalCost === 0
   );
 }
+=======
+export type AppTypeFilter = "all" | "claude" | "codex" | "gemini";
+>>>>>>> origin/cc-switch-cli
 
 export interface StatsFilters {
   timeRange: UsageRangePreset;

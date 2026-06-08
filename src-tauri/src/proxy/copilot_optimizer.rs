@@ -87,13 +87,22 @@ pub fn classify_request(
     // copilot-api 通过先 merge（text 吸收进 tool_result）再 classify 实现同等效果；
     // 直接在分类层处理更稳健，不依赖 merge 启用状态和执行顺序。
     let is_user_initiated = match last_msg.get("content") {
+<<<<<<< HEAD
         Some(Value::Array(blocks)) => {
+=======
+        Some(content) if content.is_array() => {
+            let blocks = content.as_array().unwrap();
+>>>>>>> origin/cc-switch-cli
             // 含有 tool_result → 工具续写（agent），否则 → 用户发起（user）
             !blocks
                 .iter()
                 .any(|block| block.get("type").and_then(|t| t.as_str()) == Some("tool_result"))
         }
+<<<<<<< HEAD
         Some(Value::String(_)) => true,
+=======
+        Some(content) if content.is_string() => true,
+>>>>>>> origin/cc-switch-cli
         _ => false,
     };
 
@@ -123,9 +132,13 @@ fn is_warmup_request(body: &Value, has_anthropic_beta: bool, is_compact: bool) -
         return false;
     }
     // 无工具定义
+<<<<<<< HEAD
     body.get("tools")
         .and_then(|tools| tools.as_array())
         .is_none_or(|tools| tools.is_empty())
+=======
+    !matches!(body.get("tools"), Some(tools) if tools.is_array() && !tools.as_array().unwrap().is_empty())
+>>>>>>> origin/cc-switch-cli
 }
 
 /// 检测是否为 Claude Code 上下文压缩/compact 请求。
@@ -229,10 +242,14 @@ pub fn merge_tool_results(mut body: Value) -> Value {
     }
 
     // Phase 2: 跨消息合并 — 连续的 tool_result-only 用户消息合并
+<<<<<<< HEAD
     let messages = match body.get("messages").and_then(|m| m.as_array()) {
         Some(messages) => messages.clone(),
         None => return body,
     };
+=======
+    let messages = body["messages"].as_array().unwrap().clone();
+>>>>>>> origin/cc-switch-cli
     if messages.len() <= 1 {
         return body;
     }
@@ -426,8 +443,15 @@ pub fn sanitize_orphan_tool_results(mut body: Value) -> Value {
             // 空 tool_use_id 或不在紧邻 assistant 的 tool_use 中 → orphan
             if tool_use_id.is_empty() || !prev_tool_use_ids.contains(tool_use_id) {
                 let content_text = match block.get("content") {
+<<<<<<< HEAD
                     Some(Value::String(text)) => text.clone(),
                     Some(Value::Array(blocks)) => blocks
+=======
+                    Some(c) if c.is_string() => c.as_str().unwrap_or("").to_string(),
+                    Some(c) if c.is_array() => c
+                        .as_array()
+                        .unwrap()
+>>>>>>> origin/cc-switch-cli
                         .iter()
                         .filter_map(|b| b.get("text").and_then(|t| t.as_str()))
                         .collect::<Vec<_>>()
@@ -445,6 +469,7 @@ pub fn sanitize_orphan_tool_results(mut body: Value) -> Value {
     body
 }
 
+<<<<<<< HEAD
 /// 请求前主动剥离所有 assistant 消息里的 thinking / redacted_thinking block
 ///
 /// Copilot 的三条目标端点（`/chat/completions`、`/v1/responses`、`/v1/chat/completions`）
@@ -480,13 +505,22 @@ pub fn strip_thinking_blocks(mut body: Value) -> Value {
     body
 }
 
+=======
+>>>>>>> origin/cc-switch-cli
 // ─── 内部辅助 ─────────────────────────────────
 
 /// 从请求体的 `system` 字段提取文本（处理 string/array 两种格式）。
 fn extract_system_text(body: &Value) -> String {
     match body.get("system") {
+<<<<<<< HEAD
         Some(Value::String(text)) => text.clone(),
         Some(Value::Array(blocks)) => blocks
+=======
+        Some(s) if s.is_string() => s.as_str().unwrap_or("").to_string(),
+        Some(arr) if arr.is_array() => arr
+            .as_array()
+            .unwrap()
+>>>>>>> origin/cc-switch-cli
             .iter()
             .filter_map(|b| b.get("text").and_then(|t| t.as_str()))
             .collect::<Vec<_>>()
@@ -573,12 +607,22 @@ fn append_text_to_tool_result(tool_result: &mut Value, text_block: &Value) {
     }
 
     // tool_result 的 content 可以是字符串或数组
+<<<<<<< HEAD
     match tool_result.get_mut("content") {
         Some(Value::String(existing)) => {
             existing.push('\n');
             existing.push_str(text);
         }
         Some(Value::Array(arr)) => {
+=======
+    match tool_result.get("content") {
+        Some(c) if c.is_string() => {
+            let existing = c.as_str().unwrap_or("");
+            tool_result["content"] = Value::String(format!("{existing}\n{text}"));
+        }
+        Some(c) if c.is_array() => {
+            let arr = tool_result["content"].as_array_mut().unwrap();
+>>>>>>> origin/cc-switch-cli
             arr.push(serde_json::json!({"type": "text", "text": text}));
         }
         _ => {
@@ -591,6 +635,7 @@ fn append_text_to_tool_result(tool_result: &mut Value, text_block: &Value) {
 /// 从消息中提取文本内容
 fn extract_text_from_message(msg: &Value) -> String {
     match msg.get("content") {
+<<<<<<< HEAD
         Some(Value::String(text)) => text.clone(),
         Some(Value::Array(blocks)) => blocks
             .iter()
@@ -603,6 +648,23 @@ fn extract_text_from_message(msg: &Value) -> String {
             })
             .collect::<Vec<_>>()
             .join(" "),
+=======
+        Some(content) if content.is_string() => content.as_str().unwrap_or("").to_string(),
+        Some(content) if content.is_array() => {
+            let blocks = content.as_array().unwrap();
+            blocks
+                .iter()
+                .filter_map(|block| {
+                    if block.get("type").and_then(|t| t.as_str()) == Some("text") {
+                        block.get("text").and_then(|t| t.as_str())
+                    } else {
+                        None
+                    }
+                })
+                .collect::<Vec<_>>()
+                .join(" ")
+        }
+>>>>>>> origin/cc-switch-cli
         _ => String::new(),
     }
 }
@@ -1402,6 +1464,7 @@ mod tests {
         assert_eq!(content[0]["type"], "text");
         assert_eq!(content[1]["type"], "text");
     }
+<<<<<<< HEAD
 
     // === strip_thinking_blocks 测试 ===
 
@@ -1536,4 +1599,6 @@ mod tests {
         assert_eq!(content[1]["type"], "tool_use");
         assert_eq!(content[2]["text"], "B");
     }
+=======
+>>>>>>> origin/cc-switch-cli
 }

@@ -16,9 +16,13 @@ use crate::proxy::providers::copilot_auth;
 use crate::proxy::providers::transform::anthropic_to_openai;
 use crate::proxy::providers::transform_gemini::anthropic_to_gemini;
 use crate::proxy::providers::transform_responses::anthropic_to_responses;
+<<<<<<< HEAD
 use crate::proxy::providers::{
     get_adapter, AuthInfo, AuthStrategy, ClaudeAdapter, ProviderAdapter,
 };
+=======
+use crate::proxy::providers::{get_adapter, AuthInfo, AuthStrategy};
+>>>>>>> origin/cc-switch-cli
 
 /// 健康状态枚举
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -58,8 +62,13 @@ impl Default for StreamCheckConfig {
             max_retries: 2,
             degraded_threshold_ms: 6000,
             claude_model: "claude-haiku-4-5-20251001".to_string(),
+<<<<<<< HEAD
             codex_model: "gpt-5.5@low".to_string(),
             gemini_model: "gemini-3.5-flash".to_string(),
+=======
+            codex_model: "gpt-5.4@low".to_string(),
+            gemini_model: "gemini-3-flash-preview".to_string(),
+>>>>>>> origin/cc-switch-cli
             test_prompt: default_test_prompt(),
         }
     }
@@ -204,6 +213,7 @@ impl StreamCheckService {
         claude_api_format_override: Option<String>,
     ) -> Result<StreamCheckResult, AppError> {
         let start = Instant::now();
+<<<<<<< HEAD
 
         // OpenCode / OpenClaw 的 settings_config 结构与 Claude/Codex/Gemini 不同
         // （baseUrl / apiKey 直接作为根字段而非嵌套在 env），并且协议由 `api`
@@ -228,6 +238,25 @@ impl StreamCheckService {
                 .map_err(|e| AppError::Message(format!("Failed to extract base_url: {e}")))?,
         };
 
+=======
+
+        // OpenCode / OpenClaw 的 settings_config 结构与 Claude/Codex/Gemini 不同
+        // （baseUrl / apiKey 直接作为根字段而非嵌套在 env），并且协议由 `api`
+        // 或 `npm` 字段显式指定。它们不走 get_adapter 路径，而是直接分发。
+        if matches!(app_type, AppType::OpenCode | AppType::OpenClaw) {
+            return Self::check_once_without_adapter(app_type, provider, config, start).await;
+        }
+
+        let adapter = get_adapter(app_type);
+
+        let base_url = match base_url_override {
+            Some(base_url) => base_url,
+            None => adapter
+                .extract_base_url(provider)
+                .map_err(|e| AppError::Message(format!("Failed to extract base_url: {e}")))?,
+        };
+
+>>>>>>> origin/cc-switch-cli
         let auth = auth_override
             .or_else(|| adapter.extract_auth(provider))
             .ok_or_else(|| AppError::Message("API Key not found".to_string()))?;
@@ -278,9 +307,15 @@ impl StreamCheckService {
                 )
                 .await
             }
+<<<<<<< HEAD
             AppType::OpenCode | AppType::OpenClaw | AppType::Hermes => {
                 // Already handled via early dispatch above
                 unreachable!("OpenCode/OpenClaw/Hermes 已通过 check_once_without_adapter 处理")
+=======
+            AppType::OpenCode | AppType::OpenClaw => {
+                // Already handled via early dispatch above
+                unreachable!("OpenCode/OpenClaw 已通过 check_once_without_adapter 处理")
+>>>>>>> origin/cc-switch-cli
             }
         };
 
@@ -361,6 +396,7 @@ impl StreamCheckService {
         });
         // Codex OAuth (ChatGPT Plus/Pro 反代) 需要 store:false + include 标记，
         // 否则 Stream Check 会和生产路径一样被服务端 400 拒绝。
+<<<<<<< HEAD
         let is_codex_oauth = provider.is_codex_oauth();
         let codex_fast_mode = provider.codex_fast_mode_enabled();
 
@@ -372,6 +408,17 @@ impl StreamCheckService {
                 codex_fast_mode,
             )
             .map_err(|e| AppError::Message(format!("Failed to build test request: {e}")))?
+=======
+        let is_codex_oauth = provider
+            .meta
+            .as_ref()
+            .and_then(|m| m.provider_type.as_deref())
+            == Some("codex_oauth");
+
+        let body = if is_openai_responses {
+            anthropic_to_responses(anthropic_body, Some(&provider.id), is_codex_oauth)
+                .map_err(|e| AppError::Message(format!("Failed to build test request: {e}")))?
+>>>>>>> origin/cc-switch-cli
         } else if is_gemini_native {
             anthropic_to_gemini(anthropic_body)
                 .map_err(|e| AppError::Message(format!("Failed to build test request: {e}")))?
@@ -532,6 +579,7 @@ impl StreamCheckService {
             .as_ref()
             .and_then(|meta| meta.is_full_url)
             .unwrap_or(false);
+<<<<<<< HEAD
         // 当 provider 的 api_format 标记为 openai_chat 时，上游不接受 Responses API；
         // 必须改打 /chat/completions 并发送 Chat 格式 body，否则 Stream Check 与代理路径不一致，
         // 会把"实际可用"的供应商误报为不可用（典型如 DeepSeek、MiniMax、Kimi 等 Chat 兼容厂商）。
@@ -541,6 +589,9 @@ impl StreamCheckService {
         } else {
             Self::resolve_codex_stream_urls(base_url, is_full_url)
         };
+=======
+        let urls = Self::resolve_codex_stream_urls(base_url, is_full_url);
+>>>>>>> origin/cc-switch-cli
 
         // 解析模型名和推理等级 (支持 model@level 或 model#level 格式)
         let (actual_model, reasoning_effort) = Self::parse_model_with_effort(model);
@@ -720,7 +771,11 @@ impl StreamCheckService {
 
         let result = match app_type {
             AppType::OpenClaw => {
+<<<<<<< HEAD
                 Self::check_additive_app_stream(
+=======
+                Self::check_openclaw_stream(
+>>>>>>> origin/cc-switch-cli
                     &client,
                     provider,
                     &model_to_test,
@@ -739,6 +794,7 @@ impl StreamCheckService {
                 )
                 .await
             }
+<<<<<<< HEAD
             AppType::Hermes => {
                 Self::check_hermes_stream(
                     &client,
@@ -750,6 +806,9 @@ impl StreamCheckService {
                 .await
             }
             _ => unreachable!("check_once_without_adapter 只处理 OpenCode/OpenClaw/Hermes"),
+=======
+            _ => unreachable!("check_once_without_adapter 只处理 OpenCode/OpenClaw"),
+>>>>>>> origin/cc-switch-cli
         };
 
         let response_time = start.elapsed().as_millis() as u64;
@@ -824,6 +883,7 @@ impl StreamCheckService {
             return None;
         }
         let lower = body.to_lowercase();
+<<<<<<< HEAD
         let qianfan_quota_indicators = [
             "coding_plan_hour_quota_exceeded",
             "coding_plan_week_quota_exceeded",
@@ -833,6 +893,8 @@ impl StreamCheckService {
             return Some("quotaExceeded");
         }
 
+=======
+>>>>>>> origin/cc-switch-cli
         // 必须提到 "model"，避免通用 404 / 400 被误判
         if !lower.contains("model") {
             return None;
@@ -863,7 +925,11 @@ impl StreamCheckService {
     /// - `anthropic-messages`   → check_claude_stream + api_format="anthropic" (ClaudeAuth 策略)
     /// - `google-generative-ai` → check_gemini_stream (Google API Key 策略)
     /// - `bedrock-converse-stream` → 不支持（需要 AWS SigV4 签名）
+<<<<<<< HEAD
     async fn check_additive_app_stream(
+=======
+    async fn check_openclaw_stream(
+>>>>>>> origin/cc-switch-cli
         client: &Client,
         provider: &Provider,
         model: &str,
@@ -873,7 +939,11 @@ impl StreamCheckService {
         // 自定义认证头（如 Longcat 的 `apikey` 头）不走标准 Bearer，
         // 具体头名由 OpenClaw 网关内部决定，cc-switch 无法准确构造，
         // 因此直接返回友好错误而不是让用户看到一个误导性的 401。
+<<<<<<< HEAD
         if Self::additive_app_uses_auth_header(provider) {
+=======
+        if Self::openclaw_uses_auth_header(provider) {
+>>>>>>> origin/cc-switch-cli
             return Err(AppError::localized(
                 "openclaw_auth_header_not_supported",
                 "该供应商使用自定义认证头，暂不支持流式健康检查。建议直接通过 OpenClaw 测试。",
@@ -966,8 +1036,13 @@ impl StreamCheckService {
         }
     }
 
+<<<<<<< HEAD
     /// 判断 additive-mode 供应商是否使用自定义认证头（`authHeader: true`）
     fn additive_app_uses_auth_header(provider: &Provider) -> bool {
+=======
+    /// 判断 OpenClaw 供应商是否使用自定义认证头（`authHeader: true`）
+    fn openclaw_uses_auth_header(provider: &Provider) -> bool {
+>>>>>>> origin/cc-switch-cli
         provider
             .settings_config
             .get("authHeader")
@@ -1027,6 +1102,7 @@ impl StreamCheckService {
             .filter(|s| !s.is_empty())
     }
 
+<<<<<<< HEAD
     // Hermes 的 settings_config 用 snake_case（base_url / api_key / api_mode），
     // 与 OpenClaw 的 camelCase（baseUrl / apiKey / api）是两套独立命名。
     // 见 src/config/hermesProviderPresets.ts 的 HermesProviderSettingsConfig。
@@ -1133,6 +1209,8 @@ impl StreamCheckService {
         .await
     }
 
+=======
+>>>>>>> origin/cc-switch-cli
     /// OpenCode 流式检查分发器
     ///
     /// OpenCode 用 `npm` 字段（AI SDK 包名）隐式指定协议。映射关系参见
@@ -1190,7 +1268,11 @@ impl StreamCheckService {
                 .await
             }
             Some("@ai-sdk/anthropic") => {
+<<<<<<< HEAD
                 // 见 check_additive_app_stream 对 anthropic-messages 的处理：
+=======
+                // 见 check_openclaw_stream 对 anthropic-messages 的注释：
+>>>>>>> origin/cc-switch-cli
                 // 用 ClaudeAuth（Bearer-only）兼容中转服务。
                 let auth = AuthInfo::new(api_key, AuthStrategy::ClaudeAuth);
                 Self::check_claude_stream(
@@ -1535,6 +1617,7 @@ impl StreamCheckService {
         }
     }
 
+<<<<<<< HEAD
     /// Codex Responses 流式 URL 构造（薄包装，详见 `resolve_codex_endpoint_urls`）。
     fn resolve_codex_stream_urls(base_url: &str, is_full_url: bool) -> Vec<String> {
         Self::resolve_codex_endpoint_urls(base_url, is_full_url, "responses")
@@ -1555,11 +1638,15 @@ impl StreamCheckService {
         is_full_url: bool,
         endpoint: &str,
     ) -> Vec<String> {
+=======
+    fn resolve_codex_stream_urls(base_url: &str, is_full_url: bool) -> Vec<String> {
+>>>>>>> origin/cc-switch-cli
         if is_full_url {
             return vec![base_url.to_string()];
         }
 
         let base = base_url.trim_end_matches('/');
+<<<<<<< HEAD
         let lower = base.to_ascii_lowercase();
         let endpoint_suffix = format!("/{endpoint}");
         let endpoint_lower = endpoint_suffix.to_ascii_lowercase();
@@ -1583,6 +1670,13 @@ impl StreamCheckService {
                 format!("{base}{endpoint_suffix}"),
                 format!("{base}/v1{endpoint_suffix}"),
             ]
+=======
+
+        if base.ends_with("/v1") {
+            vec![format!("{base}/responses")]
+        } else {
+            vec![format!("{base}/responses"), format!("{base}/v1/responses")]
+>>>>>>> origin/cc-switch-cli
         }
     }
 
@@ -1610,24 +1704,40 @@ mod tests {
     }
 
     #[test]
+<<<<<<< HEAD
     fn test_additive_app_uses_auth_header_true() {
+=======
+    fn test_openclaw_uses_auth_header_true() {
+>>>>>>> origin/cc-switch-cli
         let p = make_provider(serde_json::json!({
             "baseUrl": "https://api.longcat.chat/v1",
             "apiKey": "k",
             "api": "openai-completions",
             "authHeader": true,
         }));
+<<<<<<< HEAD
         assert!(StreamCheckService::additive_app_uses_auth_header(&p));
     }
 
     #[test]
     fn test_additive_app_uses_auth_header_default_false() {
+=======
+        assert!(StreamCheckService::openclaw_uses_auth_header(&p));
+    }
+
+    #[test]
+    fn test_openclaw_uses_auth_header_default_false() {
+>>>>>>> origin/cc-switch-cli
         let p = make_provider(serde_json::json!({
             "baseUrl": "https://api.deepseek.com/v1",
             "apiKey": "k",
             "api": "openai-completions",
         }));
+<<<<<<< HEAD
         assert!(!StreamCheckService::additive_app_uses_auth_header(&p));
+=======
+        assert!(!StreamCheckService::openclaw_uses_auth_header(&p));
+>>>>>>> origin/cc-switch-cli
     }
 
     #[test]
@@ -1817,6 +1927,7 @@ mod tests {
     }
 
     #[test]
+<<<<<<< HEAD
     fn test_detect_qianfan_coding_plan_quota_errors() {
         let cases = [
             r#"{"error":{"code":"coding_plan_hour_quota_exceeded","message":"hour quota exceeded"}}"#,
@@ -1833,6 +1944,8 @@ mod tests {
     }
 
     #[test]
+=======
+>>>>>>> origin/cc-switch-cli
     fn test_get_os_name() {
         let os_name = StreamCheckService::get_os_name();
         // 确保返回非空字符串
@@ -1886,7 +1999,11 @@ mod tests {
             AuthStrategy::Bearer,
             "openai_chat",
             true,
+<<<<<<< HEAD
             "gpt-5.5",
+=======
+            "gpt-5.4",
+>>>>>>> origin/cc-switch-cli
         );
 
         assert_eq!(url, "https://relay.example/v1/chat/completions");
@@ -1899,7 +2016,11 @@ mod tests {
             AuthStrategy::GitHubCopilot,
             "openai_chat",
             false,
+<<<<<<< HEAD
             "gpt-5.5",
+=======
+            "gpt-5.4",
+>>>>>>> origin/cc-switch-cli
         );
 
         assert_eq!(url, "https://api.githubcopilot.com/chat/completions");
@@ -1912,7 +2033,11 @@ mod tests {
             AuthStrategy::GitHubCopilot,
             "openai_responses",
             false,
+<<<<<<< HEAD
             "gpt-5.5",
+=======
+            "gpt-5.4",
+>>>>>>> origin/cc-switch-cli
         );
 
         assert_eq!(url, "https://api.githubcopilot.com/v1/responses");
@@ -1925,7 +2050,11 @@ mod tests {
             AuthStrategy::Bearer,
             "openai_chat",
             false,
+<<<<<<< HEAD
             "gpt-5.5",
+=======
+            "gpt-5.4",
+>>>>>>> origin/cc-switch-cli
         );
 
         assert_eq!(url, "https://example.com/v1/chat/completions");
@@ -1938,7 +2067,11 @@ mod tests {
             AuthStrategy::Bearer,
             "openai_responses",
             false,
+<<<<<<< HEAD
             "gpt-5.5",
+=======
+            "gpt-5.4",
+>>>>>>> origin/cc-switch-cli
         );
 
         assert_eq!(url, "https://example.com/v1/responses");
@@ -2002,6 +2135,7 @@ mod tests {
         assert_eq!(url, "https://relay.example/custom/generate-content?alt=sse");
     }
 
+<<<<<<< HEAD
     #[test]
     fn test_resolve_claude_stream_url_for_gemini_native_cloudflare_vertex_full_url() {
         let url = StreamCheckService::resolve_claude_stream_url(
@@ -2018,6 +2152,8 @@ mod tests {
         );
     }
 
+=======
+>>>>>>> origin/cc-switch-cli
     /// Regression: Gemini SDK outputs commonly surface model ids as the
     /// resource-name form `models/gemini-2.5-pro`. Interpolating that raw
     /// value used to produce `/v1beta/models/models/gemini-2.5-pro:...`
@@ -2057,16 +2193,22 @@ mod tests {
         assert_eq!(urls, vec!["https://api.openai.com/v1/responses"]);
     }
 
+<<<<<<< HEAD
     /// 纯 origin 必须优先 /v1/responses（与 CodexAdapter::build_url 一致）。
     /// OpenAI 官方 /responses 实际挂在 /v1 下，bare 路径只在用户配置错误的
     /// 反代上才可能命中，作为 fallback 保留即可。
     #[test]
     fn test_resolve_codex_stream_urls_for_origin_base_prioritizes_v1() {
+=======
+    #[test]
+    fn test_resolve_codex_stream_urls_for_origin_base() {
+>>>>>>> origin/cc-switch-cli
         let urls = StreamCheckService::resolve_codex_stream_urls("https://api.openai.com", false);
 
         assert_eq!(
             urls,
             vec![
+<<<<<<< HEAD
                 "https://api.openai.com/v1/responses",
                 "https://api.openai.com/responses",
             ]
@@ -2163,4 +2305,11 @@ mod tests {
 
         assert_eq!(urls, vec!["https://api.deepseek.com/v1/chat/completions"]);
     }
+=======
+                "https://api.openai.com/responses",
+                "https://api.openai.com/v1/responses",
+            ]
+        );
+    }
+>>>>>>> origin/cc-switch-cli
 }

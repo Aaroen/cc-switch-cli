@@ -246,6 +246,7 @@ command = "say"
 }
 
 #[test]
+<<<<<<< HEAD
 fn provider_service_switch_codex_preserves_user_model_provider_id_after_migration() {
     let _guard = test_mutex().lock().expect("acquire test mutex");
     reset_test_fs();
@@ -1088,6 +1089,8 @@ requires_openai_auth = true
 }
 
 #[test]
+=======
+>>>>>>> origin/cc-switch-cli
 fn sync_current_provider_for_app_keeps_live_takeover_and_updates_restore_backup() {
     let _guard = test_mutex().lock().expect("acquire test mutex");
     reset_test_fs();
@@ -1187,6 +1190,7 @@ fn sync_current_provider_for_app_keeps_live_takeover_and_updates_restore_backup(
 }
 
 #[test]
+<<<<<<< HEAD
 fn switch_codex_provider_with_takeover_live_but_stopped_proxy_keeps_proxy_live_config() {
     let _guard = test_mutex().lock().expect("acquire test mutex");
     reset_test_fs();
@@ -1339,6 +1343,8 @@ wire_api = "responses"
 }
 
 #[test]
+=======
+>>>>>>> origin/cc-switch-cli
 fn explicitly_cleared_common_snippet_is_not_auto_extracted() {
     let _guard = test_mutex().lock().expect("acquire test mutex");
     reset_test_fs();

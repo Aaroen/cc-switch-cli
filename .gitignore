@@ -31,4 +31,7 @@ copilot-api
 .history
 CODEBUDDY.md
 .github
+<<<<<<< HEAD
 mainWindow.js
+=======
+>>>>>>> origin/cc-switch-cli

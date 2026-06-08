@@ -185,7 +185,11 @@ export function GeminiFormFields({
             id="gemini-model"
             value={model}
             onChange={onModelChange}
+<<<<<<< HEAD
             placeholder="gemini-3.5-flash"
+=======
+            placeholder="gemini-3-pro-preview"
+>>>>>>> origin/cc-switch-cli
             fetchedModels={fetchedModels}
             isLoading={isFetchingModels}
           />

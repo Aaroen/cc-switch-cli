@@ -104,6 +104,18 @@ export function useCodexConfigState({ initialData }: UseCodexConfigStateProps) {
     const extracted = extractCodexBaseUrl(codexConfig) || "";
     setCodexBaseUrl((prev) => (prev === extracted ? prev : extracted));
   }, [codexConfig]);
+<<<<<<< HEAD
+=======
+
+  // 与 TOML 配置保持模型名称同步
+  useEffect(() => {
+    if (isUpdatingCodexModelNameRef.current) {
+      return;
+    }
+    const extracted = extractCodexModelName(codexConfig) || "";
+    setCodexModelName((prev) => (prev === extracted ? prev : extracted));
+  }, [codexConfig]);
+>>>>>>> origin/cc-switch-cli
 
   // 获取 API Key（从 auth JSON）
   const getCodexAuthApiKey = useCallback((authString: string): string => {
@@ -198,7 +210,26 @@ export function useCodexConfigState({ initialData }: UseCodexConfigStateProps) {
     [setCodexConfig],
   );
 
+<<<<<<< HEAD
   // 处理 config 变化（同步 Base URL）
+=======
+  // 处理 Codex Model Name 变化
+  const handleCodexModelNameChange = useCallback(
+    (modelName: string) => {
+      const trimmed = modelName.trim();
+      setCodexModelName(trimmed);
+
+      isUpdatingCodexModelNameRef.current = true;
+      setCodexConfig((prev) => setCodexModelNameInConfig(prev, trimmed));
+      setTimeout(() => {
+        isUpdatingCodexModelNameRef.current = false;
+      }, 0);
+    },
+    [setCodexConfig],
+  );
+
+  // 处理 config 变化（同步 Base URL 和 Model Name）
+>>>>>>> origin/cc-switch-cli
   const handleCodexConfigChange = useCallback(
     (value: string) => {
       // 归一化中文/全角/弯引号，避免 TOML 解析报错

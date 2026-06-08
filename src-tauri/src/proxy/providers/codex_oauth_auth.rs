@@ -203,7 +203,10 @@ impl From<&CodexAccountData> for GitHubAccount {
                 .unwrap_or_else(|| format!("ChatGPT ({})", &data.account_id)),
             avatar_url: None,
             authenticated_at: data.authenticated_at,
+<<<<<<< HEAD
             github_domain: "github.com".to_string(),
+=======
+>>>>>>> origin/cc-switch-cli
         }
     }
 }

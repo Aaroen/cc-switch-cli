@@ -6,15 +6,22 @@ import type {
   SessionMeta,
   Settings,
 } from "@/types";
+<<<<<<< HEAD
 import { deepClone } from "@/utils/deepClone";
+=======
+>>>>>>> origin/cc-switch-cli
 
 type ProvidersByApp = Record<AppId, Record<string, Provider>>;
 type CurrentProviderState = Record<AppId, string>;
 type McpConfigState = Record<AppId, Record<string, McpServer>>;
+<<<<<<< HEAD
 type LiveProviderIdsByApp = Record<
   "opencode" | "openclaw" | "hermes",
   string[]
 >;
+=======
+type LiveProviderIdsByApp = Record<"opencode" | "openclaw", string[]>;
+>>>>>>> origin/cc-switch-cli
 
 const createDefaultProviders = (): ProvidersByApp => ({
   claude: {
@@ -89,7 +96,10 @@ let current = createDefaultCurrent();
 let liveProviderIds: LiveProviderIdsByApp = {
   opencode: [],
   openclaw: [],
+<<<<<<< HEAD
   hermes: [],
+=======
+>>>>>>> origin/cc-switch-cli
 };
 let settingsState: Settings = {
   showInTray: true,
@@ -162,7 +172,10 @@ let mcpConfigs: McpConfigState = {
         gemini: false,
         opencode: false,
         openclaw: false,
+<<<<<<< HEAD
         hermes: false,
+=======
+>>>>>>> origin/cc-switch-cli
       },
       server: {
         type: "stdio",
@@ -182,7 +195,10 @@ let mcpConfigs: McpConfigState = {
         gemini: false,
         opencode: false,
         openclaw: false,
+<<<<<<< HEAD
         hermes: false,
+=======
+>>>>>>> origin/cc-switch-cli
       },
       server: {
         type: "http",
@@ -205,7 +221,10 @@ export const resetProviderState = () => {
   liveProviderIds = {
     opencode: [],
     openclaw: [],
+<<<<<<< HEAD
     hermes: [],
+=======
+>>>>>>> origin/cc-switch-cli
   };
   sessionsState = createDefaultSessions();
   sessionMessagesState = createDefaultSessionMessages();
@@ -230,7 +249,10 @@ export const resetProviderState = () => {
           gemini: false,
           opencode: false,
           openclaw: false,
+<<<<<<< HEAD
           hermes: false,
+=======
+>>>>>>> origin/cc-switch-cli
         },
         server: {
           type: "stdio",
@@ -250,7 +272,10 @@ export const resetProviderState = () => {
           gemini: false,
           opencode: false,
           openclaw: false,
+<<<<<<< HEAD
           hermes: false,
+=======
+>>>>>>> origin/cc-switch-cli
         },
         server: {
           type: "http",
@@ -270,12 +295,21 @@ export const getProviders = (appType: AppId) =>
 
 export const getCurrentProviderId = (appType: AppId) => current[appType] ?? "";
 
+<<<<<<< HEAD
 export const getLiveProviderIds = (
   appType: "opencode" | "openclaw" | "hermes",
 ) => [...liveProviderIds[appType]];
 
 export const setLiveProviderIds = (
   appType: "opencode" | "openclaw" | "hermes",
+=======
+export const getLiveProviderIds = (appType: "opencode" | "openclaw") => [
+  ...liveProviderIds[appType],
+];
+
+export const setLiveProviderIds = (
+  appType: "opencode" | "openclaw",
+>>>>>>> origin/cc-switch-cli
   ids: string[],
 ) => {
   liveProviderIds[appType] = [...ids];
@@ -397,11 +431,22 @@ export const deleteMcpServer = (appType: AppId, id: string) => {
   delete mcpConfigs[appType][id];
 };
 
+<<<<<<< HEAD
 export const listSessions = () => deepClone(sessionsState) as SessionMeta[];
 
 export const getSessionMessages = (providerId: string, sourcePath: string) =>
   deepClone(
     sessionMessagesState[sessionMessageKey(providerId, sourcePath)] ?? [],
+=======
+export const listSessions = () =>
+  JSON.parse(JSON.stringify(sessionsState)) as SessionMeta[];
+
+export const getSessionMessages = (providerId: string, sourcePath: string) =>
+  JSON.parse(
+    JSON.stringify(
+      sessionMessagesState[sessionMessageKey(providerId, sourcePath)] ?? [],
+    ),
+>>>>>>> origin/cc-switch-cli
   ) as SessionMessage[];
 
 export const deleteSession = (
@@ -425,8 +470,13 @@ export const setSessionFixtures = (
   sessions: SessionMeta[],
   messages: Record<string, SessionMessage[]>,
 ) => {
+<<<<<<< HEAD
   sessionsState = deepClone(sessions) as SessionMeta[];
   sessionMessagesState = deepClone(messages) as Record<
+=======
+  sessionsState = JSON.parse(JSON.stringify(sessions)) as SessionMeta[];
+  sessionMessagesState = JSON.parse(JSON.stringify(messages)) as Record<
+>>>>>>> origin/cc-switch-cli
     string,
     SessionMessage[]
   >;

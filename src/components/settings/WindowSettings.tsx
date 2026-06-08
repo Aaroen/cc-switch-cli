@@ -4,7 +4,10 @@ import { AppWindow, MonitorUp, Power, EyeOff } from "lucide-react";
 import { ToggleRow } from "@/components/ui/toggle-row";
 import { AnimatePresence, motion } from "framer-motion";
 import { isLinux } from "@/lib/platform";
+<<<<<<< HEAD
 import { isTauri } from "@/lib/platform/isTauri";
+=======
+>>>>>>> origin/cc-switch-cli
 
 interface WindowSettingsProps {
   settings: SettingsFormState;

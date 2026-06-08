@@ -187,10 +187,14 @@ fn parse_session(path: &Path) -> Option<SessionMeta> {
                 {
                     let text = payload.get("content").map(extract_text).unwrap_or_default();
                     let trimmed = text.trim();
+<<<<<<< HEAD
                     if !trimmed.is_empty()
                         && !trimmed.starts_with("# AGENTS.md")
                         && !trimmed.starts_with("<environment_context>")
                     {
+=======
+                    if !trimmed.is_empty() && !trimmed.starts_with("# AGENTS.md") {
+>>>>>>> origin/cc-switch-cli
                         first_user_message = Some(trimmed.to_string());
                     }
                 }
@@ -296,6 +300,7 @@ mod tests {
     use super::*;
     use tempfile::tempdir;
 
+<<<<<<< HEAD
     fn write_codex_session(path: &Path, session_id: &str, message: &str) {
         std::fs::write(
             path,
@@ -332,6 +337,8 @@ mod tests {
         assert!(ids.contains(&"archived-id".to_string()));
     }
 
+=======
+>>>>>>> origin/cc-switch-cli
     #[test]
     fn delete_session_removes_jsonl_file() {
         let temp = tempdir().expect("tempdir");
@@ -392,6 +399,7 @@ mod tests {
     }
 
     #[test]
+<<<<<<< HEAD
     fn parse_session_skips_subagent_sessions() {
         let temp = tempdir().expect("tempdir");
         let path = temp.path().join("session.jsonl");
@@ -427,6 +435,8 @@ mod tests {
     }
 
     #[test]
+=======
+>>>>>>> origin/cc-switch-cli
     fn parse_session_falls_back_to_dir_basename() {
         let temp = tempdir().expect("tempdir");
         let path = temp.path().join("session.jsonl");

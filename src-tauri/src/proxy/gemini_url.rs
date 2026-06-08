@@ -81,10 +81,13 @@ fn should_normalize_gemini_full_url(base_url: &str) -> bool {
     let path = path.trim_end_matches('/');
     let on_google_host = is_google_gemini_host(extract_host(origin));
 
+<<<<<<< HEAD
     if matches_vertex_ai_publisher_model_path(path) {
         return false;
     }
 
+=======
+>>>>>>> origin/cc-switch-cli
     // Unconditional layer: only paths whose grammar is *intrinsically*
     // Gemini-specific — the `/models/...:generateContent` method-call
     // shape and the deep OpenAI-compat endpoints (`/openai/chat/completions`,
@@ -242,6 +245,7 @@ fn matches_structured_gemini_models_path(path: &str) -> bool {
     false
 }
 
+<<<<<<< HEAD
 /// Vertex AI endpoint paths include project/location/publisher routing before
 /// `models/*:generateContent`; in full-URL mode that routing is user-provided
 /// and must not be collapsed into the public Gemini `/v1beta/models/*` shape.
@@ -263,6 +267,8 @@ fn matches_vertex_ai_publisher_model_path(path: &str) -> bool {
     after_model.contains(":generateContent") || after_model.contains(":streamGenerateContent")
 }
 
+=======
+>>>>>>> origin/cc-switch-cli
 fn merge_queries(base_query: Option<&str>, endpoint_query: Option<&str>) -> Option<String> {
     let parts: Vec<&str> = [base_query, endpoint_query]
         .into_iter()
@@ -360,6 +366,7 @@ mod tests {
     }
 
     #[test]
+<<<<<<< HEAD
     fn preserves_cloudflare_vertex_ai_full_url_with_action() {
         let url = resolve_gemini_native_url(
             "https://gateway.ai.cloudflare.com/v1/account/gateway/google-vertex-ai/v1/projects/project/locations/us-central1/publishers/google/models/gemini-3.1-pro-preview:streamGenerateContent",
@@ -374,6 +381,8 @@ mod tests {
     }
 
     #[test]
+=======
+>>>>>>> origin/cc-switch-cli
     fn preserves_opaque_full_url_containing_models_segment() {
         let url = resolve_gemini_native_url(
             "https://relay.example/custom/models/invoke",

@@ -1,7 +1,10 @@
 // 供应商配置处理工具函数
 
 import type { TemplateValueConfig } from "../config/claudeProviderPresets";
+<<<<<<< HEAD
 import { deepClone } from "@/utils/deepClone";
+=======
+>>>>>>> origin/cc-switch-cli
 import { normalizeTomlText } from "@/utils/textNormalization";
 import { parse as parseToml, stringify as stringifyToml } from "smol-toml";
 
@@ -401,6 +404,7 @@ export const hasTomlCommonConfigSnippet = (
 const TOML_SECTION_HEADER_PATTERN = /^\s*\[([^\]\r\n]+)\]\s*$/;
 const TOML_BASE_URL_PATTERN =
   /^\s*base_url\s*=\s*(["'])([^"'\r\n]+)\1\s*(?:#.*)?$/;
+<<<<<<< HEAD
 const TOML_EXPERIMENTAL_BEARER_TOKEN_PATTERN =
   /^\s*experimental_bearer_token\s*=\s*(["'])([^"'\r\n]+)\1\s*(?:#.*)?$/;
 const TOML_EXPERIMENTAL_BEARER_TOKEN_REPLACE_PATTERN =
@@ -425,11 +429,21 @@ const CODEX_RESERVED_MODEL_PROVIDER_IDS = new Set([
   "oss",
   "ollama-chat",
 ]);
+=======
+const TOML_MODEL_PATTERN = /^\s*model\s*=\s*(["'])([^"'\r\n]+)\1\s*(?:#.*)?$/;
+const TOML_MODEL_PROVIDER_LINE_PATTERN =
+  /^\s*model_provider\s*=\s*(["'])([^"'\r\n]+)\1\s*(?:#.*)?$/;
+const TOML_MODEL_PROVIDER_PATTERN =
+  /^\s*model_provider\s*=\s*(["'])([^"'\r\n]+)\1\s*(?:#.*)?$/m;
+>>>>>>> origin/cc-switch-cli
 
 interface TomlSectionRange {
   bodyEndIndex: number;
   bodyStartIndex: number;
+<<<<<<< HEAD
   headerLineIndex: number;
+=======
+>>>>>>> origin/cc-switch-cli
 }
 
 interface TomlAssignmentMatch {
@@ -466,7 +480,10 @@ const getTomlSectionRange = (
     return {
       bodyStartIndex: headerLineIndex + 1,
       bodyEndIndex: index,
+<<<<<<< HEAD
       headerLineIndex,
+=======
+>>>>>>> origin/cc-switch-cli
     };
   }
 
@@ -477,7 +494,10 @@ const getTomlSectionRange = (
   return {
     bodyStartIndex: headerLineIndex + 1,
     bodyEndIndex: lines.length,
+<<<<<<< HEAD
     headerLineIndex,
+=======
+>>>>>>> origin/cc-switch-cli
   };
 };
 
@@ -503,6 +523,7 @@ const getTomlSectionInsertIndex = (
 };
 
 const getCodexModelProviderName = (configText: string): string | undefined => {
+<<<<<<< HEAD
   const normalized = normalizeTomlText(configText);
   try {
     const parsed = parseToml(normalized) as Record<string, any>;
@@ -519,6 +540,9 @@ const getCodexModelProviderName = (configText: string): string | undefined => {
   const index = getTopLevelModelProviderLineIndex(lines);
   if (index === -1) return undefined;
   const match = lines[index].match(TOML_MODEL_PROVIDER_LINE_PATTERN);
+=======
+  const match = configText.match(TOML_MODEL_PROVIDER_PATTERN);
+>>>>>>> origin/cc-switch-cli
   const providerName = match?.[2]?.trim();
   return providerName || undefined;
 };
@@ -530,6 +554,7 @@ const getCodexProviderSectionName = (
   return providerName ? `model_providers.${providerName}` : undefined;
 };
 
+<<<<<<< HEAD
 const isCustomCodexModelProviderId = (providerName: string): boolean => {
   const id = providerName.trim().toLowerCase();
   return Boolean(id) && !CODEX_RESERVED_MODEL_PROVIDER_IDS.has(id);
@@ -544,6 +569,8 @@ const getCodexCustomProviderSectionName = (
     : undefined;
 };
 
+=======
+>>>>>>> origin/cc-switch-cli
 const findTomlAssignmentInRange = (
   lines: string[],
   pattern: RegExp,
@@ -565,6 +592,7 @@ const findTomlAssignmentInRange = (
   return undefined;
 };
 
+<<<<<<< HEAD
 const findTomlLineInRange = (
   lines: string[],
   pattern: RegExp,
@@ -580,6 +608,8 @@ const findTomlLineInRange = (
   return -1;
 };
 
+=======
+>>>>>>> origin/cc-switch-cli
 const findTomlAssignments = (
   lines: string[],
   pattern: RegExp,
@@ -635,8 +665,11 @@ const getRecoverableBaseUrlAssignments = (
       !isOtherProviderSection(sectionName, targetSectionName),
   );
 
+<<<<<<< HEAD
 const getRecoverableCodexProviderAssignments = getRecoverableBaseUrlAssignments;
 
+=======
+>>>>>>> origin/cc-switch-cli
 const getTopLevelModelProviderLineIndex = (lines: string[]): number => {
   const topLevelEndIndex = getTopLevelEndIndex(lines);
 
@@ -649,6 +682,7 @@ const getTopLevelModelProviderLineIndex = (lines: string[]): number => {
   return -1;
 };
 
+<<<<<<< HEAD
 const hasTomlSectionBodyContent = (
   lines: string[],
   sectionRange: TomlSectionRange,
@@ -1015,6 +1049,8 @@ export const setCodexRemoteCompaction = (
   return targetSectionRange ? finalizeTomlText(lines) : normalizedText;
 };
 
+=======
+>>>>>>> origin/cc-switch-cli
 // 从 Codex 的 TOML 配置文本中提取 base_url（支持单/双引号）
 export const extractCodexBaseUrl = (
   configText: string | undefined | null,

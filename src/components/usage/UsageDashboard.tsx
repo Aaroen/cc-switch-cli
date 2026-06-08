@@ -1,15 +1,25 @@
+<<<<<<< HEAD
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { UsageHero } from "./UsageHero";
+=======
+import { useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
+import { UsageSummaryCards } from "./UsageSummaryCards";
+>>>>>>> origin/cc-switch-cli
 import { UsageTrendChart } from "./UsageTrendChart";
 import { RequestLogTable } from "./RequestLogTable";
 import { ProviderStatsTable } from "./ProviderStatsTable";
 import { ModelStatsTable } from "./ModelStatsTable";
+<<<<<<< HEAD
 import {
   KNOWN_APP_TYPES,
   type AppTypeFilter,
   type UsageRangeSelection,
 } from "@/types/usage";
+=======
+import type { AppTypeFilter, UsageRangeSelection } from "@/types/usage";
+>>>>>>> origin/cc-switch-cli
 import { motion } from "framer-motion";
 import {
   BarChart3,
@@ -36,7 +46,16 @@ import { getUsageRangePresetLabel, resolveUsageRange } from "@/lib/usageRange";
 import { UsageDateRangePicker } from "./UsageDateRangePicker";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
+<<<<<<< HEAD
 const APP_FILTER_OPTIONS: AppTypeFilter[] = ["all", ...KNOWN_APP_TYPES];
+=======
+const APP_FILTER_OPTIONS: AppTypeFilter[] = [
+  "all",
+  "claude",
+  "codex",
+  "gemini",
+];
+>>>>>>> origin/cc-switch-cli
 
 export function UsageDashboard() {
   const { t, i18n } = useTranslation();
@@ -166,9 +185,15 @@ export function UsageDashboard() {
         </div>
       </div>
 
+<<<<<<< HEAD
       <UsageHero
         range={range}
         appType={appType === "all" ? undefined : appType}
+=======
+      <UsageSummaryCards
+        range={range}
+        appType={appType}
+>>>>>>> origin/cc-switch-cli
         refreshIntervalMs={refreshIntervalMs}
       />
 

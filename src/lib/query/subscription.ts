@@ -7,18 +7,25 @@ import { PROVIDER_TYPES } from "@/config/constants";
 
 const REFETCH_INTERVAL = 5 * 60 * 1000; // 5 minutes
 
+<<<<<<< HEAD
 export const subscriptionKeys = {
   all: ["subscription"] as const,
   quota: (appId: AppId) => [...subscriptionKeys.all, "quota", appId] as const,
 };
 
+=======
+>>>>>>> origin/cc-switch-cli
 export function useSubscriptionQuota(
   appId: AppId,
   enabled: boolean,
   autoQuery = false,
 ) {
   return useQuery({
+<<<<<<< HEAD
     queryKey: subscriptionKeys.quota(appId),
+=======
+    queryKey: ["subscription", "quota", appId],
+>>>>>>> origin/cc-switch-cli
     queryFn: () => subscriptionApi.getQuota(appId),
     enabled: enabled && ["claude", "codex", "gemini"].includes(appId),
     refetchInterval: autoQuery ? REFETCH_INTERVAL : false,

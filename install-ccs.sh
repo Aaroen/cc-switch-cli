@@ -1509,12 +1509,17 @@ if [ "$CLI_MODE" = "true" ]; then
     MAX_PORT_RETRY=10
 
     while [ $PORT_RETRY -le $MAX_PORT_RETRY ]; do
+<<<<<<< HEAD
         # CLI 模式：自动启动无头服务器（按需附加 Web 控制台 --web-port/--web-bind）
         CCS_START_ARGS=(server start --host 127.0.0.1 --port "$PROXY_PORT")
         if [ "${WEB_PANEL_ENABLED:-0}" -eq 1 ] && [ -n "${WEB_PORT:-}" ]; then
             CCS_START_ARGS+=(--web-port "$WEB_PORT" --web-bind "$WEB_BIND")
         fi
         nohup "$CLI_LAUNCHER" "${CCS_START_ARGS[@]}" >> "$LOG_DIR/server.log" 2>&1 &
+=======
+        # CLI 模式：自动启动无头服务器
+        nohup "$CLI_LAUNCHER" server start --host 127.0.0.1 --port "$PROXY_PORT" >> "$LOG_DIR/server.log" 2>&1 &
+>>>>>>> origin/cc-switch-cli
 
         # 等待服务启动（最多10秒）
         WAIT_TIME=0

@@ -209,6 +209,13 @@ export const iconMetadata: Record<string, IconMetadata> = {
     keywords: ["cubence", "api", "relay"],
     defaultColor: "#4B5563",
   },
+  dds: {
+    name: "dds",
+    displayName: "DDS",
+    category: "other",
+    keywords: [],
+    defaultColor: "currentColor",
+  },
   deepseek: {
     name: "deepseek",
     displayName: "DeepSeek",
@@ -488,6 +495,7 @@ export const iconMetadata: Record<string, IconMetadata> = {
     keywords: ["pipellm", "pipe"],
     defaultColor: "currentColor",
   },
+<<<<<<< HEAD
   runapi: {
     name: "runapi",
     displayName: "RunAPI",
@@ -500,6 +508,8 @@ export const iconMetadata: Record<string, IconMetadata> = {
     category: "ai-provider",
     keywords: ["relaxycode", "relaxcode", "relax"],
   },
+=======
+>>>>>>> origin/cc-switch-cli
   eflowcode: {
     name: "eflowcode",
     displayName: "E-FlowCode",

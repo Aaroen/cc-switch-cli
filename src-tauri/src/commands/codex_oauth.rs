@@ -3,10 +3,16 @@
 //! 提供 OpenAI ChatGPT Plus/Pro OAuth 认证相关的 Tauri 命令。
 //!
 //! 大部分认证命令通过通用 `auth_*` 命令（参见 `commands::auth`）暴露给前端，
+<<<<<<< HEAD
 //! 此处定义 State wrapper 以及 Codex OAuth 专属的订阅额度和模型列表查询命令。
 
 use crate::proxy::providers::codex_oauth_auth::CodexOAuthManager;
 use crate::services::model_fetch::FetchedModel;
+=======
+//! 此处定义 State wrapper 以及 Codex OAuth 专属的订阅额度查询命令。
+
+use crate::proxy::providers::codex_oauth_auth::CodexOAuthManager;
+>>>>>>> origin/cc-switch-cli
 use crate::services::subscription::{query_codex_quota, CredentialStatus, SubscriptionQuota};
 use std::sync::Arc;
 use tauri::State;
@@ -57,6 +63,7 @@ pub async fn get_codex_oauth_quota(
     )
     .await)
 }
+<<<<<<< HEAD
 
 /// 获取 Codex OAuth (ChatGPT Plus/Pro) 可用模型列表
 ///
@@ -88,3 +95,5 @@ pub async fn get_codex_oauth_models(
 
     crate::services::codex_oauth_models::fetch_models_with_token(&token, &id).await
 }
+=======
+>>>>>>> origin/cc-switch-cli

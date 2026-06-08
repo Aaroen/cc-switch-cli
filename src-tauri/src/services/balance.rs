@@ -233,6 +233,7 @@ async fn query_siliconflow(api_key: &str, is_cn: bool) -> UsageResult {
 
     let total_balance = parse_f64_field(data, "totalBalance").unwrap_or(0.0);
 
+<<<<<<< HEAD
     let unit = if is_cn { "CNY" } else { "USD" };
     let plan_name = if is_cn {
         "SiliconFlow"
@@ -248,6 +249,16 @@ async fn query_siliconflow(api_key: &str, is_cn: bool) -> UsageResult {
             total: None,
             used: None,
             unit: Some(unit.to_string()),
+=======
+    UsageResult {
+        success: true,
+        data: Some(vec![UsageData {
+            plan_name: Some("SiliconFlow".to_string()),
+            remaining: Some(total_balance),
+            total: None,
+            used: None,
+            unit: Some("CNY".to_string()),
+>>>>>>> origin/cc-switch-cli
             is_valid: Some(true),
             invalid_message: None,
             extra: None,

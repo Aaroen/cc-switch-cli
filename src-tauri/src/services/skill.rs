@@ -675,6 +675,7 @@ impl SkillService {
             repo_branch = used_branch;
 
             // 复制到 SSOT
+<<<<<<< HEAD
             let source =
                 Self::resolve_skill_source_dir(&temp_dir, &skill.directory).ok_or_else(|| {
                     let missing = temp_dir.join(&source_rel).display().to_string();
@@ -685,6 +686,38 @@ impl SkillService {
                         Some("checkRepoUrl"),
                     ))
                 })?;
+=======
+            let mut source = temp_dir.join(&source_rel);
+            if !source.exists() {
+                // 回退：在 temp_dir 中递归查找名称匹配的目录（含 SKILL.md）
+                let target_name = source_rel
+                    .file_name()
+                    .map(|n| n.to_string_lossy().to_string())
+                    .unwrap_or_default();
+                if let Some(found) = Self::find_skill_dir_by_name(&temp_dir, &target_name) {
+                    log::info!(
+                        "Skill directory '{}' not found at direct path, using fallback: {}",
+                        target_name,
+                        found.display()
+                    );
+                    source = found;
+                } else if temp_dir.join("SKILL.md").exists() {
+                    // 根级 Skill：仓库本身就是 skill，SKILL.md 直接在解压根目录
+                    log::info!(
+                        "Skill directory '{}' not found, but SKILL.md exists at root, using temp_dir",
+                        target_name,
+                    );
+                    source = temp_dir.clone();
+                } else {
+                    let _ = fs::remove_dir_all(&temp_dir);
+                    return Err(anyhow!(format_skill_error(
+                        "SKILL_DIR_NOT_FOUND",
+                        &[("path", &source.display().to_string())],
+                        Some("checkRepoUrl"),
+                    )));
+                }
+            }
+>>>>>>> origin/cc-switch-cli
 
             let canonical_temp = temp_dir.canonicalize().unwrap_or_else(|_| temp_dir.clone());
             let canonical_source = source.canonicalize().map_err(|_| {
@@ -937,6 +970,7 @@ impl SkillService {
                 });
 
                 let remote_skill_dir = match remote_match {
+<<<<<<< HEAD
                     Some(rs) => match Self::resolve_skill_source_dir(&temp_dir, &rs.directory) {
                         Some(path) => path,
                         None => continue,
@@ -944,6 +978,16 @@ impl SkillService {
                     None => continue,
                 };
 
+=======
+                    Some(rs) => temp_dir.join(&rs.directory),
+                    None => continue,
+                };
+
+                if !remote_skill_dir.exists() {
+                    continue;
+                }
+
+>>>>>>> origin/cc-switch-cli
                 let remote_hash = match Self::compute_dir_hash(&remote_skill_dir) {
                     Ok(h) => h,
                     Err(e) => {
@@ -1047,6 +1091,7 @@ impl SkillService {
                 ))
             })?;
 
+<<<<<<< HEAD
         let source = Self::resolve_skill_source_dir(&temp_dir, &remote_match.directory)
             .ok_or_else(|| {
                 let missing = temp_dir.join(&remote_match.directory).display().to_string();
@@ -1057,6 +1102,17 @@ impl SkillService {
                     Some("checkRepoUrl"),
                 ))
             })?;
+=======
+        let source = temp_dir.join(&remote_match.directory);
+        if !source.exists() {
+            let _ = fs::remove_dir_all(&temp_dir);
+            return Err(anyhow!(format_skill_error(
+                "SKILL_DIR_NOT_FOUND",
+                &[("path", &source.display().to_string())],
+                Some("checkRepoUrl"),
+            )));
+        }
+>>>>>>> origin/cc-switch-cli
 
         // 备份旧文件
         let _ = Self::create_uninstall_backup(&skill);
@@ -1670,6 +1726,7 @@ impl SkillService {
         Ok(())
     }
 
+<<<<<<< HEAD
     fn validate_sync_source_dir(source: &Path, directory: &str) -> Result<()> {
         if !source.is_dir() {
             return Err(anyhow!("Skill 不存在于 SSOT: {directory}"));
@@ -1727,6 +1784,8 @@ impl SkillService {
         Ok(())
     }
 
+=======
+>>>>>>> origin/cc-switch-cli
     /// 判断路径是否为指向 SSOT 目录内的符号链接。
     fn is_symlink_to_ssot(path: &Path, ssot_dir: &Path) -> bool {
         if !Self::is_symlink(path) {
@@ -2153,6 +2212,7 @@ impl SkillService {
         walk(root, target_name, 0)
     }
 
+<<<<<<< HEAD
     /// 将 discoverable skill 的目录信息重新解析为解压目录中的真实源目录。
     ///
     /// 兼容三种情况：
@@ -2187,6 +2247,8 @@ impl SkillService {
         None
     }
 
+=======
+>>>>>>> origin/cc-switch-cli
     /// 去重技能列表（基于完整 key，不同仓库的同名 skill 分开显示）
     fn deduplicate_discoverable_skills(skills: &mut Vec<DiscoverableSkill>) {
         let mut seen = HashMap::new();

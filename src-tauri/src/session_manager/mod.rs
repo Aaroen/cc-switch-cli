@@ -91,6 +91,7 @@ pub fn scan_sessions() -> Vec<SessionMeta> {
 }
 
 pub fn load_messages(provider_id: &str, source_path: &str) -> Result<Vec<SessionMessage>, String> {
+<<<<<<< HEAD
     // SQLite sessions use a "sqlite:" prefixed source_path
     if provider_id == "opencode" && source_path.starts_with("sqlite:") {
         return opencode::load_messages_sqlite(source_path);
@@ -98,6 +99,12 @@ pub fn load_messages(provider_id: &str, source_path: &str) -> Result<Vec<Session
     if provider_id == "hermes" && source_path.starts_with("sqlite:") {
         return hermes::load_messages_sqlite(source_path);
     }
+=======
+    // OpenCode SQLite sessions use a "sqlite:" prefixed source_path
+    if provider_id == "opencode" && source_path.starts_with("sqlite:") {
+        return opencode::load_messages_sqlite(source_path);
+    }
+>>>>>>> origin/cc-switch-cli
 
     let path = Path::new(source_path);
     match provider_id {
@@ -116,6 +123,7 @@ pub fn delete_session(
     session_id: &str,
     source_path: &str,
 ) -> Result<bool, String> {
+<<<<<<< HEAD
     // SQLite sessions bypass the file-based deletion path
     if provider_id == "opencode" && source_path.starts_with("sqlite:") {
         return opencode::delete_session_sqlite(session_id, source_path);
@@ -126,6 +134,15 @@ pub fn delete_session(
 
     let roots = provider_roots(provider_id)?;
     delete_session_with_roots(provider_id, session_id, Path::new(source_path), &roots)
+=======
+    // OpenCode SQLite sessions bypass the file-based deletion path
+    if provider_id == "opencode" && source_path.starts_with("sqlite:") {
+        return opencode::delete_session_sqlite(session_id, source_path);
+    }
+
+    let root = provider_root(provider_id)?;
+    delete_session_with_root(provider_id, session_id, Path::new(source_path), &root)
+>>>>>>> origin/cc-switch-cli
 }
 
 pub fn delete_sessions(requests: &[DeleteSessionRequest]) -> Vec<DeleteSessionOutcome> {
@@ -138,6 +155,7 @@ pub fn delete_sessions(requests: &[DeleteSessionRequest]) -> Vec<DeleteSessionOu
     })
 }
 
+<<<<<<< HEAD
 fn delete_session_with_roots(
     provider_id: &str,
     session_id: &str,
@@ -199,6 +217,45 @@ fn provider_roots(provider_id: &str) -> Result<Vec<PathBuf>, String> {
     };
 
     Ok(roots)
+=======
+fn delete_session_with_root(
+    provider_id: &str,
+    session_id: &str,
+    source_path: &Path,
+    root: &Path,
+) -> Result<bool, String> {
+    let validated_root = canonicalize_existing_path(root, "session root")?;
+    let validated_source = canonicalize_existing_path(source_path, "session source")?;
+
+    if !validated_source.starts_with(&validated_root) {
+        return Err(format!(
+            "Session source path is outside provider root: {}",
+            source_path.display()
+        ));
+    }
+
+    match provider_id {
+        "codex" => codex::delete_session(&validated_root, &validated_source, session_id),
+        "claude" => claude::delete_session(&validated_root, &validated_source, session_id),
+        "opencode" => opencode::delete_session(&validated_root, &validated_source, session_id),
+        "openclaw" => openclaw::delete_session(&validated_root, &validated_source, session_id),
+        "gemini" => gemini::delete_session(&validated_root, &validated_source, session_id),
+        _ => Err(format!("Unsupported provider: {provider_id}")),
+    }
+}
+
+fn provider_root(provider_id: &str) -> Result<PathBuf, String> {
+    let root = match provider_id {
+        "codex" => crate::codex_config::get_codex_config_dir().join("sessions"),
+        "claude" => crate::config::get_claude_config_dir().join("projects"),
+        "opencode" => opencode::get_opencode_data_dir(),
+        "openclaw" => crate::openclaw_config::get_openclaw_dir().join("agents"),
+        "gemini" => crate::gemini_config::get_gemini_dir().join("tmp"),
+        _ => return Err(format!("Unsupported provider: {provider_id}")),
+    };
+
+    Ok(root)
+>>>>>>> origin/cc-switch-cli
 }
 
 fn canonicalize_existing_path(path: &Path, label: &str) -> Result<PathBuf, String> {
@@ -250,6 +307,7 @@ mod tests {
     use super::*;
     use tempfile::tempdir;
 
+<<<<<<< HEAD
     fn write_codex_session(path: &Path, session_id: &str) {
         std::fs::write(
             path,
@@ -283,6 +341,8 @@ mod tests {
         assert!(!source.exists());
     }
 
+=======
+>>>>>>> origin/cc-switch-cli
     #[test]
     fn rejects_source_path_outside_provider_root() {
         let root = tempdir().expect("tempdir");
@@ -290,11 +350,18 @@ mod tests {
         let source = outside.path().join("session.jsonl");
         std::fs::write(&source, "{}").expect("write source");
 
+<<<<<<< HEAD
         let err =
             delete_session_with_roots("codex", "session-1", &source, &[root.path().to_path_buf()])
                 .expect_err("expected outside-root path to be rejected");
 
         assert!(err.contains("outside provider roots"));
+=======
+        let err = delete_session_with_root("codex", "session-1", &source, root.path())
+            .expect_err("expected outside-root path to be rejected");
+
+        assert!(err.contains("outside provider root"));
+>>>>>>> origin/cc-switch-cli
     }
 
     #[test]
@@ -302,9 +369,14 @@ mod tests {
         let root = tempdir().expect("tempdir");
         let missing = root.path().join("missing.jsonl");
 
+<<<<<<< HEAD
         let err =
             delete_session_with_roots("codex", "session-1", &missing, &[root.path().to_path_buf()])
                 .expect_err("expected missing source path to fail");
+=======
+        let err = delete_session_with_root("codex", "session-1", &missing, root.path())
+            .expect_err("expected missing source path to fail");
+>>>>>>> origin/cc-switch-cli
 
         assert!(err.contains("session source not found"));
     }

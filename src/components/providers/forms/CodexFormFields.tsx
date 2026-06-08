@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
@@ -20,17 +21,30 @@ import {
 } from "lucide-react";
 import EndpointSpeedTest from "./EndpointSpeedTest";
 import { ApiKeySection, EndpointField, ModelDropdown } from "./shared";
+=======
+import { useCallback, useState } from "react";
+import { useTranslation } from "react-i18next";
+import { Button } from "@/components/ui/button";
+import { toast } from "sonner";
+import { Download, Loader2 } from "lucide-react";
+import EndpointSpeedTest from "./EndpointSpeedTest";
+import { ApiKeySection, EndpointField, ModelInputWithFetch } from "./shared";
+>>>>>>> origin/cc-switch-cli
 import {
   fetchModelsForConfig,
   showFetchModelsError,
   type FetchedModel,
 } from "@/lib/api/model-fetch";
+<<<<<<< HEAD
 import type {
   CodexApiFormat,
   CodexCatalogModel,
   CodexChatReasoning,
   ProviderCategory,
 } from "@/types";
+=======
+import type { ProviderCategory } from "@/types";
+>>>>>>> origin/cc-switch-cli
 
 interface EndpointCandidate {
   url: string;
@@ -133,6 +147,7 @@ export function CodexFormFields({
 
   const [fetchedModels, setFetchedModels] = useState<FetchedModel[]>([]);
   const [isFetchingModels, setIsFetchingModels] = useState(false);
+<<<<<<< HEAD
   const [reasoningExpanded, setReasoningExpanded] = useState(false);
   const needsLocalRouting = apiFormat === "openai_chat";
   const canEditCatalog = Boolean(onCatalogModelsChange);
@@ -206,6 +221,8 @@ export function CodexFormFields({
     },
     [codexChatReasoning, onCodexChatReasoningChange],
   );
+=======
+>>>>>>> origin/cc-switch-cli
 
   const handleFetchModels = useCallback(() => {
     if (!codexBaseUrl || !codexApiKey) {
@@ -234,6 +251,7 @@ export function CodexFormFields({
       .finally(() => setIsFetchingModels(false));
   }, [codexBaseUrl, codexApiKey, isFullUrl, t]);
 
+<<<<<<< HEAD
   const handleAddCatalogRow = useCallback(() => {
     if (!onCatalogModelsChange) return;
     setCatalogRows((current) => [...current, createCatalogRow()]);
@@ -282,6 +300,8 @@ export function CodexFormFields({
     </div>
   );
 
+=======
+>>>>>>> origin/cc-switch-cli
   return (
     <>
       {/* Codex API Key 输入框 */}
@@ -321,6 +341,7 @@ export function CodexFormFields({
         />
       )}
 
+<<<<<<< HEAD
       {shouldShowSpeedTest && (
         <div className="space-y-3 rounded-lg border border-border-default bg-muted/20 p-4">
           <div className="flex items-center justify-between gap-4">
@@ -564,6 +585,53 @@ export function CodexFormFields({
               ))}
             </div>
           )}
+=======
+      {/* Codex Model Name 输入框 */}
+      {shouldShowModelField && onModelNameChange && (
+        <div className="space-y-2">
+          <div className="flex items-center justify-between">
+            <label
+              htmlFor="codexModelName"
+              className="block text-sm font-medium text-foreground"
+            >
+              {t("codexConfig.modelName", { defaultValue: "模型名称" })}
+            </label>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={handleFetchModels}
+              disabled={isFetchingModels}
+              className="h-7 gap-1"
+            >
+              {isFetchingModels ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <Download className="h-3.5 w-3.5" />
+              )}
+              {t("providerForm.fetchModels")}
+            </Button>
+          </div>
+          <ModelInputWithFetch
+            id="codexModelName"
+            value={modelName}
+            onChange={(v) => onModelNameChange!(v)}
+            placeholder={t("codexConfig.modelNamePlaceholder", {
+              defaultValue: "例如: gpt-5.4",
+            })}
+            fetchedModels={fetchedModels}
+            isLoading={isFetchingModels}
+          />
+          <p className="text-xs text-muted-foreground">
+            {modelName.trim()
+              ? t("codexConfig.modelNameHint", {
+                  defaultValue: "指定使用的模型，将自动更新到 config.toml 中",
+                })
+              : t("providerForm.modelHint", {
+                  defaultValue: "💡 留空将使用供应商的默认模型",
+                })}
+          </p>
+>>>>>>> origin/cc-switch-cli
         </div>
       )}
 

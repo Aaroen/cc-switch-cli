@@ -15,21 +15,32 @@ mod adapter;
 mod auth;
 mod claude;
 mod codex;
+<<<<<<< HEAD
 pub(crate) mod codex_chat_common;
 pub mod codex_chat_history;
 pub mod codex_oauth_auth;
 pub mod copilot_auth;
 pub mod copilot_model_map;
+=======
+pub mod codex_oauth_auth;
+pub mod copilot_auth;
+>>>>>>> origin/cc-switch-cli
 mod gemini;
 pub(crate) mod gemini_schema;
 pub mod gemini_shadow;
 pub mod models;
 pub mod streaming;
+<<<<<<< HEAD
 pub mod streaming_codex_chat;
 pub mod streaming_gemini;
 pub mod streaming_responses;
 pub mod transform;
 pub mod transform_codex_chat;
+=======
+pub mod streaming_gemini;
+pub mod streaming_responses;
+pub mod transform;
+>>>>>>> origin/cc-switch-cli
 pub mod transform_gemini;
 pub mod transform_responses;
 
@@ -42,7 +53,10 @@ pub use adapter::ProviderAdapter;
 pub use auth::{AuthInfo, AuthStrategy};
 pub use claude::{
     claude_api_format_needs_transform, get_claude_api_format,
+<<<<<<< HEAD
     normalize_anthropic_tool_thinking_history_for_provider,
+=======
+>>>>>>> origin/cc-switch-cli
     transform_claude_request_for_api_format, ClaudeAdapter,
 };
 pub use codex::CodexAdapter;
@@ -115,7 +129,11 @@ impl ProviderType {
     #[allow(dead_code)]
     pub fn from_app_type_and_config(app_type: &AppType, provider: &Provider) -> Self {
         match app_type {
+<<<<<<< HEAD
             AppType::Claude | AppType::ClaudeDesktop => {
+=======
+            AppType::Claude => {
+>>>>>>> origin/cc-switch-cli
                 if get_claude_api_format(provider) == "gemini_native" {
                     let adapter = ClaudeAdapter::new();
                     return match adapter.extract_auth(provider).map(|auth| auth.strategy) {

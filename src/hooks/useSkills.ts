@@ -209,7 +209,14 @@ export function useImportSkillsFromApps() {
       // 直接更新 installed 缓存
       queryClient.setQueryData<InstalledSkill[]>(
         ["skills", "installed"],
+<<<<<<< HEAD
         (oldData) => mergeImportedSkills(oldData, importedSkills),
+=======
+        (oldData) => {
+          if (!oldData) return importedSkills;
+          return [...oldData, ...importedSkills];
+        },
+>>>>>>> origin/cc-switch-cli
       );
       // 刷新 unmanaged 列表（已被导入的应该移除）
       queryClient.invalidateQueries({ queryKey: ["skills", "unmanaged"] });

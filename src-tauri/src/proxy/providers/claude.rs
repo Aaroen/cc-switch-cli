@@ -17,12 +17,15 @@
 use super::{AuthInfo, AuthStrategy, ProviderAdapter, ProviderType};
 use crate::provider::Provider;
 use crate::proxy::error::ProxyError;
+<<<<<<< HEAD
 use serde_json::{json, Value};
 
 const ANTHROPIC_THINKING_PLACEHOLDER: &str = "tool call";
 const ANTHROPIC_REDACTED_THINKING_PLACEHOLDER: &str = "[redacted thinking]";
 // Keep hints lowercase; matching lowercases only the input value.
 const REASONING_VENDOR_HINTS: &[&str] = &["moonshot", "kimi", "deepseek", "mimo", "xiaomimimo"];
+=======
+>>>>>>> origin/cc-switch-cli
 
 /// 获取 Claude 供应商的 API 格式
 ///
@@ -88,6 +91,7 @@ pub fn claude_api_format_needs_transform(api_format: &str) -> bool {
     )
 }
 
+<<<<<<< HEAD
 fn is_reasoning_vendor_identifier(value: &str) -> bool {
     let value = value.to_ascii_lowercase();
     REASONING_VENDOR_HINTS
@@ -241,6 +245,8 @@ fn should_preserve_reasoning_content_for_openai_chat(provider: &Provider, body: 
         .any(is_reasoning_vendor_identifier)
 }
 
+=======
+>>>>>>> origin/cc-switch-cli
 pub fn transform_claude_request_for_api_format(
     body: serde_json::Value,
     provider: &Provider,
@@ -248,8 +254,11 @@ pub fn transform_claude_request_for_api_format(
     session_id: Option<&str>,
     shadow_store: Option<&super::gemini_shadow::GeminiShadowStore>,
 ) -> Result<serde_json::Value, ProxyError> {
+<<<<<<< HEAD
     let is_codex_oauth = provider.is_codex_oauth();
 
+=======
+>>>>>>> origin/cc-switch-cli
     // Copilot 场景：优先从 metadata.user_id 提取 session ID 作为 cache key
     // 格式: "uuid_sessionId" → 提取 "_" 后面的部分作为 session 标识
     // 同一会话的请求共享 cache key，提升 Copilot 缓存命中率
@@ -280,6 +289,7 @@ pub fn transform_claude_request_for_api_format(
                     .map(|s| s.to_string())
             })
     } else {
+<<<<<<< HEAD
         session_id
             .map(str::trim)
             .filter(|s| !s.is_empty())
@@ -321,6 +331,37 @@ pub fn transform_claude_request_for_api_format(
                 body,
                 preserve_reasoning_content,
             )?;
+=======
+        None
+    };
+
+    let cache_key = session_cache_key
+        .as_deref()
+        .or_else(|| {
+            provider
+                .meta
+                .as_ref()
+                .and_then(|m| m.prompt_cache_key.as_deref())
+        })
+        .unwrap_or(&provider.id);
+    match api_format {
+        "openai_responses" => {
+            // Codex OAuth (ChatGPT Plus/Pro 反代) 需要在请求体里强制 store: false
+            // + include: ["reasoning.encrypted_content"]，由 transform 层统一处理。
+            let is_codex_oauth = provider
+                .meta
+                .as_ref()
+                .and_then(|m| m.provider_type.as_deref())
+                == Some("codex_oauth");
+            super::transform_responses::anthropic_to_responses(
+                body,
+                Some(cache_key),
+                is_codex_oauth,
+            )
+        }
+        "openai_chat" => {
+            let mut result = super::transform::anthropic_to_openai(body)?;
+>>>>>>> origin/cc-switch-cli
             // Inject prompt_cache_key only if explicitly configured in meta
             if let Some(key) = provider
                 .meta
@@ -673,6 +714,7 @@ impl ProviderAdapter for ClaudeAdapter {
             ProviderType::Gemini => Some(AuthInfo::new(key, AuthStrategy::Google)),
             ProviderType::OpenRouter => Some(AuthInfo::new(key, AuthStrategy::Bearer)),
             ProviderType::ClaudeAuth => Some(AuthInfo::new(key, AuthStrategy::ClaudeAuth)),
+<<<<<<< HEAD
             _ => {
                 // 按 env 中的变量名推断鉴权策略，对齐 Anthropic SDK 语义：
                 // ANTHROPIC_AUTH_TOKEN → Authorization: Bearer
@@ -683,6 +725,9 @@ impl ProviderAdapter for ClaudeAdapter {
                     .unwrap_or(AuthStrategy::Anthropic);
                 Some(AuthInfo::new(key, strategy))
             }
+=======
+            _ => Some(AuthInfo::new(key, AuthStrategy::Anthropic)),
+>>>>>>> origin/cc-switch-cli
         }
     }
 
@@ -714,6 +759,7 @@ impl ProviderAdapter for ClaudeAdapter {
         base
     }
 
+<<<<<<< HEAD
     fn get_auth_headers(
         &self,
         auth: &AuthInfo,
@@ -805,6 +851,107 @@ impl ProviderAdapter for ClaudeAdapter {
                 ]
             }
         })
+=======
+    fn get_auth_headers(&self, auth: &AuthInfo) -> Vec<(http::HeaderName, http::HeaderValue)> {
+        use http::{HeaderName, HeaderValue};
+        // 注意：anthropic-version 由 forwarder.rs 统一处理（透传客户端值或设置默认值）
+        let bearer = format!("Bearer {}", auth.api_key);
+        match auth.strategy {
+            AuthStrategy::Anthropic | AuthStrategy::ClaudeAuth | AuthStrategy::Bearer => {
+                vec![(
+                    HeaderName::from_static("authorization"),
+                    HeaderValue::from_str(&bearer).unwrap(),
+                )]
+            }
+            AuthStrategy::Google => vec![(
+                HeaderName::from_static("x-goog-api-key"),
+                HeaderValue::from_str(&auth.api_key).unwrap(),
+            )],
+            AuthStrategy::GoogleOAuth => {
+                let token = auth.access_token.as_ref().unwrap_or(&auth.api_key);
+                vec![
+                    (
+                        HeaderName::from_static("authorization"),
+                        HeaderValue::from_str(&format!("Bearer {token}")).unwrap(),
+                    ),
+                    (
+                        HeaderName::from_static("x-goog-api-client"),
+                        HeaderValue::from_static("GeminiCLI/1.0"),
+                    ),
+                ]
+            }
+            AuthStrategy::CodexOAuth => {
+                // 注意：bearer token 由 forwarder 动态注入到 auth.api_key
+                // ChatGPT-Account-Id 由 forwarder 注入额外 header
+                vec![
+                    (
+                        HeaderName::from_static("authorization"),
+                        HeaderValue::from_str(&bearer).unwrap(),
+                    ),
+                    (
+                        HeaderName::from_static("originator"),
+                        HeaderValue::from_static("cc-switch"),
+                    ),
+                ]
+            }
+            AuthStrategy::GitHubCopilot => {
+                // 生成请求追踪 ID
+                let request_id = uuid::Uuid::new_v4().to_string();
+                vec![
+                    (
+                        HeaderName::from_static("authorization"),
+                        HeaderValue::from_str(&bearer).unwrap(),
+                    ),
+                    (
+                        HeaderName::from_static("editor-version"),
+                        HeaderValue::from_static(super::copilot_auth::COPILOT_EDITOR_VERSION),
+                    ),
+                    (
+                        HeaderName::from_static("editor-plugin-version"),
+                        HeaderValue::from_static(super::copilot_auth::COPILOT_PLUGIN_VERSION),
+                    ),
+                    (
+                        HeaderName::from_static("copilot-integration-id"),
+                        HeaderValue::from_static(super::copilot_auth::COPILOT_INTEGRATION_ID),
+                    ),
+                    (
+                        HeaderName::from_static("user-agent"),
+                        HeaderValue::from_static(super::copilot_auth::COPILOT_USER_AGENT),
+                    ),
+                    (
+                        HeaderName::from_static("x-github-api-version"),
+                        HeaderValue::from_static(super::copilot_auth::COPILOT_API_VERSION),
+                    ),
+                    // 26-04-01新增的copilot关键 headers
+                    (
+                        HeaderName::from_static("openai-intent"),
+                        HeaderValue::from_static("conversation-agent"),
+                    ),
+                    (
+                        HeaderName::from_static("x-initiator"),
+                        HeaderValue::from_static("user"),
+                    ),
+                    (
+                        HeaderName::from_static("x-interaction-type"),
+                        HeaderValue::from_static("conversation-agent"),
+                    ),
+                    // x-interaction-id 由 forwarder 按需注入（仅在有 session 时）
+                    (
+                        HeaderName::from_static("x-vscode-user-agent-library-version"),
+                        HeaderValue::from_static("electron-fetch"),
+                    ),
+                    (
+                        HeaderName::from_static("x-request-id"),
+                        HeaderValue::from_str(&request_id).unwrap(),
+                    ),
+                    (
+                        HeaderName::from_static("x-agent-task-id"),
+                        HeaderValue::from_str(&request_id).unwrap(),
+                    ),
+                ]
+            }
+        }
+>>>>>>> origin/cc-switch-cli
     }
 
     fn needs_transform(&self, provider: &Provider) -> bool {
@@ -1540,6 +1687,7 @@ mod tests {
     }
 
     #[test]
+<<<<<<< HEAD
     fn test_transform_claude_request_for_codex_oauth_uses_session_cache_key() {
         let provider = create_provider_with_meta(
             json!({
@@ -1736,6 +1884,8 @@ mod tests {
     }
 
     #[test]
+=======
+>>>>>>> origin/cc-switch-cli
     fn test_transform_claude_request_for_api_format_gemini_native() {
         let provider = create_provider_with_meta(
             json!({
@@ -1823,6 +1973,7 @@ mod tests {
 
         assert_eq!(transformed["prompt_cache_key"], "claude-cache-route");
     }
+<<<<<<< HEAD
 
     #[test]
     fn test_transform_openai_chat_skips_reasoning_content_for_generic_provider() {
@@ -2123,4 +2274,6 @@ mod tests {
         assert!(!changed);
         assert_eq!(body, original);
     }
+=======
+>>>>>>> origin/cc-switch-cli
 }

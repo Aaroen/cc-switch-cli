@@ -18,10 +18,14 @@ use crate::database::{lock_conn, Database};
 use crate::error::AppError;
 use crate::proxy::usage::calculator::{CostCalculator, ModelPricing};
 use crate::proxy::usage::parser::TokenUsage;
+<<<<<<< HEAD
 use crate::services::session_usage::{
     get_sync_state, metadata_modified_nanos, update_sync_state, SessionSyncResult,
 };
 use crate::services::usage_stats::{find_model_pricing, should_skip_session_insert, DedupKey};
+=======
+use crate::services::session_usage::SessionSyncResult;
+>>>>>>> origin/cc-switch-cli
 use rust_decimal::Decimal;
 use std::fs;
 use std::io::{BufRead, BufReader};
@@ -75,10 +79,16 @@ fn normalize_codex_model(raw: &str) -> String {
     }
 
     // Step 3: 剥离 ISO 日期后缀 -YYYY-MM-DD（正好 11 字符）
+<<<<<<< HEAD
     if name.len() > 11 && name.is_char_boundary(name.len() - 11) {
         let suffix = &name[name.len() - 11..];
         if suffix.is_ascii()
             && suffix.as_bytes()[0] == b'-'
+=======
+    if name.len() > 11 {
+        let suffix = &name[name.len() - 11..];
+        if suffix.as_bytes()[0] == b'-'
+>>>>>>> origin/cc-switch-cli
             && suffix[1..5].chars().all(|c| c.is_ascii_digit())
             && suffix.as_bytes()[5] == b'-'
             && suffix[6..8].chars().all(|c| c.is_ascii_digit())
@@ -175,16 +185,23 @@ pub fn sync_codex_usage(db: &Database) -> Result<SessionSyncResult, AppError> {
 
     if result.imported > 0 {
         log::info!(
+<<<<<<< HEAD
             "[CODEX-SYNC] 同步完成: 导入 {} 条, 跳过 {} 条, 扫描 {} 个文件",
+=======
+            "[CODEX-SYNC] 同步完成: 导入 {} 条, 跳过 {} 条, ��描 {} 个文件",
+>>>>>>> origin/cc-switch-cli
             result.imported,
             result.skipped,
             result.files_scanned
         );
     }
 
+<<<<<<< HEAD
     // 把会话占位 provider 归并到当前供应商，避免显示 “Codex (Session)”
     crate::services::session_usage::reattribute_session_rows(db, "codex", "_codex_session");
 
+=======
+>>>>>>> origin/cc-switch-cli
     Ok(result)
 }
 
@@ -192,7 +209,11 @@ pub fn sync_codex_usage(db: &Database) -> Result<SessionSyncResult, AppError> {
 fn collect_codex_session_files(codex_dir: &Path) -> Vec<PathBuf> {
     let mut files = Vec::new();
 
+<<<<<<< HEAD
     // 1. 扫描 sessions/YYYY/MM/DD/*.jsonl（日期分区目录）
+=======
+    // 1. 扫描 sessions/YYYY/MM/DD/*.jsonl（日期分区目录��
+>>>>>>> origin/cc-switch-cli
     let sessions_dir = codex_dir.join("sessions");
     if sessions_dir.is_dir() {
         collect_jsonl_recursive(&sessions_dir, &mut files, 0, 3);
@@ -231,14 +252,28 @@ fn collect_jsonl_recursive(dir: &Path, files: &mut Vec<PathBuf>, depth: u32, max
     }
 }
 
+<<<<<<< HEAD
 /// 同步单个 Codex JSONL 文件，返回 (imported, skipped)
+=======
+/// 同步单�� Codex JSONL 文件，返回 (imported, skipped)
+>>>>>>> origin/cc-switch-cli
 fn sync_single_codex_file(db: &Database, file_path: &Path) -> Result<(u32, u32), AppError> {
     let file_path_str = file_path.to_string_lossy().to_string();
 
     // 获取文件元数据
     let metadata = fs::metadata(file_path)
+<<<<<<< HEAD
         .map_err(|e| AppError::Config(format!("无法读取文件元数据: {e}")))?;
     let file_modified = metadata_modified_nanos(&metadata);
+=======
+        .map_err(|e| AppError::Config(format!("无法读取文���元数据: {e}")))?;
+    let file_modified = metadata
+        .modified()
+        .ok()
+        .and_then(|t| t.duration_since(SystemTime::UNIX_EPOCH).ok())
+        .map(|d| d.as_secs() as i64)
+        .unwrap_or(0);
+>>>>>>> origin/cc-switch-cli
 
     // 检查同步状态
     let (last_modified, last_offset) = get_sync_state(db, &file_path_str)?;
@@ -335,7 +370,11 @@ fn sync_single_codex_file(db: &Database, file_path: &Path) -> Result<(u32, u32),
 
                 let info = match payload.get("info") {
                     Some(i) if !i.is_null() => i,
+<<<<<<< HEAD
                     _ => continue, // 跳过 info 为 null 的首个事件
+=======
+                    _ => continue, // info 为 null 的首个事件跳��
+>>>>>>> origin/cc-switch-cli
                 };
 
                 // 提取模型（token_count 事件也可能携带 model）
@@ -440,6 +479,23 @@ fn insert_codex_session_entry(
 ) -> Result<bool, AppError> {
     let conn = lock_conn!(db.conn);
 
+<<<<<<< HEAD
+=======
+    // 检查是否已存在
+    let exists: bool = conn
+        .query_row(
+            "SELECT COUNT(*) FROM proxy_request_logs WHERE request_id = ?1",
+            rusqlite::params![request_id],
+            |row| row.get::<_, i64>(0).map(|c| c > 0),
+        )
+        .unwrap_or(false);
+
+    if exists {
+        return Ok(false);
+    }
+
+    // 解析时间戳
+>>>>>>> origin/cc-switch-cli
     let created_at = timestamp
         .and_then(|ts| {
             chrono::DateTime::parse_from_rfc3339(ts)
@@ -453,6 +509,7 @@ fn insert_codex_session_entry(
                 .unwrap_or(0)
         });
 
+<<<<<<< HEAD
     let dedup_key = DedupKey {
         app_type: "codex",
         model,
@@ -466,6 +523,8 @@ fn insert_codex_session_entry(
         return Ok(false);
     }
 
+=======
+>>>>>>> origin/cc-switch-cli
     // 计算费用
     let usage = TokenUsage {
         input_tokens: delta.input,
@@ -481,7 +540,11 @@ fn insert_codex_session_entry(
     let (input_cost, output_cost, cache_read_cost, cache_creation_cost, total_cost) = match pricing
     {
         Some(p) => {
+<<<<<<< HEAD
             let cost = CostCalculator::calculate_for_app("codex", &usage, &p, multiplier);
+=======
+            let cost = CostCalculator::calculate(&usage, &p, multiplier);
+>>>>>>> origin/cc-switch-cli
             (
                 cost.input_cost.to_string(),
                 cost.output_cost.to_string(),
@@ -499,15 +562,21 @@ fn insert_codex_session_entry(
         ),
     };
 
+<<<<<<< HEAD
     let inserted_rows = conn
         .execute(
             "INSERT OR IGNORE INTO proxy_request_logs (
+=======
+    conn.execute(
+        "INSERT OR IGNORE INTO proxy_request_logs (
+>>>>>>> origin/cc-switch-cli
             request_id, provider_id, app_type, model, request_model,
             input_tokens, output_tokens, cache_read_tokens, cache_creation_tokens,
             input_cost_usd, output_cost_usd, cache_read_cost_usd, cache_creation_cost_usd, total_cost_usd,
             latency_ms, first_token_ms, status_code, error_message, session_id,
             provider_type, is_streaming, cost_multiplier, created_at, data_source
         ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, ?21, ?22, ?23, ?24)",
+<<<<<<< HEAD
             rusqlite::params![
                 request_id,
                 "_codex_session",    // provider_id
@@ -540,13 +609,126 @@ fn insert_codex_session_entry(
     if inserted_rows > 0 {
         crate::usage_events::notify_log_recorded();
     }
+=======
+        rusqlite::params![
+            request_id,
+            "_codex_session",    // provider_id
+            "codex",             // app_type
+            model,
+            model,               // request_model = model
+            delta.input,
+            delta.output,
+            delta.cached_input,
+            0i64,                // cache_creation_tokens: Codex 日志无此数据
+            input_cost,
+            output_cost,
+            cache_read_cost,
+            cache_creation_cost,
+            total_cost,
+            0i64,                // latency_ms
+            Option::<i64>::None, // first_token_ms
+            200i64,              // status_code
+            Option::<String>::None, // error_message
+            session_id.map(|s| s.to_string()),
+            Some("codex_session"), // provider_type
+            1i64,                // is_streaming
+            "1.0",               // cost_multiplier
+            created_at,
+            "codex_session",     // data_source
+        ],
+    )
+    .map_err(|e| AppError::Database(format!("插入 Codex 会话日志失败: {e}")))?;
+>>>>>>> origin/cc-switch-cli
 
     Ok(true)
 }
 
+<<<<<<< HEAD
 /// 查找 Codex 模型定价（带归一化）
 fn find_codex_pricing(conn: &rusqlite::Connection, model_id: &str) -> Option<ModelPricing> {
     find_model_pricing(conn, &normalize_codex_model(model_id))
+=======
+/// 获取文件的同步状态
+fn get_sync_state(db: &Database, file_path: &str) -> Result<(i64, i64), AppError> {
+    let conn = lock_conn!(db.conn);
+    let result = conn.query_row(
+        "SELECT last_modified, last_line_offset FROM session_log_sync WHERE file_path = ?1",
+        rusqlite::params![file_path],
+        |row| Ok((row.get::<_, i64>(0)?, row.get::<_, i64>(1)?)),
+    );
+    Ok(result.unwrap_or((0, 0)))
+}
+
+/// 更新文件的同步状态
+fn update_sync_state(
+    db: &Database,
+    file_path: &str,
+    last_modified: i64,
+    last_offset: i64,
+) -> Result<(), AppError> {
+    let now = SystemTime::now()
+        .duration_since(SystemTime::UNIX_EPOCH)
+        .map(|d| d.as_secs() as i64)
+        .unwrap_or(0);
+
+    let conn = lock_conn!(db.conn);
+    conn.execute(
+        "INSERT OR REPLACE INTO session_log_sync (file_path, last_modified, last_line_offset, last_synced_at)
+         VALUES (?1, ?2, ?3, ?4)",
+        rusqlite::params![file_path, last_modified, last_offset, now],
+    )
+    .map_err(|e| AppError::Database(format!("更新同步状态失败: {e}")))?;
+    Ok(())
+}
+
+/// ��找 Codex 模型定价（带归一化）
+fn find_codex_pricing(conn: &rusqlite::Connection, model_id: &str) -> Option<ModelPricing> {
+    let normalized = normalize_codex_model(model_id);
+
+    // 1. 精确匹配（归一化后的名称）
+    if let Some(pricing) = try_find_pricing(conn, &normalized) {
+        return Some(pricing);
+    }
+
+    // 2. LIKE 模糊匹配（兜底）
+    let pattern = format!("{normalized}%");
+    conn.query_row(
+        "SELECT input_cost_per_million, output_cost_per_million,
+                cache_read_cost_per_million, cache_creation_cost_per_million
+         FROM model_pricing WHERE model_id LIKE ?1 LIMIT 1",
+        rusqlite::params![pattern],
+        |row| {
+            Ok((
+                row.get::<_, String>(0)?,
+                row.get::<_, String>(1)?,
+                row.get::<_, String>(2)?,
+                row.get::<_, String>(3)?,
+            ))
+        },
+    )
+    .ok()
+    .and_then(|(i, o, cr, cc)| ModelPricing::from_strings(&i, &o, &cr, &cc).ok())
+}
+
+/// 精确匹配定价查询
+fn try_find_pricing(conn: &rusqlite::Connection, model_id: &str) -> Option<ModelPricing> {
+    conn.query_row(
+        "SELECT input_cost_per_million, output_cost_per_million,
+                cache_read_cost_per_million, cache_creation_cost_per_million
+         FROM model_pricing WHERE model_id = ?1",
+        rusqlite::params![model_id],
+        |row| {
+            Ok((
+                row.get::<_, String>(0)?,
+                row.get::<_, String>(1)?,
+                row.get::<_, String>(2)?,
+                row.get::<_, String>(3)?,
+            ))
+        },
+    )
+    .ok()
+    .and_then(|(i, o, cr, cc)| ModelPricing::from_strings(&i, &o, &cr, &cc).ok())
+>>>>>>> origin/cc-switch-cli
 }
 
 #[cfg(test)]
@@ -662,6 +844,7 @@ mod tests {
         assert!(files.is_empty());
     }
 
+<<<<<<< HEAD
     #[test]
     fn test_insert_codex_session_skips_matching_proxy_log() -> Result<(), AppError> {
         let db = Database::memory()?;
@@ -716,6 +899,8 @@ mod tests {
         Ok(())
     }
 
+=======
+>>>>>>> origin/cc-switch-cli
     // ── 模型名归一化测试 ──
 
     #[test]

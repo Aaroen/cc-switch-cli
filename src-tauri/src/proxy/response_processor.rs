@@ -12,7 +12,10 @@ use super::{
     usage::parser::TokenUsage,
     ProxyError,
 };
+<<<<<<< HEAD
 use crate::database::PRICING_SOURCE_REQUEST;
+=======
+>>>>>>> origin/cc-switch-cli
 use axum::http::{header::HeaderMap, HeaderName};
 use axum::response::{IntoResponse, Response};
 use bytes::Bytes;
@@ -487,16 +490,23 @@ fn create_usage_collector(
     state: &ProxyState,
     status_code: u16,
     parser_config: &UsageParserConfig,
+<<<<<<< HEAD
 ) -> Option<SseUsageCollector> {
+=======
+) -> SseUsageCollector {
+>>>>>>> origin/cc-switch-cli
     let logging_enabled = state
         .config
         .try_read()
         .map(|c| c.enable_logging)
         .unwrap_or(true);
+<<<<<<< HEAD
     if !logging_enabled {
         return None;
     }
 
+=======
+>>>>>>> origin/cc-switch-cli
     let state = state.clone();
     let provider_id = ctx.provider.id.clone();
     let request_model = ctx.request_model.clone();
@@ -507,6 +517,7 @@ fn create_usage_collector(
     let model_extractor = parser_config.model_extractor;
     let session_id = ctx.session_id.clone();
 
+<<<<<<< HEAD
     Some(SseUsageCollector::new(
         start_time,
         parser_config.stream_event_filter,
@@ -514,6 +525,15 @@ fn create_usage_collector(
             if let Some(usage) = stream_parser(&events) {
                 let model = model_extractor(&events, &request_model);
                 let latency_ms = start_time.elapsed().as_millis() as u64;
+=======
+    SseUsageCollector::new(start_time, move |events, first_token_ms| {
+        if !logging_enabled {
+            return;
+        }
+        if let Some(usage) = stream_parser(&events) {
+            let model = model_extractor(&events, &request_model);
+            let latency_ms = start_time.elapsed().as_millis() as u64;
+>>>>>>> origin/cc-switch-cli
 
                 let state = state.clone();
                 let provider_id = provider_id.clone();
@@ -740,6 +760,7 @@ pub fn create_logged_passthrough_stream(
                         );
                     }
                     is_first_chunk = false;
+<<<<<<< HEAD
                     if inspect_sse_events {
                         crate::proxy::sse::append_utf8_safe(&mut buffer, &mut utf8_remainder, &bytes);
 
@@ -766,6 +787,20 @@ pub fn create_logged_passthrough_stream(
                                                 log::debug!("[{tag}] <<< SSE 事件: {data}");
                                             } else {
                                                 log::debug!("[{tag}] <<< SSE 数据: {data}");
+=======
+                    crate::proxy::sse::append_utf8_safe(&mut buffer, &mut utf8_remainder, &bytes);
+
+                    // 尝试解析并记录完整的 SSE 事件
+                    while let Some(event_text) = take_sse_block(&mut buffer) {
+                        if !event_text.trim().is_empty() {
+                            // 提取 data 部分并尝试解析为 JSON
+                            for line in event_text.lines() {
+                                if let Some(data) = strip_sse_field(line, "data") {
+                                    if data.trim() != "[DONE]" {
+                                        if let Ok(json_value) = serde_json::from_str::<Value>(data) {
+                                            if let Some(c) = &collector {
+                                                c.push(json_value.clone()).await;
+>>>>>>> origin/cc-switch-cli
                                             }
                                         } else {
                                             log::debug!("[{tag}] <<< SSE: [DONE]");
@@ -818,9 +853,13 @@ mod tests {
     use crate::provider::ProviderMeta;
     use crate::proxy::failover_switch::FailoverSwitchManager;
     use crate::proxy::provider_router::ProviderRouter;
+<<<<<<< HEAD
     use crate::proxy::providers::{
         codex_chat_history::CodexChatHistoryStore, gemini_shadow::GeminiShadowStore,
     };
+=======
+    use crate::proxy::providers::gemini_shadow::GeminiShadowStore;
+>>>>>>> origin/cc-switch-cli
     use crate::proxy::types::{ProxyConfig, ProxyStatus};
     use rust_decimal::Decimal;
     use std::collections::HashMap;
@@ -942,7 +981,10 @@ mod tests {
             current_providers: Arc::new(RwLock::new(HashMap::new())),
             provider_router: Arc::new(ProviderRouter::new(db.clone())),
             gemini_shadow: Arc::new(GeminiShadowStore::default()),
+<<<<<<< HEAD
             codex_chat_history: Arc::new(CodexChatHistoryStore::default()),
+=======
+>>>>>>> origin/cc-switch-cli
             app_handle: None,
             failover_manager: Arc::new(FailoverSwitchManager::new(db)),
         }

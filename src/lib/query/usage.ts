@@ -45,6 +45,7 @@ export const usageKeys = {
       customEndDate ?? 0,
       appType ?? "all",
     ] as const,
+<<<<<<< HEAD
   summaryByApp: (
     preset: UsageRangeSelection["preset"],
     customStartDate: number | undefined,
@@ -57,6 +58,8 @@ export const usageKeys = {
       customStartDate ?? 0,
       customEndDate ?? 0,
     ] as const,
+=======
+>>>>>>> origin/cc-switch-cli
   trends: (
     preset: UsageRangeSelection["preset"],
     customStartDate: number | undefined,
@@ -118,8 +121,11 @@ export const usageKeys = {
   pricing: () => [...usageKeys.all, "pricing"] as const,
   limits: (providerId: string, appType: string) =>
     [...usageKeys.all, "limits", providerId, appType] as const,
+<<<<<<< HEAD
   script: (providerId: string, appType: string) =>
     [...usageKeys.all, providerId, appType] as const,
+=======
+>>>>>>> origin/cc-switch-cli
 };
 
 // Hooks
@@ -145,6 +151,7 @@ export function useUsageSummary(
   });
 }
 
+<<<<<<< HEAD
 export function useUsageSummaryByApp(
   range: UsageRangeSelection,
   options?: UsageQueryOptions,
@@ -158,12 +165,7 @@ export function useUsageSummaryByApp(
     queryFn: () => {
       const { startDate, endDate } = resolveUsageRange(range);
       return usageApi.getUsageSummaryByApp(startDate, endDate);
-    },
-    refetchInterval: options?.refetchInterval ?? DEFAULT_REFETCH_INTERVAL_MS,
-    refetchIntervalInBackground: options?.refetchIntervalInBackground ?? false,
-  });
-}
-
+=======
 export function useUsageTrends(
   range: UsageRangeSelection,
   appType?: string,
@@ -180,20 +182,29 @@ export function useUsageTrends(
     queryFn: () => {
       const { startDate, endDate } = resolveUsageRange(range);
       return usageApi.getUsageTrends(startDate, endDate, effectiveAppType);
+>>>>>>> origin/cc-switch-cli
     },
     refetchInterval: options?.refetchInterval ?? DEFAULT_REFETCH_INTERVAL_MS,
     refetchIntervalInBackground: options?.refetchIntervalInBackground ?? false,
   });
 }
 
+<<<<<<< HEAD
+export function useUsageTrends(
+=======
 export function useProviderStats(
+>>>>>>> origin/cc-switch-cli
   range: UsageRangeSelection,
   appType?: string,
   options?: UsageQueryOptions,
 ) {
   const effectiveAppType = appType === "all" ? undefined : appType;
   return useQuery({
+<<<<<<< HEAD
+    queryKey: usageKeys.trends(
+=======
     queryKey: usageKeys.providerStats(
+>>>>>>> origin/cc-switch-cli
       range.preset,
       range.customStartDate,
       range.customEndDate,
@@ -201,13 +212,52 @@ export function useProviderStats(
     ),
     queryFn: () => {
       const { startDate, endDate } = resolveUsageRange(range);
+<<<<<<< HEAD
+      return usageApi.getUsageTrends(startDate, endDate, effectiveAppType);
+=======
       return usageApi.getProviderStats(startDate, endDate, effectiveAppType);
+>>>>>>> origin/cc-switch-cli
     },
     refetchInterval: options?.refetchInterval ?? DEFAULT_REFETCH_INTERVAL_MS,
     refetchIntervalInBackground: options?.refetchIntervalInBackground ?? false,
   });
 }
 
+<<<<<<< HEAD
+export function useProviderStats(
+=======
+export function useModelStats(
+>>>>>>> origin/cc-switch-cli
+  range: UsageRangeSelection,
+  appType?: string,
+  options?: UsageQueryOptions,
+) {
+  const effectiveAppType = appType === "all" ? undefined : appType;
+  return useQuery({
+<<<<<<< HEAD
+    queryKey: usageKeys.providerStats(
+=======
+    queryKey: usageKeys.modelStats(
+>>>>>>> origin/cc-switch-cli
+      range.preset,
+      range.customStartDate,
+      range.customEndDate,
+      appType,
+    ),
+    queryFn: () => {
+      const { startDate, endDate } = resolveUsageRange(range);
+<<<<<<< HEAD
+      return usageApi.getProviderStats(startDate, endDate, effectiveAppType);
+=======
+      return usageApi.getModelStats(startDate, endDate, effectiveAppType);
+>>>>>>> origin/cc-switch-cli
+    },
+    refetchInterval: options?.refetchInterval ?? DEFAULT_REFETCH_INTERVAL_MS,
+    refetchIntervalInBackground: options?.refetchIntervalInBackground ?? false,
+  });
+}
+
+<<<<<<< HEAD
 export function useModelStats(
   range: UsageRangeSelection,
   appType?: string,
@@ -230,6 +280,8 @@ export function useModelStats(
   });
 }
 
+=======
+>>>>>>> origin/cc-switch-cli
 export function useRequestLogs({
   filters,
   range,

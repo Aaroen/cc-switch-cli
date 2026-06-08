@@ -194,16 +194,32 @@ export const SkillsPage = forwardRef<SkillsPageHandle, SkillsPageProps>(
       readmeUrl: s.readmeUrl,
     });
 
+<<<<<<< HEAD
     const handleInstall = async (key: string) => {
       let skill: DiscoverableSkill | undefined;
 
       if (searchSource === "skillssh") {
         const found = accumulatedResults.find((s) => s.key === key);
+=======
+    const handleInstall = async (directory: string) => {
+      let skill: DiscoverableSkill | undefined;
+
+      if (searchSource === "skillssh") {
+        const found = accumulatedResults.find((s) => s.directory === directory);
+>>>>>>> origin/cc-switch-cli
         if (found) {
           skill = toDiscoverableSkill(found);
         }
       } else {
+<<<<<<< HEAD
         skill = discoverableSkills?.find((s) => s.key === key);
+=======
+        skill = discoverableSkills?.find(
+          (s) =>
+            s.directory === directory ||
+            s.directory.split("/").pop() === directory,
+        );
+>>>>>>> origin/cc-switch-cli
       }
 
       if (!skill) {

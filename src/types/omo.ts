@@ -37,7 +37,11 @@ export const OMO_BUILTIN_AGENTS: OmoAgentDef[] = [
     display: "Hephaestus",
     descKey: "omo.agentDesc.hephaestus",
     tooltipKey: "omo.agentTooltip.hephaestus",
+<<<<<<< HEAD
     recommended: "gpt-5.5",
+=======
+    recommended: "gpt-5.4",
+>>>>>>> origin/cc-switch-cli
     group: "main",
   },
   {
@@ -61,7 +65,11 @@ export const OMO_BUILTIN_AGENTS: OmoAgentDef[] = [
     display: "Oracle",
     descKey: "omo.agentDesc.oracle",
     tooltipKey: "omo.agentTooltip.oracle",
+<<<<<<< HEAD
     recommended: "gpt-5.5",
+=======
+    recommended: "gpt-5.4",
+>>>>>>> origin/cc-switch-cli
     group: "sub",
   },
   {
@@ -101,7 +109,11 @@ export const OMO_BUILTIN_AGENTS: OmoAgentDef[] = [
     display: "Momus",
     descKey: "omo.agentDesc.momus",
     tooltipKey: "omo.agentTooltip.momus",
+<<<<<<< HEAD
     recommended: "gpt-5.5",
+=======
+    recommended: "gpt-5.4",
+>>>>>>> origin/cc-switch-cli
     group: "sub",
   },
   {
@@ -127,14 +139,22 @@ export const OMO_BUILTIN_CATEGORIES: OmoCategoryDef[] = [
     display: "Ultrabrain",
     descKey: "omo.categoryDesc.ultrabrain",
     tooltipKey: "omo.categoryTooltip.ultrabrain",
+<<<<<<< HEAD
     recommended: "gpt-5.5",
+=======
+    recommended: "gpt-5.4",
+>>>>>>> origin/cc-switch-cli
   },
   {
     key: "deep",
     display: "Deep",
     descKey: "omo.categoryDesc.deep",
     tooltipKey: "omo.categoryTooltip.deep",
+<<<<<<< HEAD
     recommended: "gpt-5.5",
+=======
+    recommended: "gpt-5.4",
+>>>>>>> origin/cc-switch-cli
   },
   {
     key: "artistry",
@@ -328,7 +348,11 @@ export const OMO_SLIM_BUILTIN_AGENTS: OmoAgentDef[] = [
     display: "Oracle",
     descKey: "omo.slimAgentDesc.oracle",
     tooltipKey: "omo.slimAgentTooltip.oracle",
+<<<<<<< HEAD
     recommended: "gpt-5.5",
+=======
+    recommended: "gpt-5.4",
+>>>>>>> origin/cc-switch-cli
     group: "sub",
   },
   {
@@ -360,7 +384,11 @@ export const OMO_SLIM_BUILTIN_AGENTS: OmoAgentDef[] = [
     display: "Fixer",
     descKey: "omo.slimAgentDesc.fixer",
     tooltipKey: "omo.slimAgentTooltip.fixer",
+<<<<<<< HEAD
     recommended: "gpt-5.5",
+=======
+    recommended: "gpt-5.4",
+>>>>>>> origin/cc-switch-cli
     group: "sub",
   },
   {

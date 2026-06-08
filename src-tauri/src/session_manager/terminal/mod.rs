@@ -80,6 +80,7 @@ end tell"#
 }
 
 fn launch_ghostty(command: &str, cwd: Option<&str>) -> Result<(), String> {
+<<<<<<< HEAD
     let shell = std::env::var("SHELL").unwrap_or_else(|_| "/bin/zsh".to_string());
 
     let mut args = vec![
@@ -100,9 +101,12 @@ fn launch_ghostty(command: &str, cwd: Option<&str>) -> Result<(), String> {
     args.push("-l".to_string());
     args.push("-c".to_string());
     args.push(command.to_string());
+=======
+    let args = build_ghostty_args(command, cwd);
+>>>>>>> origin/cc-switch-cli
 
     let status = Command::new("open")
-        .args(&args)
+        .args(args.iter().map(String::as_str))
         .status()
         .map_err(|e| format!("Failed to launch Ghostty: {e}"))?;
 
@@ -111,6 +115,40 @@ fn launch_ghostty(command: &str, cwd: Option<&str>) -> Result<(), String> {
     } else {
         Err("Failed to launch Ghostty. Make sure it is installed.".to_string())
     }
+}
+
+fn build_ghostty_args(command: &str, cwd: Option<&str>) -> Vec<String> {
+    let input = ghostty_raw_input(command);
+
+    let mut args = vec![
+        "-na".to_string(),
+        "Ghostty".to_string(),
+        "--args".to_string(),
+        "--quit-after-last-window-closed=true".to_string(),
+    ];
+
+    if let Some(dir) = cwd {
+        if !dir.trim().is_empty() {
+            args.push(format!("--working-directory={dir}"));
+        }
+    }
+
+    args.push(format!("--input={input}"));
+    args
+}
+
+fn ghostty_raw_input(command: &str) -> String {
+    let mut escaped = String::from("raw:");
+    for ch in command.chars() {
+        match ch {
+            '\\' => escaped.push_str("\\\\"),
+            '\n' => escaped.push_str("\\n"),
+            '\r' => escaped.push_str("\\r"),
+            _ => escaped.push(ch),
+        }
+    }
+    escaped.push_str("\\n");
+    escaped
 }
 
 fn launch_kitty(command: &str, cwd: Option<&str>) -> Result<(), String> {
@@ -203,6 +241,7 @@ fn build_wezterm_compatible_args_with_shell(
     args
 }
 
+<<<<<<< HEAD
 #[cfg(unix)]
 fn launch_warp(command: &str, cwd: Option<&str>) -> Result<(), String> {
     use std::io::Write;
@@ -245,6 +284,8 @@ fn launch_warp(command: &str, cwd: Option<&str>) -> Result<(), String> {
     }
 }
 
+=======
+>>>>>>> origin/cc-switch-cli
 fn launch_alacritty(command: &str, cwd: Option<&str>) -> Result<(), String> {
     // Alacritty: open -na Alacritty --args --working-directory ... -e shell -c command
     let full_command = build_shell_command(command, None);
@@ -329,10 +370,50 @@ mod tests {
     use super::*;
 
     #[test]
+<<<<<<< HEAD
     fn build_shell_command_keeps_command_without_cwd_prefix_when_not_provided() {
         assert_eq!(
             build_shell_command("claude --resume abc-123", None),
             "claude --resume abc-123"
+=======
+    fn ghostty_uses_shell_mode_for_resume_commands() {
+        let args = build_ghostty_args("claude --resume abc-123", Some("/tmp/project dir"));
+
+        assert_eq!(
+            args,
+            vec![
+                "-na",
+                "Ghostty",
+                "--args",
+                "--quit-after-last-window-closed=true",
+                "--working-directory=/tmp/project dir",
+                "--input=raw:claude --resume abc-123\\n",
+            ]
+        );
+    }
+
+    #[test]
+    fn ghostty_keeps_command_without_cwd_prefix_when_not_provided() {
+        let args = build_ghostty_args("claude --resume abc-123", None);
+
+        assert_eq!(
+            args,
+            vec![
+                "-na",
+                "Ghostty",
+                "--args",
+                "--quit-after-last-window-closed=true",
+                "--input=raw:claude --resume abc-123\\n",
+            ]
+        );
+    }
+
+    #[test]
+    fn ghostty_escapes_newlines_and_backslashes_in_input() {
+        assert_eq!(
+            ghostty_raw_input("echo foo\\\\bar\npwd"),
+            "raw:echo foo\\\\\\\\bar\\npwd\\n"
+>>>>>>> origin/cc-switch-cli
         );
     }
 
@@ -361,6 +442,7 @@ mod tests {
             ]
         );
     }
+<<<<<<< HEAD
 
     #[test]
     fn ghostty_uses_working_directory_arg_for_cwd() {
@@ -379,4 +461,6 @@ mod tests {
         // Verify shell_escape works correctly for paths with spaces
         assert_eq!(shell_escape(cwd), "\"/tmp/project dir\"");
     }
+=======
+>>>>>>> origin/cc-switch-cli
 }

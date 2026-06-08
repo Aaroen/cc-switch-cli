@@ -470,10 +470,13 @@ fn validate_base_url(base_url: &str) -> Result<(), AppError> {
     Ok(())
 }
 
+<<<<<<< HEAD
 fn should_validate_base_url(base_url: &str, is_custom_template: bool) -> bool {
     !base_url.is_empty() && !is_custom_template
 }
 
+=======
+>>>>>>> origin/cc-switch-cli
 /// 验证请求 URL 是否安全（HTTPS 强制 + 同源检查）
 fn validate_request_url(
     request_url: &str,
@@ -585,6 +588,7 @@ mod tests {
     }
 
     #[test]
+<<<<<<< HEAD
     fn test_custom_template_allows_http_lan_request_with_different_base_url() {
         assert!(
             !should_validate_base_url("http://10.37.192.156:8090/anthropic", true),
@@ -603,6 +607,8 @@ mod tests {
     }
 
     #[test]
+=======
+>>>>>>> origin/cc-switch-cli
     fn test_port_comparison() {
         // 测试端口比较逻辑是否正确处理默认端口和显式端口
 

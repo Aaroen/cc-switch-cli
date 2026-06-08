@@ -1,4 +1,8 @@
+<<<<<<< HEAD
 import { useCallback, useEffect, useRef, useState } from "react";
+=======
+import { useCallback, useEffect, useState } from "react";
+>>>>>>> origin/cc-switch-cli
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import {
@@ -7,7 +11,10 @@ import {
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
 import { toast } from "sonner";
+<<<<<<< HEAD
 import { Checkbox } from "@/components/ui/checkbox";
+=======
+>>>>>>> origin/cc-switch-cli
 import { FormLabel } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import {
@@ -25,6 +32,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+<<<<<<< HEAD
 import {
   ChevronDown,
   ChevronRight,
@@ -32,6 +40,9 @@ import {
   Loader2,
   Wand2,
 } from "lucide-react";
+=======
+import { ChevronDown, ChevronRight, Download, Loader2 } from "lucide-react";
+>>>>>>> origin/cc-switch-cli
 import EndpointSpeedTest from "./EndpointSpeedTest";
 import { ApiKeySection, EndpointField, ModelInputWithFetch } from "./shared";
 import { CopilotAuthSection } from "./CopilotAuthSection";
@@ -42,7 +53,10 @@ import {
 } from "@/lib/api/copilot";
 import type { CopilotModel } from "@/lib/api/copilot";
 import {
+<<<<<<< HEAD
   fetchCodexOauthModels,
+=======
+>>>>>>> origin/cc-switch-cli
   fetchModelsForConfig,
   showFetchModelsError,
   type FetchedModel,
@@ -52,6 +66,7 @@ import type {
   ClaudeApiFormat,
   ClaudeApiKeyField,
 } from "@/types";
+<<<<<<< HEAD
 import {
   hasClaudeOneMMarker,
   setClaudeOneMMarker,
@@ -62,6 +77,9 @@ import {
   providerPresets,
   type TemplateValueConfig,
 } from "@/config/claudeProviderPresets";
+=======
+import type { TemplateValueConfig } from "@/config/claudeProviderPresets";
+>>>>>>> origin/cc-switch-cli
 
 interface EndpointCandidate {
   url: string;
@@ -93,8 +111,11 @@ interface ClaudeFormFieldsProps {
   isCodexOauthAuthenticated?: boolean;
   selectedCodexAccountId?: string | null;
   onCodexAccountSelect?: (accountId: string | null) => void;
+<<<<<<< HEAD
   codexFastMode?: boolean;
   onCodexFastModeChange?: (enabled: boolean) => void;
+=======
+>>>>>>> origin/cc-switch-cli
 
   // Template Values
   templateValueEntries: Array<[string, TemplateValueConfig]>;
@@ -156,11 +177,16 @@ export function ClaudeFormFields({
   selectedGitHubAccountId,
   onGitHubAccountSelect,
   isCodexOauthPreset,
+<<<<<<< HEAD
   isCodexOauthAuthenticated,
   selectedCodexAccountId,
   onCodexAccountSelect,
   codexFastMode,
   onCodexFastModeChange,
+=======
+  selectedCodexAccountId,
+  onCodexAccountSelect,
+>>>>>>> origin/cc-switch-cli
   templateValueEntries,
   templateValues,
   templatePresetName,
@@ -194,6 +220,10 @@ export function ClaudeFormFields({
   const { t } = useTranslation();
   const hasAnyAdvancedValue = !!(
     claudeModel ||
+<<<<<<< HEAD
+=======
+    reasoningModel ||
+>>>>>>> origin/cc-switch-cli
     defaultHaikuModel ||
     defaultSonnetModel ||
     defaultOpusModel ||
@@ -212,17 +242,21 @@ export function ClaudeFormFields({
   // Copilot 可用模型列表
   const [copilotModels, setCopilotModels] = useState<CopilotModel[]>([]);
   const [modelsLoading, setModelsLoading] = useState(false);
+<<<<<<< HEAD
   const copilotModelsRequestRef = useRef(0);
 
   // Codex OAuth 可用模型列表
   const [codexOauthModels, setCodexOauthModels] = useState<FetchedModel[]>([]);
   const [codexOauthModelsLoading, setCodexOauthModelsLoading] = useState(false);
   const codexOauthModelsRequestRef = useRef(0);
+=======
+>>>>>>> origin/cc-switch-cli
 
   // 通用模型获取（非 Copilot 供应商）
   const [fetchedModels, setFetchedModels] = useState<FetchedModel[]>([]);
   const [isFetchingModels, setIsFetchingModels] = useState(false);
 
+<<<<<<< HEAD
   const showModelFetchResult = useCallback(
     (count: number) => {
       if (count === 0) {
@@ -234,6 +268,8 @@ export function ClaudeFormFields({
     [t],
   );
 
+=======
+>>>>>>> origin/cc-switch-cli
   const handleFetchModels = useCallback(() => {
     if (!baseUrl || !apiKey) {
       showFetchModelsError(null, t, {
@@ -242,6 +278,7 @@ export function ClaudeFormFields({
       });
       return;
     }
+<<<<<<< HEAD
     // 当 baseURL 仍是某预设的默认值时，优先使用预设上的 modelsUrl 覆写
     // 避免多走一次失败的候选请求（如 DeepSeek 把 /models 挂在根，而不是 /anthropic 子路径下）
     const matchedPreset = providerPresets.find((p) => {
@@ -255,12 +292,26 @@ export function ClaudeFormFields({
       .then((models) => {
         setFetchedModels(models);
         showModelFetchResult(models.length);
+=======
+    setIsFetchingModels(true);
+    fetchModelsForConfig(baseUrl, apiKey, isFullUrl)
+      .then((models) => {
+        setFetchedModels(models);
+        if (models.length === 0) {
+          toast.info(t("providerForm.fetchModelsEmpty"));
+        } else {
+          toast.success(
+            t("providerForm.fetchModelsSuccess", { count: models.length }),
+          );
+        }
+>>>>>>> origin/cc-switch-cli
       })
       .catch((err) => {
         console.warn("[ModelFetch] Failed:", err);
         showFetchModelsError(err, t);
       })
       .finally(() => setIsFetchingModels(false));
+<<<<<<< HEAD
   }, [baseUrl, apiKey, isFullUrl, showModelFetchResult, t]);
 
   const handleFetchCopilotModels = useCallback(() => {
@@ -275,6 +326,20 @@ export function ClaudeFormFields({
 
     const requestId = copilotModelsRequestRef.current + 1;
     copilotModelsRequestRef.current = requestId;
+=======
+  }, [baseUrl, apiKey, isFullUrl, t]);
+
+  // 当 Copilot 预设且已认证时，加载可用模型
+  useEffect(() => {
+    // 如果不是 Copilot 预设或未认证，清空模型列表
+    if (!isCopilotPreset || !isCopilotAuthenticated) {
+      setCopilotModels([]);
+      setModelsLoading(false);
+      return;
+    }
+
+    let cancelled = false;
+>>>>>>> origin/cc-switch-cli
     setModelsLoading(true);
     const fetchModels = selectedGitHubAccountId
       ? copilotGetModelsForAccount(selectedGitHubAccountId)
@@ -282,6 +347,7 @@ export function ClaudeFormFields({
 
     fetchModels
       .then((models) => {
+<<<<<<< HEAD
         if (copilotModelsRequestRef.current !== requestId) return;
         setCopilotModels(models);
         showModelFetchResult(models.length);
@@ -366,10 +432,33 @@ export function ClaudeFormFields({
       ? handleFetchCodexOauthModels
       : handleFetchModels;
 
+=======
+        if (!cancelled) setCopilotModels(models);
+      })
+      .catch((err) => {
+        console.warn("[Copilot] Failed to fetch models:", err);
+        if (!cancelled) {
+          toast.error(
+            t("copilot.loadModelsFailed", {
+              defaultValue: "加载 Copilot 模型列表失败",
+            }),
+          );
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setModelsLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [isCopilotPreset, isCopilotAuthenticated, selectedGitHubAccountId]);
+
+>>>>>>> origin/cc-switch-cli
   // 模型输入框：支持手动输入 + 下拉选择
   const renderModelInput = (
     id: string,
     value: string,
+<<<<<<< HEAD
     field: ClaudeModelEnvField,
     placeholder?: string,
     onValueChange?: (value: string) => void,
@@ -390,6 +479,16 @@ export function ClaudeFormFields({
       );
     }
 
+=======
+    field: ClaudeFormFieldsProps["onModelChange"] extends (
+      f: infer F,
+      v: string,
+    ) => void
+      ? F
+      : never,
+    placeholder?: string,
+  ) => {
+>>>>>>> origin/cc-switch-cli
     if (isCopilotPreset && copilotModels.length > 0) {
       // 按 vendor 分组
       const grouped: Record<string, CopilotModel[]> = {};
@@ -406,7 +505,11 @@ export function ClaudeFormFields({
             id={id}
             type="text"
             value={value}
+<<<<<<< HEAD
             onChange={(e) => updateValue(e.target.value)}
+=======
+            onChange={(e) => onModelChange(field, e.target.value)}
+>>>>>>> origin/cc-switch-cli
             placeholder={placeholder}
             autoComplete="off"
             className="flex-1"
@@ -428,7 +531,11 @@ export function ClaudeFormFields({
                   {grouped[vendor].map((model) => (
                     <DropdownMenuItem
                       key={model.id}
+<<<<<<< HEAD
                       onSelect={() => updateValue(model.id)}
+=======
+                      onSelect={() => onModelChange(field, model.id)}
+>>>>>>> origin/cc-switch-cli
                     >
                       {model.id}
                     </DropdownMenuItem>
@@ -448,7 +555,11 @@ export function ClaudeFormFields({
             id={id}
             type="text"
             value={value}
+<<<<<<< HEAD
             onChange={(e) => updateValue(e.target.value)}
+=======
+            onChange={(e) => onModelChange(field, e.target.value)}
+>>>>>>> origin/cc-switch-cli
             placeholder={placeholder}
             autoComplete="off"
             className="flex-1"
@@ -460,6 +571,7 @@ export function ClaudeFormFields({
       );
     }
 
+<<<<<<< HEAD
     if (isCopilotPreset) {
       return (
         <Input
@@ -474,17 +586,25 @@ export function ClaudeFormFields({
     }
 
     // 普通供应商: 使用 ModelInputWithFetch（获取按钮在 section 标题旁）
+=======
+    // 非 Copilot 供应商: 使用 ModelInputWithFetch（获取按钮在 section 标题旁）
+>>>>>>> origin/cc-switch-cli
     return (
       <ModelInputWithFetch
         id={id}
         value={value}
+<<<<<<< HEAD
         onChange={updateValue}
+=======
+        onChange={(v) => onModelChange(field, v)}
+>>>>>>> origin/cc-switch-cli
         placeholder={placeholder}
         fetchedModels={fetchedModels}
         isLoading={isFetchingModels}
       />
     );
   };
+<<<<<<< HEAD
 
   type ModelRoleRow = {
     role: "sonnet" | "opus" | "haiku";
@@ -548,6 +668,8 @@ export function ClaudeFormFields({
     if (!row.supportsOneM) return;
     handleRoleModelChange(row, setClaudeOneMMarker(row.model, enabled));
   };
+=======
+>>>>>>> origin/cc-switch-cli
 
   return (
     <>
@@ -564,8 +686,11 @@ export function ClaudeFormFields({
         <CodexOAuthSection
           selectedAccountId={selectedCodexAccountId}
           onAccountSelect={onCodexAccountSelect}
+<<<<<<< HEAD
           fastModeEnabled={codexFastMode}
           onFastModeChange={onCodexFastModeChange}
+=======
+>>>>>>> origin/cc-switch-cli
         />
       )}
 
@@ -633,6 +758,7 @@ export function ClaudeFormFields({
                 : apiFormat === "gemini_native"
                   ? t("providerForm.apiHintGeminiNative")
                   : t("providerForm.apiHint")
+<<<<<<< HEAD
           }
           fullUrlHint={
             apiFormat === "gemini_native"
@@ -644,6 +770,16 @@ export function ClaudeFormFields({
             showEndpointTools ? () => onEndpointModalToggle(true) : undefined
           }
           showFullUrlToggle={showEndpointTools}
+=======
+          }
+          fullUrlHint={
+            apiFormat === "gemini_native"
+              ? t("providerForm.fullUrlHintGeminiNative")
+              : undefined
+          }
+          onManageClick={() => onEndpointModalToggle(true)}
+          showFullUrlToggle={true}
+>>>>>>> origin/cc-switch-cli
           isFullUrl={isFullUrl}
           onFullUrlChange={onFullUrlChange}
         />
@@ -768,12 +904,17 @@ export function ClaudeFormFields({
             <div className="space-y-1 pt-2 border-t">
               <div className="flex items-center justify-between">
                 <FormLabel>{t("providerForm.modelMappingLabel")}</FormLabel>
+<<<<<<< HEAD
                 <div className="flex gap-2">
                   {/* 一键设置按钮 */}
+=======
+                {!isCopilotPreset && (
+>>>>>>> origin/cc-switch-cli
                   <Button
                     type="button"
                     variant="outline"
                     size="sm"
+<<<<<<< HEAD
                     onClick={() => {
                       const value =
                         claudeModel ||
@@ -820,18 +961,30 @@ export function ClaudeFormFields({
                     className="h-7 gap-1"
                   >
                     {modelFetchLoading ? (
+=======
+                    onClick={handleFetchModels}
+                    disabled={isFetchingModels}
+                    className="h-7 gap-1"
+                  >
+                    {isFetchingModels ? (
+>>>>>>> origin/cc-switch-cli
                       <Loader2 className="h-3.5 w-3.5 animate-spin" />
                     ) : (
                       <Download className="h-3.5 w-3.5" />
                     )}
                     {t("providerForm.fetchModels")}
                   </Button>
+<<<<<<< HEAD
                 </div>
+=======
+                )}
+>>>>>>> origin/cc-switch-cli
               </div>
               <p className="text-xs text-muted-foreground">
                 {t("providerForm.modelMappingHint")}
               </p>
             </div>
+<<<<<<< HEAD
 
             <div className="space-y-3">
               <div className="hidden grid-cols-[120px_1fr_minmax(0,1fr)_104px] gap-2 px-1 text-xs font-medium text-muted-foreground md:grid">
@@ -932,6 +1085,80 @@ export function ClaudeFormFields({
                     "仅在 Claude Code 请求没有明确落到 Sonnet、Opus 或 Haiku 角色时使用；通常可以留空。",
                 })}
               </p>
+=======
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* 主模型 */}
+              <div className="space-y-2">
+                <FormLabel htmlFor="claudeModel">
+                  {t("providerForm.anthropicModel", {
+                    defaultValue: "主模型",
+                  })}
+                </FormLabel>
+                {renderModelInput(
+                  "claudeModel",
+                  claudeModel,
+                  "ANTHROPIC_MODEL",
+                  t("providerForm.modelPlaceholder", { defaultValue: "" }),
+                )}
+              </div>
+
+              {/* 推理模型 */}
+              <div className="space-y-2">
+                <FormLabel htmlFor="reasoningModel">
+                  {t("providerForm.anthropicReasoningModel")}
+                </FormLabel>
+                {renderModelInput(
+                  "reasoningModel",
+                  reasoningModel,
+                  "ANTHROPIC_REASONING_MODEL",
+                )}
+              </div>
+
+              {/* 默认 Haiku */}
+              <div className="space-y-2">
+                <FormLabel htmlFor="claudeDefaultHaikuModel">
+                  {t("providerForm.anthropicDefaultHaikuModel", {
+                    defaultValue: "Haiku 默认模型",
+                  })}
+                </FormLabel>
+                {renderModelInput(
+                  "claudeDefaultHaikuModel",
+                  defaultHaikuModel,
+                  "ANTHROPIC_DEFAULT_HAIKU_MODEL",
+                  t("providerForm.haikuModelPlaceholder", { defaultValue: "" }),
+                )}
+              </div>
+
+              {/* 默认 Sonnet */}
+              <div className="space-y-2">
+                <FormLabel htmlFor="claudeDefaultSonnetModel">
+                  {t("providerForm.anthropicDefaultSonnetModel", {
+                    defaultValue: "Sonnet 默认模型",
+                  })}
+                </FormLabel>
+                {renderModelInput(
+                  "claudeDefaultSonnetModel",
+                  defaultSonnetModel,
+                  "ANTHROPIC_DEFAULT_SONNET_MODEL",
+                  t("providerForm.modelPlaceholder", { defaultValue: "" }),
+                )}
+              </div>
+
+              {/* 默认 Opus */}
+              <div className="space-y-2">
+                <FormLabel htmlFor="claudeDefaultOpusModel">
+                  {t("providerForm.anthropicDefaultOpusModel", {
+                    defaultValue: "Opus 默认模型",
+                  })}
+                </FormLabel>
+                {renderModelInput(
+                  "claudeDefaultOpusModel",
+                  defaultOpusModel,
+                  "ANTHROPIC_DEFAULT_OPUS_MODEL",
+                  t("providerForm.modelPlaceholder", { defaultValue: "" }),
+                )}
+              </div>
+>>>>>>> origin/cc-switch-cli
             </div>
           </CollapsibleContent>
         </Collapsible>

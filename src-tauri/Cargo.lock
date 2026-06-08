@@ -785,7 +785,11 @@ dependencies = [
 
 [[package]]
 name = "cc-switch"
+<<<<<<< HEAD
 version = "3.16.1"
+=======
+version = "3.13.0"
+>>>>>>> origin/cc-switch-cli
 dependencies = [
  "anstream",
  "anstyle",
@@ -856,7 +860,10 @@ dependencies = [
  "uuid",
  "webkit2gtk",
  "webpki-roots 0.26.11",
+<<<<<<< HEAD
  "windows-sys 0.61.2",
+=======
+>>>>>>> origin/cc-switch-cli
  "winreg 0.52.0",
  "zip 2.4.2",
 ]
@@ -3113,6 +3120,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6877bb514081ee2a7ff5ef9de3281f14a4dd4bceac4c09388074a6b5df8a139a"
 
 [[package]]
+<<<<<<< HEAD
 name = "mime_guess"
 version = "2.0.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3126,6 +3134,11 @@ dependencies = [
 name = "minisign-verify"
 version = "0.2.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
+=======
+name = "minisign-verify"
+version = "0.2.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+>>>>>>> origin/cc-switch-cli
 checksum = "22f9645cb765ea72b8111f36c522475d2daa0d22c957a9826437e97534bc4e9e"
 
 [[package]]
@@ -5899,6 +5912,7 @@ dependencies = [
 ]
 
 [[package]]
+<<<<<<< HEAD
 name = "tauri-plugin-window-state"
 version = "2.4.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5917,6 +5931,11 @@ dependencies = [
 name = "tauri-runtime"
 version = "2.10.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
+=======
+name = "tauri-runtime"
+version = "2.10.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+>>>>>>> origin/cc-switch-cli
 checksum = "2826d79a3297ed08cd6ea7f412644ef58e32969504bc4fbd8d7dbeabc4445ea2"
 dependencies = [
  "cookie",
@@ -6545,6 +6564,7 @@ dependencies = [
 ]
 
 [[package]]
+<<<<<<< HEAD
 name = "unicase"
 version = "2.9.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -6554,6 +6574,11 @@ checksum = "dbc4bc3a9f746d862c45cb89d705aa10f187bb96c76001afab07a0d35ce60142"
 name = "unicode-general-category"
 version = "1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
+=======
+name = "unicode-general-category"
+version = "1.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+>>>>>>> origin/cc-switch-cli
 checksum = "0b993bddc193ae5bd0d623b49ec06ac3e9312875fdae725a975c51db1cc1677f"
 
 [[package]]

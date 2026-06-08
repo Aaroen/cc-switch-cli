@@ -22,7 +22,11 @@ mod health;
 #[allow(dead_code)] // 含 fork 出站代理兜底辅助：合并官方 forwarder 后暂未接线，保留待后续集成
 pub mod http_client;
 pub mod hyper_client;
+<<<<<<< HEAD
 pub(crate) mod json_canonical;
+=======
+pub mod layered_forwarder; // 【新增】分层转发器
+>>>>>>> origin/cc-switch-cli
 pub mod load_balancer; // 【新增】负载均衡器
 pub mod log_codes;
 pub mod media_sanitizer;

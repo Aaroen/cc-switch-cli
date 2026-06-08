@@ -18,10 +18,14 @@ use crate::error::AppError;
 use crate::gemini_config::get_gemini_dir;
 use crate::proxy::usage::calculator::{CostCalculator, ModelPricing};
 use crate::proxy::usage::parser::TokenUsage;
+<<<<<<< HEAD
 use crate::services::session_usage::{
     get_sync_state, metadata_modified_nanos, update_sync_state, SessionSyncResult,
 };
 use crate::services::usage_stats::{find_model_pricing, should_skip_session_insert, DedupKey};
+=======
+use crate::services::session_usage::SessionSyncResult;
+>>>>>>> origin/cc-switch-cli
 use rust_decimal::Decimal;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -76,9 +80,12 @@ pub fn sync_gemini_usage(db: &Database) -> Result<SessionSyncResult, AppError> {
         );
     }
 
+<<<<<<< HEAD
     // 把会话占位 provider 归并到当前供应商，避免显示 “Gemini (Session)”
     crate::services::session_usage::reattribute_session_rows(db, "gemini", "_gemini_session");
 
+=======
+>>>>>>> origin/cc-switch-cli
     Ok(result)
 }
 
@@ -131,7 +138,16 @@ fn sync_single_gemini_file(db: &Database, file_path: &Path) -> Result<(u32, u32)
     // 获取文件元数据
     let metadata = fs::metadata(file_path)
         .map_err(|e| AppError::Config(format!("无法读取文件元数据: {e}")))?;
+<<<<<<< HEAD
     let file_modified = metadata_modified_nanos(&metadata);
+=======
+    let file_modified = metadata
+        .modified()
+        .ok()
+        .and_then(|t| t.duration_since(SystemTime::UNIX_EPOCH).ok())
+        .map(|d| d.as_secs() as i64)
+        .unwrap_or(0);
+>>>>>>> origin/cc-switch-cli
 
     // 检查同步状态
     let (last_modified, _last_offset) = get_sync_state(db, &file_path_str)?;
@@ -238,6 +254,10 @@ fn insert_gemini_session_entry(
 ) -> Result<bool, AppError> {
     let conn = lock_conn!(db.conn);
 
+<<<<<<< HEAD
+=======
+    // 解析时间戳
+>>>>>>> origin/cc-switch-cli
     let created_at = timestamp
         .and_then(|ts| {
             chrono::DateTime::parse_from_rfc3339(ts)
@@ -254,6 +274,7 @@ fn insert_gemini_session_entry(
     // 合并 thoughts 到 output（思考 token 按输出计费）
     let output_tokens = tokens.output + tokens.thoughts;
 
+<<<<<<< HEAD
     let dedup_key = DedupKey {
         app_type: "gemini",
         model,
@@ -267,6 +288,8 @@ fn insert_gemini_session_entry(
         return Ok(false);
     }
 
+=======
+>>>>>>> origin/cc-switch-cli
     // 计算费用
     let usage = TokenUsage {
         input_tokens: tokens.input,
@@ -282,7 +305,11 @@ fn insert_gemini_session_entry(
     let (input_cost, output_cost, cache_read_cost, cache_creation_cost, total_cost) = match pricing
     {
         Some(p) => {
+<<<<<<< HEAD
             let cost = CostCalculator::calculate_for_app("gemini", &usage, &p, multiplier);
+=======
+            let cost = CostCalculator::calculate(&usage, &p, multiplier);
+>>>>>>> origin/cc-switch-cli
             (
                 cost.input_cost.to_string(),
                 cost.output_cost.to_string(),
@@ -353,16 +380,99 @@ fn insert_gemini_session_entry(
     .map_err(|e| AppError::Database(format!("插入 Gemini 会话日志失败: {e}")))?;
 
     // changes() > 0 表示新插入或已更新，== 0 表示值完全相同（无实际变更）
+<<<<<<< HEAD
     let changed = conn.changes() > 0;
     if changed {
         crate::usage_events::notify_log_recorded();
     }
     Ok(changed)
+=======
+    Ok(conn.changes() > 0)
+}
+
+/// 获取文件的同步状态
+fn get_sync_state(db: &Database, file_path: &str) -> Result<(i64, i64), AppError> {
+    let conn = lock_conn!(db.conn);
+    let result = conn.query_row(
+        "SELECT last_modified, last_line_offset FROM session_log_sync WHERE file_path = ?1",
+        rusqlite::params![file_path],
+        |row| Ok((row.get::<_, i64>(0)?, row.get::<_, i64>(1)?)),
+    );
+    Ok(result.unwrap_or((0, 0)))
+}
+
+/// 更新文件的同步状态
+fn update_sync_state(
+    db: &Database,
+    file_path: &str,
+    last_modified: i64,
+    last_offset: i64,
+) -> Result<(), AppError> {
+    let now = SystemTime::now()
+        .duration_since(SystemTime::UNIX_EPOCH)
+        .map(|d| d.as_secs() as i64)
+        .unwrap_or(0);
+
+    let conn = lock_conn!(db.conn);
+    conn.execute(
+        "INSERT OR REPLACE INTO session_log_sync (file_path, last_modified, last_line_offset, last_synced_at)
+         VALUES (?1, ?2, ?3, ?4)",
+        rusqlite::params![file_path, last_modified, last_offset, now],
+    )
+    .map_err(|e| AppError::Database(format!("更新同步状态失败: {e}")))?;
+    Ok(())
+>>>>>>> origin/cc-switch-cli
 }
 
 /// 查找 Gemini 模型定价
 fn find_gemini_pricing(conn: &rusqlite::Connection, model_id: &str) -> Option<ModelPricing> {
+<<<<<<< HEAD
     find_model_pricing(conn, model_id)
+=======
+    // 精确匹配
+    if let Some(pricing) = try_find_pricing(conn, model_id) {
+        return Some(pricing);
+    }
+
+    // LIKE 模糊匹配（兜底）
+    let pattern = format!("{model_id}%");
+    conn.query_row(
+        "SELECT input_cost_per_million, output_cost_per_million,
+                cache_read_cost_per_million, cache_creation_cost_per_million
+         FROM model_pricing WHERE model_id LIKE ?1 LIMIT 1",
+        rusqlite::params![pattern],
+        |row| {
+            Ok((
+                row.get::<_, String>(0)?,
+                row.get::<_, String>(1)?,
+                row.get::<_, String>(2)?,
+                row.get::<_, String>(3)?,
+            ))
+        },
+    )
+    .ok()
+    .and_then(|(i, o, cr, cc)| ModelPricing::from_strings(&i, &o, &cr, &cc).ok())
+}
+
+/// 精确匹配定价查询
+fn try_find_pricing(conn: &rusqlite::Connection, model_id: &str) -> Option<ModelPricing> {
+    conn.query_row(
+        "SELECT input_cost_per_million, output_cost_per_million,
+                cache_read_cost_per_million, cache_creation_cost_per_million
+         FROM model_pricing WHERE model_id = ?1",
+        rusqlite::params![model_id],
+        |row| {
+            Ok((
+                row.get::<_, String>(0)?,
+                row.get::<_, String>(1)?,
+                row.get::<_, String>(2)?,
+                row.get::<_, String>(3)?,
+            ))
+        },
+    )
+    .ok()
+    .and_then(|(i, o, cr, cc)| ModelPricing::from_strings(&i, &o, &cr, &cc).ok())
+>>>>>>> origin/cc-switch-cli
 }
 
 #[cfg(test)]
@@ -376,6 +486,7 @@ mod tests {
     }
 
     #[test]
+<<<<<<< HEAD
     fn test_insert_gemini_session_skips_matching_proxy_log() -> Result<(), AppError> {
         let db = Database::memory()?;
         {
@@ -431,6 +542,8 @@ mod tests {
     }
 
     #[test]
+=======
+>>>>>>> origin/cc-switch-cli
     fn test_parse_gemini_tokens() {
         let json: serde_json::Value = serde_json::json!({
             "input": 8522,

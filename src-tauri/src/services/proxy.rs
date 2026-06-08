@@ -12,7 +12,11 @@ use crate::proxy::types::*;
 use crate::services::provider::{
     build_effective_settings_with_common_config, write_live_with_common_config,
 };
+<<<<<<< HEAD
 use serde_json::{json, Map, Value};
+=======
+use serde_json::{json, Value};
+>>>>>>> origin/cc-switch-cli
 use std::str::FromStr;
 use std::sync::Arc;
 use tauri::Emitter;
@@ -75,6 +79,7 @@ impl ProxyService {
         }
     }
 
+<<<<<<< HEAD
     #[cfg(test)]
     fn apply_claude_takeover_fields(config: &mut Value, proxy_url: &str) {
         Self::apply_claude_takeover_fields_with_policy(
@@ -83,6 +88,14 @@ impl ProxyService {
             ClaudeTakeoverAuthPolicy::PreserveExistingOrAuthToken,
         );
     }
+=======
+    /// 清理接管模式下 Claude Live 配置中的模型覆盖字段。
+    ///
+    /// 这可以避免"接管开启后切换供应商仍使用旧模型"的问题。
+    /// 注意：此方法不会修改 Token/Base URL 的接管占位符，仅移除模型字段。
+    pub fn cleanup_claude_model_overrides_in_live(&self) -> Result<(), String> {
+        let mut config = self.read_claude_live()?;
+>>>>>>> origin/cc-switch-cli
 
     fn apply_claude_takeover_fields_for_provider(
         config: &mut Value,
@@ -365,6 +378,7 @@ impl ProxyService {
         Ok(())
     }
 
+<<<<<<< HEAD
     fn get_current_provider_for_app(&self, app_type: &AppType) -> Result<Option<Provider>, String> {
         let Some(current_id) = crate::settings::get_effective_current_provider(&self.db, app_type)
             .map_err(|e| format!("获取 {app_type:?} 当前供应商失败: {e}"))?
@@ -380,6 +394,68 @@ impl ProxyService {
     fn require_current_provider_for_app(&self, app_type: &AppType) -> Result<Provider, String> {
         self.get_current_provider_for_app(app_type)?
             .ok_or_else(|| format!("{app_type:?} 当前供应商不存在，无法接管 Live 配置"))
+=======
+    fn apply_claude_takeover_fields(config: &mut Value, proxy_url: &str) {
+        if !config.is_object() {
+            *config = json!({});
+        }
+
+        let root = config
+            .as_object_mut()
+            .expect("Claude config should be normalized to an object");
+        let env = root.entry("env".to_string()).or_insert_with(|| json!({}));
+        if !env.is_object() {
+            *env = json!({});
+        }
+
+        let env = env
+            .as_object_mut()
+            .expect("Claude env should be normalized to an object");
+        env.insert("ANTHROPIC_BASE_URL".to_string(), json!(proxy_url));
+
+        for key in CLAUDE_MODEL_OVERRIDE_ENV_KEYS {
+            env.remove(key);
+        }
+
+        let token_keys = [
+            "ANTHROPIC_AUTH_TOKEN",
+            "ANTHROPIC_API_KEY",
+            "OPENROUTER_API_KEY",
+            "OPENAI_API_KEY",
+        ];
+
+        let mut replaced_any = false;
+        for key in token_keys {
+            if env.contains_key(key) {
+                env.insert(key.to_string(), json!(PROXY_TOKEN_PLACEHOLDER));
+                replaced_any = true;
+            }
+        }
+
+        if !replaced_any {
+            env.insert(
+                "ANTHROPIC_AUTH_TOKEN".to_string(),
+                json!(PROXY_TOKEN_PLACEHOLDER),
+            );
+        }
+    }
+
+    pub async fn sync_claude_live_from_provider_while_proxy_active(
+        &self,
+        provider: &Provider,
+    ) -> Result<(), String> {
+        let mut effective_settings = build_effective_settings_with_common_config(
+            self.db.as_ref(),
+            &AppType::Claude,
+            provider,
+        )
+        .map_err(|e| format!("构建 claude 有效配置失败: {e}"))?;
+        let (proxy_url, _) = self.build_proxy_urls().await?;
+
+        Self::apply_claude_takeover_fields(&mut effective_settings, &proxy_url);
+        self.write_claude_live(&effective_settings)?;
+        Ok(())
+>>>>>>> origin/cc-switch-cli
     }
 
     /// 设置 AppHandle（在应用初始化时调用）
@@ -1178,6 +1254,7 @@ impl ProxyService {
 
         // Claude: 修改 ANTHROPIC_BASE_URL，使用占位符替代真实 Token（代理会注入真实 Token）
         if let Ok(mut live_config) = self.read_claude_live() {
+<<<<<<< HEAD
             let claude_provider = self.require_current_provider_for_app(&AppType::Claude)?;
             let claude_provider = self.claude_provider_with_effective_settings(&claude_provider)?;
             Self::apply_claude_takeover_fields_for_provider(
@@ -1185,6 +1262,9 @@ impl ProxyService {
                 &proxy_url,
                 &claude_provider,
             );
+=======
+            Self::apply_claude_takeover_fields(&mut live_config, &proxy_url);
+>>>>>>> origin/cc-switch-cli
             self.write_claude_live(&live_config)?;
             log::info!("Claude Live 配置已接管，代理地址: {proxy_url}");
         }
@@ -1246,6 +1326,7 @@ impl ProxyService {
         match app_type {
             AppType::Claude => {
                 let mut live_config = self.read_claude_live()?;
+<<<<<<< HEAD
                 let claude_provider = self.require_current_provider_for_app(&AppType::Claude)?;
                 let claude_provider =
                     self.claude_provider_with_effective_settings(&claude_provider)?;
@@ -1254,6 +1335,9 @@ impl ProxyService {
                     &proxy_url,
                     &claude_provider,
                 );
+=======
+                Self::apply_claude_takeover_fields(&mut live_config, &proxy_url);
+>>>>>>> origin/cc-switch-cli
                 self.write_claude_live(&live_config)?;
                 log::info!("Claude Live 配置已接管，代理地址: {proxy_url}");
             }
@@ -1312,6 +1396,7 @@ impl ProxyService {
         match app_type {
             AppType::Claude => {
                 if let Ok(mut live_config) = self.read_claude_live() {
+<<<<<<< HEAD
                     let claude_provider = self
                         .get_current_provider_for_app(&AppType::Claude)
                         .ok()
@@ -1330,6 +1415,9 @@ impl ProxyService {
                             ClaudeTakeoverAuthPolicy::PreserveExistingOrAuthToken,
                         );
                     }
+=======
+                    Self::apply_claude_takeover_fields(&mut live_config, &proxy_url);
+>>>>>>> origin/cc-switch-cli
                     let _ = self.write_claude_live(&live_config);
                 }
             }
@@ -1386,6 +1474,15 @@ impl ProxyService {
         Ok(())
     }
 
+<<<<<<< HEAD
+=======
+    /// 恢复指定应用的 Live 配置（若无备份则不做任何操作）
+    async fn restore_live_config_for_app(&self, app_type: &AppType) -> Result<(), String> {
+        let _guard = self.switch_locks.lock_for_app(app_type.as_str()).await;
+        self.restore_live_config_for_app_inner(app_type).await
+    }
+
+>>>>>>> origin/cc-switch-cli
     async fn restore_live_config_for_app_inner(&self, app_type: &AppType) -> Result<(), String> {
         match app_type {
             AppType::Claude => {
@@ -1872,6 +1969,7 @@ impl ProxyService {
                 .map_err(|e| format!("构建 {app_type} 有效配置失败: {e}"))?;
 
         if matches!(app_type_enum, AppType::Codex) {
+<<<<<<< HEAD
             let existing_backup_value = self
                 .db
                 .get_live_backup(app_type)
@@ -1889,6 +1987,21 @@ impl ProxyService {
                     existing_value,
                 )?;
                 Self::preserve_codex_oauth_auth_in_backup(&mut effective_settings, existing_value)?;
+=======
+            let existing_backup = self
+                .db
+                .get_live_backup(app_type)
+                .await
+                .map_err(|e| format!("读取 {app_type} 现有备份失败: {e}"))?;
+
+            if let Some(existing_backup) = existing_backup {
+                let existing_value: Value = serde_json::from_str(&existing_backup.original_config)
+                    .map_err(|e| format!("解析 {app_type} 现有备份失败: {e}"))?;
+                Self::preserve_codex_mcp_servers_in_backup(
+                    &mut effective_settings,
+                    &existing_value,
+                )?;
+>>>>>>> origin/cc-switch-cli
             }
         }
 
@@ -1907,7 +2020,9 @@ impl ProxyService {
                 serde_json::to_string(&env_backup)
                     .map_err(|e| format!("序列化 Gemini 配置失败: {e}"))?
             }
-            _ => return Err(format!("未知的应用类型: {app_type}")),
+            AppType::OpenCode | AppType::OpenClaw => {
+                return Err(format!("未知的应用类型: {app_type}"));
+            }
         };
 
         self.db
@@ -1925,6 +2040,7 @@ impl ProxyService {
         provider_id: &str,
     ) -> Result<HotSwitchOutcome, String> {
         let _guard = self.switch_locks.lock_for_app(app_type).await;
+<<<<<<< HEAD
         self.hot_switch_provider_inner(app_type, provider_id).await
     }
 
@@ -1933,6 +2049,9 @@ impl ProxyService {
         app_type: &str,
         provider_id: &str,
     ) -> Result<HotSwitchOutcome, String> {
+=======
+
+>>>>>>> origin/cc-switch-cli
         let app_type_enum =
             AppType::from_str(app_type).map_err(|_| format!("无效的应用类型: {app_type}"))?;
         let provider = self
@@ -1977,6 +2096,7 @@ impl ProxyService {
             if matches!(app_type_enum, AppType::Claude) {
                 self.sync_claude_live_from_provider_while_proxy_active(&provider)
                     .await?;
+<<<<<<< HEAD
             } else if live_taken_over && matches!(app_type_enum, AppType::Codex) {
                 self.sync_codex_live_from_provider_while_proxy_active(&provider)
                     .await?;
@@ -2004,6 +2124,14 @@ impl ProxyService {
             .map_err(|e| format!("写入 Codex 配置失败: {e}"))?;
         }
 
+=======
+                if let Err(e) = self.cleanup_claude_model_overrides_in_live() {
+                    log::warn!("清理 Claude Live 模型字段失败（不影响热切换结果）: {e}");
+                }
+            }
+        }
+
+>>>>>>> origin/cc-switch-cli
         if let Some(server) = self.server.read().await.as_ref() {
             server
                 .set_active_target(app_type_enum.as_str(), &provider.id, &provider.name)
@@ -2020,9 +2148,15 @@ impl ProxyService {
         self.switch_locks.lock_for_app(app_type).await
     }
 
+<<<<<<< HEAD
     fn preserve_codex_mcp_servers_from_existing_config(
         target_settings: &mut Value,
         existing_config: &Value,
+=======
+    fn preserve_codex_mcp_servers_in_backup(
+        target_settings: &mut Value,
+        existing_backup: &Value,
+>>>>>>> origin/cc-switch-cli
     ) -> Result<(), String> {
         let target_obj = target_settings
             .as_object_mut()
@@ -2040,7 +2174,11 @@ impl ProxyService {
                 .map_err(|e| format!("解析新的 Codex config.toml 失败: {e}"))?
         };
 
+<<<<<<< HEAD
         let existing_config = existing_config
+=======
+        let existing_config = existing_backup
+>>>>>>> origin/cc-switch-cli
             .get("config")
             .and_then(|v| v.as_str())
             .unwrap_or("");
@@ -2067,7 +2205,11 @@ impl ProxyService {
                         }
                     } else {
                         log::warn!(
+<<<<<<< HEAD
                             "Codex config contains a non-table mcp_servers section; skipping MCP merge"
+=======
+                            "Codex config contains a non-table mcp_servers section; skipping backup MCP merge"
+>>>>>>> origin/cc-switch-cli
                         );
                     }
                 }
@@ -2081,6 +2223,7 @@ impl ProxyService {
         Ok(())
     }
 
+<<<<<<< HEAD
     fn preserve_codex_oauth_auth_in_backup(
         target_settings: &mut Value,
         existing_backup: &Value,
@@ -2116,6 +2259,9 @@ impl ProxyService {
     }
 
     /// 代理模式下切换供应商（热切换，并按需刷新代理安全的 Live 显示字段）
+=======
+    /// 代理模式下切换供应商（热切换，不写 Live）
+>>>>>>> origin/cc-switch-cli
     pub async fn switch_proxy_target(
         &self,
         app_type: &str,
@@ -2137,6 +2283,7 @@ impl ProxyService {
     fn update_toml_base_url(toml_str: &str, new_url: &str) -> String {
         crate::codex_config::update_codex_toml_field(toml_str, "base_url", new_url)
             .unwrap_or_else(|_| toml_str.to_string())
+<<<<<<< HEAD
     }
 
     /// 接管 Codex 时，本地客户端必须继续以 Responses wire API 访问代理。
@@ -2179,6 +2326,8 @@ impl ProxyService {
         if let Some(root) = live_config.as_object_mut() {
             root.insert("modelCatalog".to_string(), model_catalog);
         }
+=======
+>>>>>>> origin/cc-switch-cli
     }
 
     fn read_claude_live(&self) -> Result<Value, String> {
@@ -4197,12 +4346,16 @@ model = "gpt-5.1-codex"
                 "env": {
                     "ANTHROPIC_API_KEY": "b-key",
                     "ANTHROPIC_BASE_URL": "https://api.b.example",
+<<<<<<< HEAD
                     "ANTHROPIC_MODEL": "claude-new",
                     "ANTHROPIC_DEFAULT_HAIKU_MODEL": "deepseek-v4-flash",
                     "ANTHROPIC_DEFAULT_HAIKU_MODEL_NAME": "DeepSeek V4 Flash",
                     "ANTHROPIC_DEFAULT_SONNET_MODEL": "deepseek-v4-pro[1M]",
                     "ANTHROPIC_DEFAULT_SONNET_MODEL_NAME": "DeepSeek V4 Pro",
                     "ANTHROPIC_DEFAULT_OPUS_MODEL": "deepseek-v4-ultra [1m]"
+=======
+                    "ANTHROPIC_MODEL": "claude-new"
+>>>>>>> origin/cc-switch-cli
                 },
                 "permissions": { "allow": ["Read"] }
             }),
@@ -4228,8 +4381,12 @@ model = "gpt-5.1-codex"
                 "env": {
                     "ANTHROPIC_BASE_URL": "http://127.0.0.1:15721",
                     "ANTHROPIC_API_KEY": PROXY_TOKEN_PLACEHOLDER,
+<<<<<<< HEAD
                     "ANTHROPIC_MODEL": "stale-model",
                     "ANTHROPIC_DEFAULT_SONNET_MODEL_NAME": "Stale Sonnet"
+=======
+                    "ANTHROPIC_MODEL": "stale-model"
+>>>>>>> origin/cc-switch-cli
                 },
                 "permissions": { "allow": ["Bash"] }
             }))
@@ -4264,6 +4421,7 @@ model = "gpt-5.1-codex"
             live.get("env")
                 .and_then(|env| env.get("ANTHROPIC_MODEL"))
                 .is_none(),
+<<<<<<< HEAD
             "fallback model override should be removed in takeover mode"
         );
         let live_env = live
@@ -4311,6 +4469,9 @@ model = "gpt-5.1-codex"
                 .and_then(|v| v.as_str()),
             Some("deepseek-v4-ultra"),
             "implicit display names should strip the local 1M marker"
+=======
+            "Claude model override fields should be removed in takeover mode"
+>>>>>>> origin/cc-switch-cli
         );
 
         let backup = db
@@ -4693,6 +4854,7 @@ base_url = "https://new.example/v1"
 
     #[tokio::test]
     #[serial]
+<<<<<<< HEAD
     async fn hot_switch_codex_provider_preserves_provider_model_provider_in_backup_and_restore() {
         let _home = TempHome::new();
         crate::settings::reload_settings().expect("reload settings");
@@ -4991,6 +5153,8 @@ requires_openai_auth = true
 
     #[tokio::test]
     #[serial]
+=======
+>>>>>>> origin/cc-switch-cli
     async fn update_live_backup_from_provider_keeps_new_codex_mcp_entries_on_conflict() {
         let _home = TempHome::new();
         crate::settings::reload_settings().expect("reload settings");
@@ -5079,6 +5243,7 @@ command = "latest-command"
             "new MCP entries should remain in the restore backup"
         );
     }
+<<<<<<< HEAD
 
     #[tokio::test]
     #[serial]
@@ -5528,4 +5693,6 @@ requires_openai_auth = true
             "empty-auth restore must delete auth.json rather than write an empty one"
         );
     }
+=======
+>>>>>>> origin/cc-switch-cli
 }

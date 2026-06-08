@@ -1,4 +1,8 @@
+<<<<<<< HEAD
 import { invoke } from "@/lib/api/transport";
+=======
+import { invoke } from "@tauri-apps/api/core";
+>>>>>>> origin/cc-switch-cli
 
 export async function copyText(text: string): Promise<void> {
   try {

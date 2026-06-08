@@ -81,7 +81,11 @@ export function CommonConfigEditor({
         enableToolSearch:
           config?.env?.ENABLE_TOOL_SEARCH === "true" ||
           config?.env?.ENABLE_TOOL_SEARCH === "1",
+<<<<<<< HEAD
         effortMax: config?.env?.CLAUDE_CODE_EFFORT_LEVEL === "max",
+=======
+        effortHigh: config?.effortLevel === "high",
+>>>>>>> origin/cc-switch-cli
         disableAutoUpgrade:
           config?.env?.DISABLE_AUTOUPDATER === "1" ||
           config?.env?.DISABLE_AUTOUPDATER === 1,
@@ -91,7 +95,11 @@ export function CommonConfigEditor({
         hideAttribution: false,
         teammates: false,
         enableToolSearch: false,
+<<<<<<< HEAD
         effortMax: false,
+=======
+        effortHigh: false,
+>>>>>>> origin/cc-switch-cli
         disableAutoUpgrade: false,
       };
     }
@@ -128,6 +136,7 @@ export function CommonConfigEditor({
               if (Object.keys(config.env).length === 0) delete config.env;
             }
             break;
+<<<<<<< HEAD
           case "effortMax":
             if (!config.env) config.env = {};
             if (checked) {
@@ -135,6 +144,13 @@ export function CommonConfigEditor({
             } else {
               delete config.env.CLAUDE_CODE_EFFORT_LEVEL;
               if (Object.keys(config.env).length === 0) delete config.env;
+=======
+          case "effortHigh":
+            if (checked) {
+              config.effortLevel = "high";
+            } else {
+              delete config.effortLevel;
+>>>>>>> origin/cc-switch-cli
             }
             break;
           case "disableAutoUpgrade":
@@ -229,11 +245,19 @@ export function CommonConfigEditor({
           <label className="inline-flex items-center gap-2 text-sm text-muted-foreground cursor-pointer">
             <input
               type="checkbox"
+<<<<<<< HEAD
               checked={toggleStates.effortMax}
               onChange={(e) => handleToggle("effortMax", e.target.checked)}
               className="w-4 h-4 text-blue-500 bg-white dark:bg-gray-800 border-border-default rounded focus:ring-blue-500 dark:focus:ring-blue-400 focus:ring-2"
             />
             <span>{t("claudeConfig.effortMax")}</span>
+=======
+              checked={toggleStates.effortHigh}
+              onChange={(e) => handleToggle("effortHigh", e.target.checked)}
+              className="w-4 h-4 text-blue-500 bg-white dark:bg-gray-800 border-border-default rounded focus:ring-blue-500 dark:focus:ring-blue-400 focus:ring-2"
+            />
+            <span>{t("claudeConfig.effortHigh")}</span>
+>>>>>>> origin/cc-switch-cli
           </label>
           <label className="inline-flex items-center gap-2 text-sm text-muted-foreground cursor-pointer">
             <input

@@ -5,6 +5,7 @@ All notable changes to CC Switch will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+<<<<<<< HEAD
 ## [3.16.1] - 2026-06-01
 
 Development since v3.16.0 focuses on hardening Codex provider switching and Local Routing takeover: preserving official OAuth auth and model catalogs across normal switches, hot-switches, backup restore, and edit flows; restoring Codex Chat tool/plugin compatibility over Chat Completions upstreams; improving Codex proxy diagnostics and CLI discovery; and documenting DeepSeek routing.
@@ -376,6 +377,8 @@ Development since v3.13.0 focuses on onboarding Hermes Agent as a first-class ma
 
 ---
 
+=======
+>>>>>>> origin/cc-switch-cli
 ## [3.13.0] - 2026-04-10
 
 Development since v3.12.3 focuses on quota visibility, provider workflow upgrades, stronger proxy compatibility, and lower-overhead tray / session workflows.

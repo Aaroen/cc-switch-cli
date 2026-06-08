@@ -48,12 +48,18 @@ use std::sync::Mutex;
 
 // DAO 方法通过 impl Database 提供，无需额外导出
 
+<<<<<<< HEAD
 /// 当前 Schema 版本号（与官方上游保持一致 = 10）
 ///
 /// 注意：本 fork 不再为"补缺列"抬高此版本号。fork↔官方迁移历史分叉导致的缺失列改由
 /// `schema::reconcile_schema_drift` 无版本号、幂等地补齐（见 schema.rs），从而保证导出的
 /// `user_version` 与官方一致、可被官方端导入。早期内部构建曾写入 11–13，启动时会被回贴为本值。
 pub(crate) const SCHEMA_VERSION: i32 = 10;
+=======
+/// 当前 Schema 版本号
+/// 每次修改表结构时递增，并在 schema.rs 中添加相应的迁移逻辑
+pub(crate) const SCHEMA_VERSION: i32 = 9;
+>>>>>>> origin/cc-switch-cli
 
 /// 安全地序列化 JSON，避免 unwrap panic
 pub(crate) fn to_json_string<T: Serialize>(value: &T) -> Result<String, AppError> {
