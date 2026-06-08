@@ -464,7 +464,7 @@ jobs:
         run: |
           $ErrorActionPreference = 'Stop'
           New-Item -ItemType Directory -Force -Path release-assets | Out-Null
-          $version = $env:GITHUB_REF_NAME
+          $version = $env:GITHUB_REF_NAME -replace '/', '-'  # 替换 / 为 - (workflow_dispatch 或分支名含斜杠)
 
           $msi = Get-ChildItem -Path 'src-tauri/target/release/bundle/msi' -Recurse -Include *.msi -ErrorAction SilentlyContinue | Select-Object -First 1
           if ($null -eq $msi) {
@@ -522,7 +522,7 @@ jobs:
         run: |
           set -euxo pipefail
           mkdir -p release-assets
-          VERSION="${GITHUB_REF_NAME}"
+          VERSION="${GITHUB_REF_NAME//\//-}"  # 替换 / 为 - (workflow_dispatch 或分支名含斜杠)
           ARCH="${{ matrix.arch }}"
           BUNDLE_ROOT="src-tauri/target/release/bundle"
 
