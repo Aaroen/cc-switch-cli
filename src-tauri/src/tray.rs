@@ -772,6 +772,12 @@ pub fn handle_tray_menu_event(app: &tauri::AppHandle, event_id: &str) {
         }
         "quit" => {
             log::info!("退出应用");
+            // 先关闭所有窗口,避免 Tao 事件循环 "Destroyed state" 竞态
+            if let Some(window) = app.get_webview_window("main") {
+                let _ = window.close();
+            }
+            // 短暂延迟让窗口销毁完成
+            std::thread::sleep(std::time::Duration::from_millis(100));
             app.exit(0);
         }
         _ => {

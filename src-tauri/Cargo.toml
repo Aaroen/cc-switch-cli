@@ -1,7 +1,7 @@
 [package]
 name = "cc-switch"
 <<<<<<< HEAD
-version = "3.16.1"
+version = "3.16.2"
 =======
 version = "3.13.0"
 >>>>>>> origin/cc-switch-cli

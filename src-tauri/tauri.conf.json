@@ -1,11 +1,6 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "CC Switch",
-<<<<<<< HEAD
-  "version": "3.16.1",
-=======
-  "version": "3.13.0",
->>>>>>> origin/cc-switch-cli
   "identifier": "com.ccswitch.desktop",
   "build": {
     "frontendDist": "../dist",
@@ -51,9 +46,6 @@
     "windows": {
       "wix": {
         "template": "wix/per-user-main.wxs"
-      },
-      "webviewInstallMode": {
-        "type": "offlineInstaller"
       }
     },
     "macOS": {
