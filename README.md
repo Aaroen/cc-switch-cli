@@ -17,17 +17,17 @@
 
 ### Linux (无头 CLI)
 
-**从 Release 预构建包安装**(推荐,无需编译):
+**一键安装**(预构建二进制,无需编译,约 25MB):
 
 ```bash
-# 下载最新 Linux CLI tar.gz(约 25MB)
-curl -fLO https://github.com/Aaroen/cc-switch-cli/releases/latest/download/cc-switch-cli-linux-x86_64.tar.gz
-
-# 解压并运行安装脚本(自动检测图形/无头环境、询问是否启用 Web 控制台)
-tar -xzf cc-switch-cli-linux-x86_64.tar.gz
-cd cc-switch-cli-linux-x86_64
-./install-ccs.sh
+curl -fsSL https://github.com/Aaroen/cc-switch-cli/releases/latest/download/cc-switch-cli-linux-x86_64.tar.gz | tar -xz && cd cc-switch-cli-linux-x86_64 && ./install-ccs.sh
 ```
+
+安装脚本会自动:
+- 检测图形/无头环境,选择对应模式
+- 询问是否启用 Web 控制台(浏览器管理)
+- 安装到 `~/.local/bin` 并配置环境变量
+- 无头模式自动启动后台代理服务
 
 安装完成后重载环境变量:
 
