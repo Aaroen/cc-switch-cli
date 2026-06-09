@@ -93,15 +93,21 @@ impl Database {
         Self::validate_cc_switch_sql_export(sql_content)?;
 
         // 导入前备份现有数据库
+        log::info!("[数据库导入] 正在备份当前数据库...");
         let backup_path = self.backup_database_file()?;
+        if let Some(ref path) = backup_path {
+            log::info!("[数据库导入] 备份已保存: {}", path.display());
+        }
 
         let local_snapshot = if preserve_tables.is_empty() {
             None
         } else {
+            log::info!("[数据库导入] 正在创建本地数据快照...");
             Some(self.snapshot_to_memory()?)
         };
 
         // 在临时数据库执行导入，确保失败不会污染主库
+        log::info!("[数据库导入] 正在创建临时数据库并执行 SQL 导入...");
         let temp_file = NamedTempFile::new().map_err(|e| AppError::IoContext {
             context: "创建临时数据库文件失败".to_string(),
             source: e,
@@ -113,16 +119,20 @@ impl Database {
         temp_conn
             .execute_batch(sql_content)
             .map_err(|e| AppError::Database(format!("执行 SQL 导入失败: {e}")))?;
+        log::info!("[数据库导入] SQL 导入到临时数据库完成");
 
         // 补齐缺失表/索引并进行基础校验
+        log::info!("[数据库导入] 正在创建表结构、应用迁移、校验数据...");
         Self::create_tables_on_conn(&temp_conn)?;
         Self::apply_schema_migrations_on_conn(&temp_conn)?;
         Self::validate_basic_state(&temp_conn)?;
         if let Some(local_snapshot) = local_snapshot.as_ref() {
+            log::info!("[数据库导入] 正在恢复本地保留表 (provider_health)...");
             Self::restore_tables(local_snapshot, &temp_conn, preserve_tables)?;
         }
 
         // 使用 Backup 将临时库原子写回主库
+        log::info!("[数据库导入] 正在将临时数据库写回主数据库 (这是最耗时的步骤，可能需要 30-120 秒)...");
         {
             let mut main_conn = lock_conn!(self.conn);
             let backup = Backup::new(&temp_conn, &mut main_conn)
@@ -131,6 +141,7 @@ impl Database {
                 .step(-1)
                 .map_err(|e| AppError::Database(e.to_string()))?;
         }
+        log::info!("[数据库导入] 数据库写回完成");
 
         let backup_id = backup_path
             .and_then(|p| p.file_stem().map(|s| s.to_string_lossy().to_string()))

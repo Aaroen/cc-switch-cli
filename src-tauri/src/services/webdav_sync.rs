@@ -186,6 +186,8 @@ pub async fn download(
 ) -> Result<Value, AppError> {
     settings.validate()?;
     let auth = auth_for(settings);
+
+    log::info!("[WebDAV 同步] 步骤 1/6: 正在查找远程快照...");
     let snapshot = find_remote_snapshot(settings, &auth)
         .await?
         .ok_or_else(|| {
@@ -197,8 +199,11 @@ pub async fn download(
         })?;
 
     validate_manifest_compat(&snapshot.manifest, snapshot.layout)?;
+    log::info!("[WebDAV 同步] 找到远程快照: 设备={}, 时间={}",
+        snapshot.manifest.device_name, snapshot.manifest.created_at);
 
     // Download and verify artifacts
+    log::info!("[WebDAV 同步] 步骤 2/6: 正在下载数据库文件 (db.sql)...");
     let db_sql = download_and_verify(
         settings,
         &auth,
@@ -207,6 +212,9 @@ pub async fn download(
         &snapshot.manifest.artifacts,
     )
     .await?;
+    log::info!("[WebDAV 同步] 数据库文件下载完成，大小: {} KB", db_sql.len() / 1024);
+
+    log::info!("[WebDAV 同步] 步骤 3/6: 正在下载技能包文件 (skills.zip)...");
     let skills_zip = download_and_verify(
         settings,
         &auth,
@@ -215,10 +223,15 @@ pub async fn download(
         &snapshot.manifest.artifacts,
     )
     .await?;
+    log::info!("[WebDAV 同步] 技能包文件下载完成，大小: {} KB", skills_zip.len() / 1024);
 
     // Apply snapshot
+    log::info!("[WebDAV 同步] 步骤 4/6: 正在备份当前数据库...");
+    log::info!("[WebDAV 同步] 步骤 5/6: 正在导入新数据库 (这可能需要 1-3 分钟，请耐心等待)...");
     apply_snapshot(db, &db_sql, &skills_zip)?;
+    log::info!("[WebDAV 同步] 数据库导入完成");
 
+    log::info!("[WebDAV 同步] 步骤 6/6: 正在保存同步状态...");
     let manifest_hash = sha256_hex(&snapshot.manifest_bytes);
     let _persisted = persist_sync_success_best_effort(
         settings,
@@ -226,6 +239,8 @@ pub async fn download(
         snapshot.manifest_etag,
         persist_sync_success,
     );
+    log::info!("[WebDAV 同步] 同步完成！");
+
     Ok(serde_json::json!({
         "status": "downloaded",
         "sourceLayout": snapshot.layout.as_str(),
