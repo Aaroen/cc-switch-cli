@@ -534,28 +534,8 @@ jobs:
         run: |
           set -euxo pipefail
           mkdir -p release-assets
-          VERSION="${GITHUB_REF_NAME//\//-}"  # 替换 / 为 - (workflow_dispatch 或分支名含斜杠)
+          VERSION="${GITHUB_REF_NAME//\//-}"
           ARCH="${{ matrix.arch }}"
-          BUNDLE_ROOT="src-tauri/target/release/bundle"
-
-          APPIMAGE=$(find "$BUNDLE_ROOT" -name "*.AppImage" -type f | head -1 || true)
-          if [ -z "$APPIMAGE" ]; then
-            echo "No AppImage found under $BUNDLE_ROOT" >&2
-            exit 1
-          fi
-          NEW_APPIMAGE="CC-Switch-${VERSION}-Linux-${ARCH}.AppImage"
-          cp "$APPIMAGE" "release-assets/$NEW_APPIMAGE"
-          [ -f "$APPIMAGE.sig" ] && cp "$APPIMAGE.sig" "release-assets/$NEW_APPIMAGE.sig" || true
-
-          DEB=$(find "$BUNDLE_ROOT" -name "*.deb" -type f | head -1 || true)
-          if [ -n "$DEB" ]; then
-            cp "$DEB" "release-assets/CC-Switch-${VERSION}-Linux-${ARCH}.deb"
-          fi
-
-          RPM=$(find "$BUNDLE_ROOT" -name "*.rpm" -type f | head -1 || true)
-          if [ -n "$RPM" ]; then
-            cp "$RPM" "release-assets/CC-Switch-${VERSION}-Linux-${ARCH}.rpm"
-          fi
 
           CLI_BIN="src-tauri/target/release/cc-switch-cli"
           if [ ! -f "$CLI_BIN" ]; then
@@ -563,14 +543,19 @@ jobs:
             exit 1
           fi
 
+          # 创建带文件夹结构的 CLI 打包
+          ARCHIVE_NAME="${{ matrix.cli_archive }}"
+          FOLDER_NAME="${ARCHIVE_NAME%.tar.gz}"
+
           chmod +x install-ccs.sh "$CLI_BIN"
           tmp_dir="$(mktemp -d)"
-          cp install-ccs.sh "$tmp_dir/install-ccs.sh"
-          cp "$CLI_BIN" "$tmp_dir/cc-switch"
-          cp "$CLI_BIN" "$tmp_dir/cc-switch-cli"
-          ln -sfn cc-switch-cli "$tmp_dir/ccs"
-          ln -sfn cc-switch-cli "$tmp_dir/csc"
-          tar -C "$tmp_dir" -czf "release-assets/${{ matrix.cli_archive }}" install-ccs.sh cc-switch cc-switch-cli ccs csc
+          mkdir -p "$tmp_dir/$FOLDER_NAME"
+          cp install-ccs.sh "$tmp_dir/$FOLDER_NAME/install-ccs.sh"
+          cp "$CLI_BIN" "$tmp_dir/$FOLDER_NAME/cc-switch"
+          cp "$CLI_BIN" "$tmp_dir/$FOLDER_NAME/cc-switch-cli"
+          ln -sfn cc-switch-cli "$tmp_dir/$FOLDER_NAME/ccs"
+          ln -sfn cc-switch-cli "$tmp_dir/$FOLDER_NAME/csc"
+          tar -C "$tmp_dir" -czf "release-assets/$ARCHIVE_NAME" "$FOLDER_NAME"
 
       - name: List prepared assets
         shell: bash
