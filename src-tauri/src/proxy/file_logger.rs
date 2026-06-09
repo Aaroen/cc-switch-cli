@@ -11,9 +11,9 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Mutex;
 
 /// 单个日志文件的默认最大体积（MB）。可用环境变量 `CC_SWITCH_LOG_MAX_MB` 覆盖。
-const DEFAULT_MAX_SIZE_MB: u64 = 50;
+const DEFAULT_MAX_SIZE_MB: u64 = 5;
 /// 默认保留的历史日志份数（server.log.1 ..= server.log.N）。可用 `CC_SWITCH_LOG_KEEP` 覆盖。
-const DEFAULT_KEEP_FILES: usize = 5;
+const DEFAULT_KEEP_FILES: usize = 0;
 /// 每累计写入约 1MB 才执行一次体积检查，避免每行写入都 stat 文件。
 const ROTATE_CHECK_INTERVAL_BYTES: u64 = 1024 * 1024;
 
@@ -205,24 +205,50 @@ impl FileLogger {
 
     /// 执行滚动轮转。
     ///
-    /// 关键点：先关闭当前文件句柄再 rename。Windows 上对仍被进程打开的文件执行
-    /// rename 会失败；先释放句柄可保证所有平台都能成功轮转。
+    /// 当 keep=0 时，使用文件内轮转：保留最后 80% 内容，删除开头旧数据，不创建历史文件。
+    /// 当 keep>0 时，使用多文件轮转：server.log -> server.log.1 -> ... -> server.log.N。
+    ///
+    /// 关键点：先关闭当前文件句柄再操作。Windows 上对仍被进程打开的文件执行
+    /// rename/truncate 会失败；先释放句柄可保证所有平台都能成功轮转。
     fn do_rotate(&self, keep: usize) {
-        let keep = keep.max(1);
         if let Ok(mut guard) = self.file.lock() {
-            // 关闭当前文件句柄，确保后续 rename 在所有平台（尤其 Windows）都能成功
+            // 关闭当前文件句柄，确保后续操作在所有平台（尤其 Windows）都能成功
             *guard = None;
 
-            // 从最旧到最新滚动：.(keep-1) -> .keep, ..., .1 -> .2
-            for i in (1..keep).rev() {
-                let from = self.rotated_path(i);
-                if from.exists() {
-                    let to = self.rotated_path(i + 1);
-                    let _ = fs::rename(&from, &to);
+            if keep == 0 {
+                // 文件内轮转：保留最后 80% 内容
+                use std::io::{Read, Seek, SeekFrom, Write};
+                let keep_bytes = (self.max_size_bytes * 4) / 5; // 保留 80%
+
+                if let Ok(mut file) = OpenOptions::new().read(true).write(true).open(&self.log_path) {
+                    if let Ok(file_len) = file.seek(SeekFrom::End(0)) {
+                        if file_len > keep_bytes {
+                            // 定位到保留位置
+                            if file.seek(SeekFrom::End(-(keep_bytes as i64))).is_ok() {
+                                let mut tail_content = Vec::new();
+                                if file.read_to_end(&mut tail_content).is_ok() {
+                                    // 截断并写回
+                                    let _ = file.set_len(0);
+                                    let _ = file.seek(SeekFrom::Start(0));
+                                    let _ = file.write_all(&tail_content);
+                                    let _ = file.flush();
+                                }
+                            }
+                        }
+                    }
                 }
+            } else {
+                // 多文件轮转：从最旧到最新滚动：.(keep-1) -> .keep, ..., .1 -> .2
+                for i in (1..keep).rev() {
+                    let from = self.rotated_path(i);
+                    if from.exists() {
+                        let to = self.rotated_path(i + 1);
+                        let _ = fs::rename(&from, &to);
+                    }
+                }
+                // server.log -> server.log.1
+                let _ = fs::rename(&self.log_path, &self.rotated_path(1));
             }
-            // server.log -> server.log.1
-            let _ = fs::rename(&self.log_path, &self.rotated_path(1));
 
             // 重新打开主文件继续写入
             *guard = OpenOptions::new()

@@ -1033,6 +1033,38 @@ impl RequestForwarder {
                                     Some(format!("Provider {} 失败: {}", provider.name, e));
                             }
 
+                            // 【新增】记录失败请求到数据库统计表
+                            {
+                                use super::usage::logger::UsageLogger;
+                                let logger = UsageLogger::new(self.router.database());
+                                let status_code = super::error_mapper::map_proxy_error_to_status(&e);
+                                let error_message = super::error_mapper::get_error_message(&e);
+                                let request_id = uuid::Uuid::new_v4().to_string();
+                                let model = provider_body
+                                    .get("model")
+                                    .and_then(|v| v.as_str())
+                                    .unwrap_or("unknown")
+                                    .to_string();
+
+                                // 延迟使用粗略估算（实际值已在文件日志中记录）
+                                let estimated_latency = 1000u64;
+
+                                if let Err(log_err) = logger.log_error_with_context(
+                                    request_id,
+                                    provider.id.clone(),
+                                    app_type_str.to_string(),
+                                    model.clone(),
+                                    status_code,
+                                    error_message,
+                                    estimated_latency,
+                                    false, // is_streaming - 此处尚未确定，故障转移前标记为 false
+                                    Some(self.session_id.clone()),
+                                    None,
+                                ) {
+                                    log::debug!("[{app_type_str}] 记录失败请求日志失败: {log_err}");
+                                }
+                            }
+
                             let (log_code, log_message) = build_retryable_failure_log(
                                 &provider.name,
                                 attempted_providers,

@@ -368,9 +368,31 @@ async fn start_headless_server_daemon(
         let _ = remove_pid_file();
     }
 
-    let log_path = get_config_dir().join("logs").join("server.log");
+    let log_path = get_config_dir().join("logs").join("summary.log");
     if let Some(parent) = log_path.parent() {
         std::fs::create_dir_all(parent).ok();
+    }
+
+    // 文件内轮转：summary.log 超过 5MB 时，保留最后 4MB 内容，删除开头旧数据
+    const MAX_LOG_SIZE_BYTES: u64 = 5 * 1024 * 1024; // 5MB
+    const KEEP_BYTES: u64 = 4 * 1024 * 1024; // 保留 4MB
+    if let Ok(metadata) = std::fs::metadata(&log_path) {
+        if metadata.len() >= MAX_LOG_SIZE_BYTES {
+            use std::io::{Read, Seek, SeekFrom, Write};
+            if let Ok(mut file) = std::fs::OpenOptions::new().read(true).write(true).open(&log_path) {
+                // 定位到末尾前 KEEP_BYTES 位置
+                if file.seek(SeekFrom::End(-(KEEP_BYTES as i64))).is_ok() {
+                    let mut tail_content = Vec::new();
+                    if file.read_to_end(&mut tail_content).is_ok() {
+                        // 截断文件并写回保留的内容
+                        let _ = file.set_len(0);
+                        let _ = file.seek(SeekFrom::Start(0));
+                        let _ = std::io::Write::write_all(&mut file, &tail_content);
+                        let _ = file.flush();
+                    }
+                }
+            }
+        }
     }
 
     let log_file = OpenOptions::new()

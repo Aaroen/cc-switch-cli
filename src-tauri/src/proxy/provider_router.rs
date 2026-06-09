@@ -33,6 +33,11 @@ impl ProviderRouter {
         }
     }
 
+    /// 获取数据库引用（用于失败请求日志记录）
+    pub fn database(&self) -> &Arc<Database> {
+        &self.db
+    }
+
     /// 选择可用的供应商（支持故障转移和权重轮询）
     ///
     /// 返回按优先级排序的可用供应商列表：
@@ -65,14 +70,17 @@ impl ProviderRouter {
             let all_providers = self.db.get_all_providers(app_type)?;
             let mut weighted_providers: Vec<Provider> = all_providers
                 .into_iter()
-                .filter(|(_, p)| p.weight > 0) // 过滤掉权重为0的（禁用的）
+                .filter(|(_, p)| {
+                    // 必须同时满足：1) 在故障转移队列中  2) 权重 > 0
+                    p.in_failover_queue && p.weight > 0
+                })
                 .map(|(_, p)| p)
                 .collect();
 
             total_providers = weighted_providers.len();
 
             if total_providers == 0 {
-                log::warn!("[{app_type}] 权重轮询模式: 没有可用供应商（所有供应商权重为0）");
+                log::warn!("[{app_type}] 权重轮询模式: 没有可用供应商（未在故障转移队列或权重为0）");
                 return Err(AppError::NoProvidersConfigured);
             }
 
