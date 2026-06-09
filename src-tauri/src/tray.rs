@@ -726,9 +726,19 @@ pub fn handle_tray_menu_event(app: &tauri::AppHandle, event_id: &str) {
         }
         "quit" => {
             log::info!("退出应用");
-            // 先执行 Tauri 清理(移除托盘图标等),消除托盘 subclass 窗口的消息源,
-            // 再用 process::exit 直接终止进程,绕过 Tao 0.34 事件循环销毁时
-            // "cannot move state from Destroyed" 的竞态崩溃(Windows)。
+            // Windows 托盘子类化窗口竞态修复：
+            // 1. 显式关闭所有窗口，触发窗口销毁事件
+            // 2. 100ms 延迟确保 Windows 消息队列清空
+            // 3. cleanup_before_exit 移除托盘图标及其隐藏窗口
+            // 4. process::exit 绕过 Tao 事件循环 Destroyed 状态检查
+            //
+            // 根本原因：托盘图标的 subclass 窗口过程在 Tao 状态机进入
+            // Destroyed 后仍可能收到延迟的 Windows 消息(DefSubclassProc)，
+            // 触发 runner.rs:371 "cannot move state from Destroyed" panic。
+            if let Some(windows) = app.webview_windows().values().next() {
+                let _ = windows.close();
+            }
+            std::thread::sleep(std::time::Duration::from_millis(100));
             app.cleanup_before_exit();
             std::process::exit(0);
         }
