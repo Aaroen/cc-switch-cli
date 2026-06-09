@@ -151,7 +151,6 @@ impl FileLogger {
         );
 
         self.write(&line);
-        log::info!("{}", line);
     }
 
     /// 记录失败请求
@@ -176,7 +175,6 @@ impl FileLogger {
         );
 
         self.write(&line);
-        log::error!("{}", line);
     }
 
     /// 按配置的最大体积检查并轮转（由写入路径自动调用）。

@@ -4,15 +4,43 @@
 //! 路径此前从未初始化任何后端，导致 `log::warn!`（含 USG-001 用量写入失败提示）、
 //! `log::info!`、`log::debug!` 等被静默丢弃，使代理/用量问题在守护进程模式下不可诊断。
 //!
-//! 本模块实现一个最小 `log::Log`，将记录追加到与 `file_logger` 相同的 server.log，
-//! 级别由数据库 `LogConfig` 决定。`file_logger` 已直接写入 server.log 并同时 mirror
-//! 到 log facade，为避免“正常/错误”摘要行重复，跳过来源于 `file_logger` 模块的记录。
+//! 本模块实现一个最小 `log::Log`，将详细日志写入 summary.log，
+//! 而 `file_logger` 将简洁的供应商调用摘要写入 server.log。
+//! 两个日志文件各自独立，互不干扰。
 
 use chrono::{FixedOffset, Utc};
 use log::{LevelFilter, Log, Metadata, Record};
+use std::fs::{self, OpenOptions};
+use std::io::Write;
+use std::path::PathBuf;
+use std::sync::Mutex;
 
 struct HeadlessLogger {
     level: LevelFilter,
+    summary_file: Mutex<Option<std::fs::File>>,
+}
+
+impl HeadlessLogger {
+    fn new(level: LevelFilter) -> Self {
+        let log_dir = dirs::home_dir()
+            .unwrap_or_else(|| PathBuf::from("."))
+            .join(".cc-switch")
+            .join("logs");
+
+        let _ = fs::create_dir_all(&log_dir);
+
+        let summary_path = log_dir.join("summary.log");
+        let summary_file = OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(&summary_path)
+            .ok();
+
+        Self {
+            level,
+            summary_file: Mutex::new(summary_file),
+        }
+    }
 }
 
 impl Log for HeadlessLogger {
@@ -24,11 +52,6 @@ impl Log for HeadlessLogger {
         if !self.enabled(record.metadata()) {
             return;
         }
-        let target = record.target();
-        // file_logger 自身已直接写入 server.log，跳过其 facade mirror，避免重复摘要行。
-        if target.contains("file_logger") {
-            return;
-        }
         let tz = match FixedOffset::east_opt(8 * 3600) {
             Some(tz) => tz,
             None => return,
@@ -37,10 +60,16 @@ impl Log for HeadlessLogger {
         let line = format!(
             "[{ts} {}] [{}] {}",
             record.level(),
-            target,
+            record.target(),
             record.args()
         );
-        crate::proxy::file_logger::get_file_logger().write(&line);
+
+        if let Ok(mut guard) = self.summary_file.lock() {
+            if let Some(file) = guard.as_mut() {
+                let _ = writeln!(file, "{}", line);
+                let _ = file.flush();
+            }
+        }
     }
 
     fn flush(&self) {}
@@ -50,7 +79,7 @@ impl Log for HeadlessLogger {
 ///
 /// 幂等：`set_boxed_logger` 仅首次成功；若已存在后端（重复调用/测试环境），仅调整级别。
 pub fn init(level: LevelFilter) {
-    let logger = Box::new(HeadlessLogger { level });
+    let logger = Box::new(HeadlessLogger::new(level));
     if log::set_boxed_logger(logger).is_ok() {
         log::set_max_level(level);
         log::info!("[headless-log] 日志后端已初始化，级别={level}");
