@@ -657,10 +657,23 @@ async fn log_usage_internal(
     // 检查 tokens 是否为 0（HTTP 200 但无有效 tokens，记录为错误）
     let total_tokens = usage.input_tokens + usage.output_tokens + usage.cache_read_tokens + usage.cache_creation_tokens;
     if status_code == 200 && total_tokens == 0 {
+        // 从数据库获取 provider_name
+        let provider_name = state
+            .db
+            .get_all_providers(app_type)
+            .ok()
+            .and_then(|providers| {
+                providers
+                    .into_iter()
+                    .find(|(_, p)| p.id == provider_id)
+                    .map(|(_, p)| p.name)
+            })
+            .unwrap_or_else(|| provider_id.to_string());
+
         super::file_logger::get_file_logger().log_success_with_zero_tokens(
             app_type,
             status_code,
-            provider_id,
+            &provider_name,
             latency_ms,
             model,
         );

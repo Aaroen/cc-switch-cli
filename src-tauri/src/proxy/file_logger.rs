@@ -155,11 +155,11 @@ impl FileLogger {
 
     /// 记录成功请求但检测到 tokens 为 0 的异常情况
     ///
-    /// 格式: [2026-01-16 18:02:37.257 ERROR] [claude] 错误 200 - provider-name                      ( 2.770s) [上游: model-name] - 详情: tokens=0
+    /// 格式: [2026-01-16 18:02:37.257 ERROR] [claude] 错误 999 - provider-name                      ( 2.770s) [上游: model-name] - 详情: tokens=0
     pub fn log_success_with_zero_tokens(
         &self,
         app_type: &str,
-        status_code: u16,
+        _status_code: u16,
         provider_name: &str,
         latency_ms: u64,
         model: &str,
@@ -169,8 +169,8 @@ impl FileLogger {
         let secs = (latency_ms as f64) / 1000.0;
 
         let line = format!(
-            "[{} ERROR] {} 错误 {} - {:<35} ({:>6.3}s) [上游: {}] - 详情: tokens=0",
-            timestamp, tool, status_code, provider_name, secs, model
+            "[{} ERROR] {} 错误 999 - {:<35} ({:>6.3}s) [上游: {}] - 详情: tokens=0",
+            timestamp, tool, provider_name, secs, model
         );
 
         self.write(&line);
