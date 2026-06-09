@@ -287,7 +287,7 @@ pub async fn server_status() -> Result<(), String> {
         // 尝试读取代理配置
         if let Ok(db) = crate::database::Database::init() {
             if let Ok(config) = db.get_global_proxy_config().await {
-                crate::cli::output::key_value(vec![
+                let mut info = vec![
                     (
                         "监听地址",
                         format!("{}:{}", config.listen_address, config.listen_port),
@@ -300,7 +300,24 @@ pub async fn server_status() -> Result<(), String> {
                             apps.join(", ")
                         }
                     }),
-                ]);
+                ];
+
+                // 添加 web 控制台信息
+                if let Ok(Some(web_port)) = db.get_web_panel_port() {
+                    let web_bind = db.get_web_panel_bind().ok().flatten().unwrap_or_else(|| "0.0.0.0".to_string());
+
+                    // 本机访问地址
+                    info.push(("✓ 本机访问", format!("http://127.0.0.1:{}", web_port)));
+
+                    // 局域网访问地址（仅当 web_bind 为 0.0.0.0 时显示）
+                    if web_bind == "0.0.0.0" {
+                        if let Ok(local_ip) = local_ipaddress::get() {
+                            info.push(("✓ 局域网访问", format!("http://{}:{}", local_ip, web_port)));
+                        }
+                    }
+                }
+
+                crate::cli::output::key_value(info);
             }
         }
     } else {

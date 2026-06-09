@@ -1243,7 +1243,7 @@ for pid in $(list_pids_matching "cc-switch"); do
     fi
     # 检查进程命令行，只杀死真正的 cc-switch 服务进程
     CMDLINE="$(cat "/proc/$pid/cmdline" 2>/dev/null | tr '\0' ' ' || true)"
-    if echo "$CMDLINE" | grep -qE "(^|/)cc-switch( |$)|cc-switch server" 2>/dev/null; then
+    if echo "$CMDLINE" | grep -qE "(^|/)cc-switch(-cli)?( |$)|(cc-switch|cc-switch-cli) server" 2>/dev/null; then
         kill "$pid" 2>/dev/null || true
     fi
 done
@@ -1257,7 +1257,7 @@ for pid in $(list_pids_matching "cc-switch"); do
         continue
     fi
     CMDLINE="$(cat "/proc/$pid/cmdline" 2>/dev/null | tr '\0' ' ' || true)"
-    if echo "$CMDLINE" | grep -qE "(^|/)cc-switch( |$)|cc-switch server" 2>/dev/null; then
+    if echo "$CMDLINE" | grep -qE "(^|/)cc-switch(-cli)?( |$)|(cc-switch|cc-switch-cli) server" 2>/dev/null; then
         echo ""
         echo -e "${YELLOW}强制终止残留进程 (PID: $pid)...${NC}"
         kill -9 "$pid" 2>/dev/null || true
