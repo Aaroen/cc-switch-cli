@@ -311,7 +311,7 @@ pub async fn server_status() -> Result<(), String> {
 
                     // 局域网访问地址（仅当 web_bind 为 0.0.0.0 时显示）
                     if web_bind == "0.0.0.0" {
-                        if let Ok(local_ip) = local_ipaddress::get() {
+                        if let Some(local_ip) = local_ipaddress::get() {
                             info.push(("✓ 局域网访问", format!("http://{}:{}", local_ip, web_port)));
                         }
                     }
