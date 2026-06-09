@@ -275,16 +275,17 @@ jobs:
           fi
           pnpm tauri build "${build_args[@]}"
 
-      - name: Build Tauri App (Linux)
-        if: runner.os == 'Linux'
-        shell: bash
-        run: |
-          set -euo pipefail
-          build_args=(--ci --bundles appimage,deb,rpm)
-          if [ -z "${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}" ]; then
-            build_args+=(--config '{"bundle":{"createUpdaterArtifacts":false}}')
-          fi
-          pnpm tauri build "${build_args[@]}"
+      # GUI 构建已禁用（调试阶段仅需 CLI）
+      # - name: Build Tauri App (Linux)
+      #   if: runner.os == 'Linux'
+      #   shell: bash
+      #   run: |
+      #     set -euo pipefail
+      #     build_args=(--ci --bundles appimage,deb,rpm)
+      #     if [ -z "${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}" ]; then
+      #       build_args+=(--config '{"bundle":{"createUpdaterArtifacts":false}}')
+      #     fi
+      #     pnpm tauri build "${build_args[@]}"
 
       - name: Build CLI binary (Linux)
         if: runner.os == 'Linux'
