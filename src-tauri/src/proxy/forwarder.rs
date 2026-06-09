@@ -2135,20 +2135,20 @@ impl RequestForwarder {
             ProxyError::Timeout(_) => ErrorCategory::Retryable,
             ProxyError::ForwardFailed(_) => ErrorCategory::Retryable,
             ProxyError::ProviderUnhealthy(_) => ErrorCategory::Retryable,
-            // 上游 HTTP 错误：按状态码分桶。
+            // 上游 HTTP 错误：原则上除了 200 以外都应该触发故障转移。
             //
-            // 客户端请求自身有问题的状态码无论换哪个 provider 都会被拒绝，
-            // 继续轮询只会放大错误率、污染熔断器健康度、浪费配额：
-            //   400 Bad Request / 422 Unprocessable Entity   ← 请求体格式或语义错误
-            //   405 Method Not Allowed / 406 Not Acceptable  ← 方法或 Accept 错误
-            //   413 Payload Too Large / 414 URI Too Long     ← 客户端构造超限
+            // 仅保留极少数明确的协议层错误作为 NonRetryable：
+            //   405 Method Not Allowed / 406 Not Acceptable  ← HTTP 方法或 Accept 错误
             //   415 Unsupported Media Type                    ← Content-Type 错误
-            //   501 Not Implemented                           ← 上游协议确实不支持
             //
-            // 其他 4xx（401/403/404/408/409/429/451 等）和全部 5xx 都保留
-            // Retryable —— 换一家 provider 可能持有不同的 key、配额、地域或模型映射。
+            // 400/413/414/422/501 全部改为 Retryable，因为：
+            //   - 400/422: 可能是 Provider 转换层错误或对请求体的特定要求
+            //   - 413/414: 不同 Provider 对请求大小的限制不同
+            //   - 501: 某个 Provider 不支持的参数，其他 Provider 可能支持
+            //
+            // 其他 4xx（401/403/404/408/409/429/451 等）和全部 5xx 都是 Retryable。
             ProxyError::UpstreamError { status, .. } => match *status {
-                400 | 405 | 406 | 413 | 414 | 415 | 422 | 501 => ErrorCategory::NonRetryable,
+                405 | 406 | 415 => ErrorCategory::NonRetryable,
                 _ => ErrorCategory::Retryable,
             },
             // Provider 级配置/转换问题：换一个 Provider 可能就能成功
