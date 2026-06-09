@@ -115,7 +115,7 @@ pub struct RequestForwarder {
     streaming_first_byte_timeout: std::time::Duration,
     /// 单个客户端请求最多尝试的 provider 数。
     ///
-    /// 由 `AppProxyConfig.max_retries` (UI: "请求失败时的重试次数, 0-10") 派生：
+    /// 由 `AppProxyConfig.max_retries` (UI: "请求失败时的重试次数, 0-100") 派生：
     /// `max_attempts = max_retries + 1`，所以 max_retries=0 表示仅尝试一家、
     /// max_retries=3（默认）表示最多 4 家。loop 同时受 providers.len() 自然限制。
     max_attempts: usize,
@@ -344,7 +344,16 @@ impl RequestForwarder {
 
         let result = self
             .forward_with_retry_inner(
-                app_type, method, endpoint, body, headers, extensions, providers,
+                app_type,
+                method,
+                endpoint,
+                body,
+                headers,
+                extensions,
+                providers,
+                &summary_model,
+                summary_app_type,
+                summary_started,
             )
             .await;
 
@@ -405,6 +414,9 @@ impl RequestForwarder {
         headers: axum::http::HeaderMap,
         extensions: Extensions,
         providers: Vec<Provider>,
+        summary_model: &str,
+        summary_app_type: &str,
+        summary_started: std::time::Instant,
     ) -> Result<ForwardResult, ForwardError> {
         // 获取适配器
         let adapter = get_adapter(app_type);
@@ -424,16 +436,10 @@ impl RequestForwarder {
         // 单 Provider 场景下跳过熔断器检查（故障转移关闭时）
         let bypass_circuit_breaker = providers.len() == 1;
 
-        // 依次尝试每个供应商
-        for provider in providers.iter() {
-            // 整流器重试标记：每个 provider 独立持有，避免标记跨 provider 短路故障转移
-            // —— 首家 provider 整流后被 5xx/timeout 击落时，下家仍能用整流后的请求体走整流流程
-            let mut rectifier_retried = false;
-            let mut budget_rectifier_retried = false;
-            let mut media_rectifier_retried = false;
-
+        // 循环尝试每个供应商，直到达到 max_attempts 或成功
+        // 如果 providers 数量少于 max_attempts，会循环重试（允许熔断恢复后再次尝试）
+        loop {
             // 上限检查：尊重用户在 AppProxyConfig.max_retries 上配置的「重试次数」。
-            // 放在熔断器 allow 检查之前，避免在已经超限时还占用 HalfOpen 探测名额。
             if attempted_providers >= self.max_attempts {
                 log::warn!(
                     "[{app_type_str}] 已达最大尝试次数上限 ({}/{}), 停止故障转移",
@@ -442,6 +448,15 @@ impl RequestForwarder {
                 );
                 break;
             }
+
+            // 选择当前要尝试的 Provider（循环使用）
+            let provider = &providers[attempted_providers % providers.len()];
+
+            // 整流器重试标记：每个 provider 独立持有，避免标记跨 provider 短路故障转移
+            // —— 首家 provider 整流后被 5xx/timeout 击落时，下家仍能用整流后的请求体走整流流程
+            let mut rectifier_retried = false;
+            let mut budget_rectifier_retried = false;
+            let mut media_rectifier_retried = false;
 
             // 发起请求前先获取熔断器放行许可（HalfOpen 会占用探测名额）
             // 单 Provider 场景下跳过此检查，避免熔断器阻塞所有请求
@@ -507,6 +522,22 @@ impl RequestForwarder {
                     // HalfOpen 探测仍同步等待，保证 permit 与熔断状态及时释放。
                     self.record_success_result(&provider.id, app_type_str, used_half_open_permit)
                         .await;
+
+                    // 【新增】立即写入 server.log 成功记录
+                    {
+                        let latency_ms = summary_started.elapsed().as_millis() as u64;
+                        let model = provider_body
+                            .get("model")
+                            .and_then(|v| v.as_str())
+                            .unwrap_or(&summary_model);
+                        super::file_logger::get_file_logger().log_success(
+                            summary_app_type,
+                            response.status().as_u16(),
+                            &provider.name,
+                            latency_ms,
+                            model,
+                        );
+                    }
 
                     // 更新当前应用类型使用的 provider
                     {
@@ -610,6 +641,22 @@ impl RequestForwarder {
                                         used_half_open_permit,
                                     )
                                     .await;
+
+                                    // 【新增】立即写入 server.log 成功记录（media重试）
+                                    {
+                                        let latency_ms = summary_started.elapsed().as_millis() as u64;
+                                        let model = media_body
+                                            .get("model")
+                                            .and_then(|v| v.as_str())
+                                            .unwrap_or(&summary_model);
+                                        super::file_logger::get_file_logger().log_success(
+                                            summary_app_type,
+                                            response.status().as_u16(),
+                                            &provider.name,
+                                            latency_ms,
+                                            model,
+                                        );
+                                    }
 
                                     {
                                         let mut current_providers =
@@ -753,6 +800,22 @@ impl RequestForwarder {
                                             used_half_open_permit,
                                         )
                                         .await;
+
+                                        // 【新增】立即写入 server.log 成功记录（thinking整流重试）
+                                        {
+                                            let latency_ms = summary_started.elapsed().as_millis() as u64;
+                                            let model = provider_body
+                                                .get("model")
+                                                .and_then(|v| v.as_str())
+                                                .unwrap_or(&summary_model);
+                                            super::file_logger::get_file_logger().log_success(
+                                                summary_app_type,
+                                                response.status().as_u16(),
+                                                &provider.name,
+                                                latency_ms,
+                                                model,
+                                            );
+                                        }
 
                                         // 更新当前应用类型使用的 provider
                                         {
@@ -919,6 +982,22 @@ impl RequestForwarder {
                                     )
                                     .await;
 
+                                    // 【新增】立即写入 server.log 成功记录（budget整流重试）
+                                    {
+                                        let latency_ms = summary_started.elapsed().as_millis() as u64;
+                                        let model = provider_body
+                                            .get("model")
+                                            .and_then(|v| v.as_str())
+                                            .unwrap_or(&summary_model);
+                                        super::file_logger::get_file_logger().log_success(
+                                            summary_app_type,
+                                            response.status().as_u16(),
+                                            &provider.name,
+                                            latency_ms,
+                                            model,
+                                        );
+                                    }
+
                                     {
                                         let mut current_providers =
                                             self.current_providers.write().await;
@@ -1031,6 +1110,25 @@ impl RequestForwarder {
                                 let mut status = self.status.write().await;
                                 status.last_error =
                                     Some(format!("Provider {} 失败: {}", provider.name, e));
+                            }
+
+                            // 【新增】立即写入 server.log 失败记录
+                            {
+                                let latency_ms = summary_started.elapsed().as_millis() as u64;
+                                let status_code = super::error_mapper::map_proxy_error_to_status(&e);
+                                let detail = super::error_mapper::get_error_message(&e);
+                                let model = provider_body
+                                    .get("model")
+                                    .and_then(|v| v.as_str())
+                                    .unwrap_or(&summary_model);
+                                super::file_logger::get_file_logger().log_error(
+                                    summary_app_type,
+                                    status_code,
+                                    &provider.name,
+                                    latency_ms,
+                                    model,
+                                    &detail,
+                                );
                             }
 
                             // 【新增】记录失败请求到数据库统计表

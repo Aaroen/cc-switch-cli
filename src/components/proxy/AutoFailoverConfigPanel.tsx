@@ -66,7 +66,7 @@ export function AutoFailoverConfigPanel({
 
     // 定义各字段的有效范围
     const ranges = {
-      maxRetries: { min: 0, max: 10 },
+      maxRetries: { min: 0, max: 100 },
       streamingFirstByteTimeout: { min: 1, max: 120 },
       streamingIdleTimeout: { min: 0, max: 600 },
       nonStreamingTimeout: { min: 60, max: 1200 },
@@ -258,7 +258,7 @@ export function AutoFailoverConfigPanel({
               <p className="text-xs text-muted-foreground">
                 {t(
                   "proxy.autoFailover.maxRetriesHint",
-                  "请求失败时的重试次数（0-10）",
+                  "请求失败时的重试次数（0-100）",
                 )}
               </p>
             </div>

@@ -405,6 +405,7 @@ export function RequestLogTable({
                                 ? "text-green-600"
                                 : "text-red-600"
                             }
+                            title={log.errorMessage || undefined}
                           >
                             {log.statusCode}
                           </span>
