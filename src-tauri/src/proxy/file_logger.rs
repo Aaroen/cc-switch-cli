@@ -153,6 +153,29 @@ impl FileLogger {
         self.write(&line);
     }
 
+    /// 记录成功请求但检测到 tokens 为 0 的异常情况
+    ///
+    /// 格式: [2026-01-16 18:02:37.257 ERROR] [claude] 错误 200 - provider-name                      ( 2.770s) [上游: model-name] - 详情: tokens=0
+    pub fn log_success_with_zero_tokens(
+        &self,
+        app_type: &str,
+        status_code: u16,
+        provider_name: &str,
+        latency_ms: u64,
+        model: &str,
+    ) {
+        let timestamp = Self::format_timestamp();
+        let tool = Self::format_tool_tag(app_type);
+        let secs = (latency_ms as f64) / 1000.0;
+
+        let line = format!(
+            "[{} ERROR] {} 错误 {} - {:<35} ({:>6.3}s) [上游: {}] - 详情: tokens=0",
+            timestamp, tool, status_code, provider_name, secs, model
+        );
+
+        self.write(&line);
+    }
+
     /// 记录失败请求
     ///
     /// 格式: [2026-01-16 18:02:39.456 ERROR] [gemini] 错误 429 - provider-name                      ( 0.567s) [上游: model-name] - 详情: error message

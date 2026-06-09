@@ -654,6 +654,18 @@ async fn log_usage_internal(
         usage.cache_creation_tokens
     );
 
+    // 检查 tokens 是否为 0（HTTP 200 但无有效 tokens，记录为错误）
+    let total_tokens = usage.input_tokens + usage.output_tokens + usage.cache_read_tokens + usage.cache_creation_tokens;
+    if status_code == 200 && total_tokens == 0 {
+        super::file_logger::get_file_logger().log_success_with_zero_tokens(
+            app_type,
+            status_code,
+            provider_id,
+            latency_ms,
+            model,
+        );
+    }
+
     if let Err(e) = logger.log_with_calculation(
         request_id,
         provider_id.to_string(),
