@@ -29,14 +29,15 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - os: windows-2022
-            artifact_name: windows-x86_64
-            cli_archive: cc-switch-cli-windows-x86_64.zip
+          # 仅构建 Linux x86_64（调试阶段）
           - os: ubuntu-22.04
             artifact_name: linux-x86_64
             arch: x86_64
             cli_archive: cc-switch-cli-linux-x86_64.tar.gz
-          # macOS / arm64 暂不构建（仅产出 Linux + Windows）；保留以便日后恢复
+          # Windows / macOS / arm64 暂不构建；保留以便日后恢复
+          # - os: windows-2022
+          #   artifact_name: windows-x86_64
+          #   cli_archive: cc-switch-cli-windows-x86_64.zip
           # - os: ubuntu-22.04-arm
           #   artifact_name: linux-arm64
           #   arch: arm64
