@@ -604,23 +604,19 @@ jobs:
           body: |
             ## CC Switch ${{ github.ref_name }}
 
-            面向 GUI 与 CLI/无头场景的多平台发布包。
-
-            ### GUI 安装包
-
-            - macOS: `CC-Switch-${{ github.ref_name }}-macOS.zip`；如已配置 Apple 签名/公证，则同时提供 `CC-Switch-${{ github.ref_name }}-macOS.dmg` 与 `CC-Switch-${{ github.ref_name }}-macOS.tar.gz`
-            - Windows: `CC-Switch-${{ github.ref_name }}-Windows.msi` 与 `CC-Switch-${{ github.ref_name }}-Windows-Portable.zip`
-            - Linux x86_64: `CC-Switch-${{ github.ref_name }}-Linux-x86_64.AppImage` / `.deb` / `.rpm`
-            - Linux arm64: `CC-Switch-${{ github.ref_name }}-Linux-arm64.AppImage` / `.deb` / `.rpm`
+            面向 CLI/无头场景的 Linux 发布包。
 
             ### CLI 终端包
 
             - Linux x86_64: `cc-switch-cli-linux-x86_64.tar.gz`
-            - Linux arm64: `cc-switch-cli-linux-arm64.tar.gz`
-            - macOS universal: `cc-switch-cli-macos-universal.tar.gz`
-            - Windows x86_64: `cc-switch-cli-windows-x86_64.zip`
 
-            提示：macOS 如遇“已损坏”提示，可在终端执行 `xattr -cr "/Applications/CC Switch.app"`。
+            安装方法：
+            ```bash
+            wget https://github.com/Aaroen/cc-switch-cli/releases/download/${{ github.ref_name }}/cc-switch-cli-linux-x86_64.tar.gz
+            tar -xzf cc-switch-cli-linux-x86_64.tar.gz
+            cd cc-switch-cli-linux-x86_64
+            sudo ./install-ccs.sh
+            ```
           files: release-assets/*
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
