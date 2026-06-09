@@ -523,21 +523,7 @@ impl RequestForwarder {
                     self.record_success_result(&provider.id, app_type_str, used_half_open_permit)
                         .await;
 
-                    // 【新增】立即写入 server.log 成功记录
-                    {
-                        let latency_ms = summary_started.elapsed().as_millis() as u64;
-                        let model = provider_body
-                            .get("model")
-                            .and_then(|v| v.as_str())
-                            .unwrap_or(&summary_model);
-                        super::file_logger::get_file_logger().log_success(
-                            summary_app_type,
-                            response.status().as_u16(),
-                            &provider.name,
-                            latency_ms,
-                            model,
-                        );
-                    }
+                    // 【移除】成功日志已在外层统一记录（第366行），此处不重复写入
 
                     // 更新当前应用类型使用的 provider
                     {
@@ -642,21 +628,7 @@ impl RequestForwarder {
                                     )
                                     .await;
 
-                                    // 【新增】立即写入 server.log 成功记录（media重试）
-                                    {
-                                        let latency_ms = summary_started.elapsed().as_millis() as u64;
-                                        let model = media_body
-                                            .get("model")
-                                            .and_then(|v| v.as_str())
-                                            .unwrap_or(&summary_model);
-                                        super::file_logger::get_file_logger().log_success(
-                                            summary_app_type,
-                                            response.status().as_u16(),
-                                            &provider.name,
-                                            latency_ms,
-                                            model,
-                                        );
-                                    }
+                                    // 【移除】media重试成功的日志已在外层统一记录，此处不重复写入
 
                                     {
                                         let mut current_providers =
@@ -801,21 +773,7 @@ impl RequestForwarder {
                                         )
                                         .await;
 
-                                        // 【新增】立即写入 server.log 成功记录（thinking整流重试）
-                                        {
-                                            let latency_ms = summary_started.elapsed().as_millis() as u64;
-                                            let model = provider_body
-                                                .get("model")
-                                                .and_then(|v| v.as_str())
-                                                .unwrap_or(&summary_model);
-                                            super::file_logger::get_file_logger().log_success(
-                                                summary_app_type,
-                                                response.status().as_u16(),
-                                                &provider.name,
-                                                latency_ms,
-                                                model,
-                                            );
-                                        }
+                                        // 【移除】thinking整流重试成功的日志已在外层统一记录，此处不重复写入
 
                                         // 更新当前应用类型使用的 provider
                                         {
@@ -982,21 +940,7 @@ impl RequestForwarder {
                                     )
                                     .await;
 
-                                    // 【新增】立即写入 server.log 成功记录（budget整流重试）
-                                    {
-                                        let latency_ms = summary_started.elapsed().as_millis() as u64;
-                                        let model = provider_body
-                                            .get("model")
-                                            .and_then(|v| v.as_str())
-                                            .unwrap_or(&summary_model);
-                                        super::file_logger::get_file_logger().log_success(
-                                            summary_app_type,
-                                            response.status().as_u16(),
-                                            &provider.name,
-                                            latency_ms,
-                                            model,
-                                        );
-                                    }
+                                    // 【移除】budget整流重试成功的日志已在外层统一记录，此处不重复写入
 
                                     {
                                         let mut current_providers =
