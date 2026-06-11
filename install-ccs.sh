@@ -21,6 +21,8 @@
 # 环境变量:
 #   CLI_MODE=true|false          # 设置部署模式（默认: true）
 #   CC_SWITCH_PORT=端口号         # 指定代理服务端口（默认: 15721）
+#   CC_SWITCH_HOST=监听地址       # 指定代理监听地址（默认: 0.0.0.0，允许局域网访问）
+#   CC_SWITCH_CLIENT_HOST=访问地址 # 写入本机 CLI 配置的访问地址（默认: 127.0.0.1）
 #
 # 支持的Linux发行版:
 #   - Ubuntu/Debian (apt)
@@ -217,21 +219,23 @@ download_with_retry() {
 # 智能查找可用端口
 is_port_free() {
     local port="$1"
+    local host="${2:-127.0.0.1}"
 
     # 最可靠：直接尝试 bind（不依赖 ss/netstat/lsof，也不依赖连接握手）
     if command -v python3 >/dev/null 2>&1; then
-        python3 - "$port" <<'PY'
+        python3 - "$port" "$host" <<'PY'
 import errno
 import socket
 import sys
 
 port = int(sys.argv[1])
+host = sys.argv[2]
 
 def can_bind_ipv4():
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     try:
         s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        s.bind(("127.0.0.1", port))
+        s.bind((host, port))
         return True
     except OSError as e:
         if e.errno == errno.EADDRINUSE:
@@ -265,21 +269,24 @@ PY
     fi
 
     # 兜底：尝试连接（可能受 backlog/防火墙/拥塞影响，仅作为最后手段）
+    local connect_host="$host"
+    [ "$connect_host" = "0.0.0.0" ] && connect_host="127.0.0.1"
     if command -v timeout >/dev/null 2>&1; then
-        ! timeout 1 bash -c "cat < /dev/null > /dev/tcp/127.0.0.1/$port" 2>/dev/null
+        ! timeout 1 bash -c "cat < /dev/null > /dev/tcp/$connect_host/$port" 2>/dev/null
         return $?
     fi
-    ! bash -c "cat < /dev/null > /dev/tcp/127.0.0.1/$port" 2>/dev/null
+    ! bash -c "cat < /dev/null > /dev/tcp/$connect_host/$port" 2>/dev/null
     return $?
 }
 
 find_available_port() {
     local start_port=$1
+    local host="${2:-127.0.0.1}"
     local max_attempts=100
     local port=$start_port
 
     while [ $((port - start_port)) -lt $max_attempts ]; do
-        if is_port_free "$port"; then
+        if is_port_free "$port" "$host"; then
             echo "$port"
             return 0
         fi
@@ -392,6 +399,8 @@ usage() {
     echo "环境变量:"
     echo "  CLI_MODE=true|false    设置部署模式（默认: true）"
     echo "  CC_SWITCH_PORT=端口号   指定代理端口（默认: 15721）"
+    echo "  CC_SWITCH_HOST=监听地址 指定代理监听地址（默认: 0.0.0.0，允许局域网访问）"
+    echo "  CC_SWITCH_CLIENT_HOST=访问地址 写入本机 CLI 配置的访问地址（默认: 127.0.0.1）"
     echo ""
     echo "示例:"
     echo "  $0                         # CLI模式部署"
@@ -399,6 +408,7 @@ usage() {
     echo "  $0 --update                # 更新并部署"
     echo "  $0 --prebuilt ./cc-switch  # 使用预构建二进制部署"
     echo "  CC_SWITCH_PORT=8080 $0     # 使用8080端口"
+    echo "  CC_SWITCH_HOST=127.0.0.1 $0 # 仅监听本机"
     echo ""
 }
 
@@ -1451,7 +1461,7 @@ EOF
     CODEX_CONFIG_FILE="$CODEX_CONFIG_DIR/config.toml"
     mkdir -p "$CODEX_CONFIG_DIR"
     cat > "$CODEX_CONFIG_FILE" <<EOF
-model = "gpt-4o"
+model = "gpt-5"
 model_provider = "cc-switch"
 
 [model_providers.cc-switch]
@@ -1477,18 +1487,22 @@ CURRENT_STEP=9
 step_running $CURRENT_STEP $TOTAL_STEPS "配置环境变量"
 
 DEFAULT_PORT=15721
-PROXY_HOST="127.0.0.1"
+PROXY_BIND_HOST="${CC_SWITCH_HOST:-0.0.0.0}"
+PROXY_CLIENT_HOST="${CC_SWITCH_CLIENT_HOST:-$PROXY_BIND_HOST}"
+if [ "$PROXY_CLIENT_HOST" = "0.0.0.0" ]; then
+    PROXY_CLIENT_HOST="127.0.0.1"
+fi
 REQUESTED_PORT="${CC_SWITCH_PORT:-$DEFAULT_PORT}"
 
 # 使用智能端口查找函数
-PROXY_PORT=$(find_available_port "$REQUESTED_PORT")
+PROXY_PORT=$(find_available_port "$REQUESTED_PORT" "$PROXY_BIND_HOST")
 
 if [ "$PROXY_PORT" != "$REQUESTED_PORT" ]; then
     echo ""
     echo -e "${YELLOW}端口 $REQUESTED_PORT 已被占用，已自动切换到端口 $PROXY_PORT${NC}"
 fi
 
-PROXY_BASE="http://${PROXY_HOST}:${PROXY_PORT}"
+PROXY_BASE="http://${PROXY_CLIENT_HOST}:${PROXY_PORT}"
 
 write_cli_configs "$PROXY_BASE"
 
@@ -1510,7 +1524,7 @@ if [ "$CLI_MODE" = "true" ]; then
 
     while [ $PORT_RETRY -le $MAX_PORT_RETRY ]; do
         # CLI 模式：自动启动无头服务器（按需附加 Web 控制台 --web-port/--web-bind）
-        CCS_START_ARGS=(server start --host 127.0.0.1 --port "$PROXY_PORT")
+        CCS_START_ARGS=(server start --host "$PROXY_BIND_HOST" --port "$PROXY_PORT")
         if [ "${WEB_PANEL_ENABLED:-0}" -eq 1 ] && [ -n "${WEB_PORT:-}" ]; then
             CCS_START_ARGS+=(--web-port "$WEB_PORT" --web-bind "$WEB_BIND")
         fi
@@ -1558,12 +1572,12 @@ if [ "$CLI_MODE" = "true" ]; then
         # 若日志提示端口占用，则自动换端口再试（避免“检测端口空闲”误判）
         if [ -f "$LOG_DIR/server.log" ] && tail -50 "$LOG_DIR/server.log" | grep -qiE 'Address already in use|os error 98|地址绑定失败'; then
             PORT_RETRY=$((PORT_RETRY + 1))
-            NEW_PORT=$(find_available_port $((PROXY_PORT + 1)))
+            NEW_PORT=$(find_available_port $((PROXY_PORT + 1)) "$PROXY_BIND_HOST")
             if [ "$NEW_PORT" = "$PROXY_PORT" ]; then
                 break
             fi
             PROXY_PORT="$NEW_PORT"
-            PROXY_BASE="http://${PROXY_HOST}:${PROXY_PORT}"
+            PROXY_BASE="http://${PROXY_CLIENT_HOST}:${PROXY_PORT}"
             echo -e "${YELLOW}检测到端口占用，自动切换到端口 $PROXY_PORT 并重试启动...${NC}"
             write_cli_configs "$PROXY_BASE"
             continue
@@ -1574,7 +1588,7 @@ if [ "$CLI_MODE" = "true" ]; then
 
     if [ "$SERVER_STARTED" = true ]; then
         SERVER_PID=$(cat "$CC_SWITCH_DIR/server.pid")
-        step_done $CURRENT_STEP $TOTAL_STEPS "启动代理服务 (CLI模式, PID:$SERVER_PID, 端口:$PROXY_PORT)"
+        step_done $CURRENT_STEP $TOTAL_STEPS "启动代理服务 (CLI模式, PID:$SERVER_PID, 监听:$PROXY_BIND_HOST:$PROXY_PORT)"
     else
         step_error $CURRENT_STEP $TOTAL_STEPS "代理服务启动失败"
         echo ""
@@ -1590,7 +1604,7 @@ if [ "$CLI_MODE" = "true" ]; then
         echo ""
         echo -e "${YELLOW}建议尝试:${NC}"
         echo "  1. 检查端口 $PROXY_PORT 是否被占用: lsof -i :$PROXY_PORT"
-        echo "  2. 手动启动: $CLI_LAUNCHER server start --port $PROXY_PORT"
+        echo "  2. 手动启动: $CLI_LAUNCHER server start --host $PROXY_BIND_HOST --port $PROXY_PORT"
         echo "  3. 查看详细日志: tail -f $LOG_DIR/server.log"
         exit 1
     fi
@@ -1686,7 +1700,19 @@ echo ""
 echo -e "${BLUE}   代理服务 (端口 ${PROXY_PORT})${NC}"
 if [ "$PROXY_OK" = true ]; then
     echo -e "   状态: ${GREEN}✓ 运行中${NC}"
-    echo -e "   地址: ${PROXY_HOST}:${PROXY_PORT}"
+    echo -e "   监听: ${PROXY_BIND_HOST}:${PROXY_PORT}"
+    echo -e "   本机访问: http://${PROXY_CLIENT_HOST}:${PROXY_PORT}"
+    case "$PROXY_BIND_HOST" in
+        0.0.0.0)
+            _lan_ip="$(hostname -I 2>/dev/null | awk '{print $1}')"
+            [ -n "$_lan_ip" ] && echo -e "   局域网访问: http://${_lan_ip}:${PROXY_PORT}"
+            ;;
+        127.*|localhost)
+            ;;
+        *)
+            echo -e "   局域网访问: http://${PROXY_BIND_HOST}:${PROXY_PORT}"
+            ;;
+    esac
     echo -e "   查看日志:  tail -n 300 -F ~/.cc-switch/logs/server.log"
 else
     echo -e "   状态: ${RED}✗ 未运行${NC}"
