@@ -118,7 +118,7 @@ ccs server restart
 ## 配置与日志
 
 - **数据库**: `~/.cc-switch/cc-switch.db` (SQLite,含供应商/权重/用量统计)
-- **日志**: `~/.cc-switch/logs/server.log` (代理请求与故障转移日志,自动轮转,默认 50MB/保留 5 份)
+- **日志**: `~/.cc-switch/logs/server.log` (代理请求与故障转移日志,自动轮转,默认 50MB/保留 5 份) grc tail -F ~/.cc-switch/logs/server.log 查看
 - **崩溃日志**: `~/.cc-switch/crash.log` (Windows 闪退诊断用)
 - **CLI 原生配置**: `~/.claude/` / `~/.codex/` / `~/.gemini/` 等(与官方 CLI 兼容)
 
