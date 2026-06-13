@@ -17,26 +17,15 @@
 
 ### Linux (无头 CLI)
 
-**一键部署**（从最新 release 自动下载并部署）：
+**一键部署**（自动下载最新 release 并部署）：
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/Aaroen/cc-switch-cli/main/deploy.sh | bash
 ```
 
-或手动下载后部署：
-
-```bash
-# 1. 下载并解压
-curl -fsSL https://github.com/Aaroen/cc-switch-cli/releases/latest/download/cc-switch-cli-linux-x86_64.tar.gz | tar -xz
-cd cc-switch-cli-linux-x86_64
-
-# 2. 部署
-./deploy.sh
-```
-
 部署脚本会自动：
+- 从 GitHub Release 下载最新的二进制文件（仅 Linux x86_64 未找到本地二进制时）
 - 检测 GUI/无头环境，选择对应模式
-- 查找已编译的二进制文件（无需重复编译）
 - 安装到 `~/.local/bin` 并配置 PATH
 - 配置 Claude Code CLI 和 Codex CLI（最小侵入）
 - 无头模式自动启动后台服务 + Web 控制台（局域网可访问）

@@ -165,6 +165,45 @@ check_python() {
     fi
 }
 
+# 下载最新的二进制文件
+download_binary() {
+    echo -e "${BLUE}未找到本地二进制文件，正在从 GitHub Release 下载...${NC}"
+
+    # 检测架构
+    local arch="$(uname -m)"
+    local os="$(uname -s | tr '[:upper:]' '[:lower:]')"
+
+    if [ "$arch" != "x86_64" ] || [ "$os" != "linux" ]; then
+        error "当前仅支持 Linux x86_64 架构，检测到: $os $arch"
+    fi
+
+    # 创建临时目录
+    local tmp_dir="$(mktemp -d)"
+    cd "$tmp_dir" || error "无法创建临时目录"
+
+    echo -e "${CYAN}下载地址: https://github.com/Aaroen/cc-switch-cli/releases/latest/download/cc-switch-cli-linux-x86_64.tar.gz${NC}"
+
+    # 下载并解压
+    if ! curl -fsSL "https://github.com/Aaroen/cc-switch-cli/releases/latest/download/cc-switch-cli-linux-x86_64.tar.gz" | tar -xz; then
+        error "下载失败，请检查网络连接或手动下载：
+  https://github.com/Aaroen/cc-switch-cli/releases/latest"
+    fi
+
+    # 查找解压后的二进制文件
+    local binary=""
+    if [ -f "cc-switch" ]; then
+        binary="$tmp_dir/cc-switch"
+    elif [ -f "cc-switch-cli-linux-x86_64/cc-switch" ]; then
+        binary="$tmp_dir/cc-switch-cli-linux-x86_64/cc-switch"
+    else
+        error "下载的文件中未找到 cc-switch 二进制"
+    fi
+
+    chmod +x "$binary"
+    echo -e "${GREEN}✓ 下载完成: $binary${NC}"
+    echo "$binary"
+}
+
 # 查找二进制文件
 find_binary() {
     local binary=""
@@ -196,15 +235,9 @@ find_binary() {
         fi
     fi
 
+    # 优先级5：自动从 GitHub Release 下载
     if [ -z "$binary" ]; then
-        error "未找到 cc-switch 二进制文件
-
-请先编译:
-  cd src-tauri
-  cargo build --release
-
-或通过 --binary 指定路径:
-  ./deploy.sh --binary /path/to/cc-switch"
+        binary="$(download_binary)"
     fi
 
     echo "$binary"
