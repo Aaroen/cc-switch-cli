@@ -550,10 +550,10 @@ jobs:
           ARCHIVE_NAME="${{ matrix.cli_archive }}"
           FOLDER_NAME="${ARCHIVE_NAME%.tar.gz}"
 
-          chmod +x install-ccs.sh "$CLI_BIN"
+          chmod +x deploy.sh "$CLI_BIN"
           tmp_dir="$(mktemp -d)"
           mkdir -p "$tmp_dir/$FOLDER_NAME"
-          cp install-ccs.sh "$tmp_dir/$FOLDER_NAME/install-ccs.sh"
+          cp deploy.sh "$tmp_dir/$FOLDER_NAME/deploy.sh"
           cp "$CLI_BIN" "$tmp_dir/$FOLDER_NAME/cc-switch"
           cp "$CLI_BIN" "$tmp_dir/$FOLDER_NAME/cc-switch-cli"
           ln -sfn cc-switch-cli "$tmp_dir/$FOLDER_NAME/ccs"
@@ -615,7 +615,7 @@ jobs:
             wget https://github.com/Aaroen/cc-switch-cli/releases/download/${{ github.ref_name }}/cc-switch-cli-linux-x86_64.tar.gz
             tar -xzf cc-switch-cli-linux-x86_64.tar.gz
             cd cc-switch-cli-linux-x86_64
-            sudo ./install-ccs.sh
+            sudo ./deploy.sh
             ```
           files: release-assets/*
         env:
