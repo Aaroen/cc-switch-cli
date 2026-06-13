@@ -5,7 +5,7 @@
 #
 # 使用方法：
 #   ./deploy.sh                                    # 默认配置部署
-#   ./deploy.sh --binary /path/to/cc-switch        # 指定二进制文件
+#   ./deploy.sh --binary /path/to/cc-switch-cli    # 指定二进制文件
 #   ./deploy.sh --port 15722 --host 0.0.0.0        # 自定义端口和监听地址
 #   ./deploy.sh --headless                         # 强制无头模式
 #   ./deploy.sh --gui                              # 强制GUI模式
@@ -31,7 +31,7 @@ DEFAULT_PROXY_PORT=15721
 DEFAULT_WEB_PORT=8888
 DEFAULT_PROXY_HOST="0.0.0.0"
 DEFAULT_WEB_BIND="0.0.0.0"
-MAX_PORT_RETRY=3
+MAX_PORT_RETRY=10
 
 # 全局变量
 BINARY_PATH=""
@@ -41,7 +41,6 @@ WEB_PORT=""
 WEB_BIND=""
 FORCE_CLI=false
 FORCE_GUI=false
-HAS_GUI=false
 CLI_MODE=false
 
 # 错误处理
@@ -62,16 +61,16 @@ CC Switch 快速部署脚本
   --binary <path>      指定二进制文件路径
   --port <port>        代理服务端口（默认: 15721）
   --host <addr>        代理监听地址（默认: 0.0.0.0）
-  --web-port <port>    Web控制台端口（默认: 15720）
+  --web-port <port>    Web控制台端口（默认: 8888）
   --web-bind <addr>    Web控制台监听地址（默认: 0.0.0.0）
-  --headless           强制无头模式
-  --gui                强制GUI模式
+  --headless           强制无头模式（当前为默认模式）
+  --gui                强制GUI模式（尚未完全实现）
   -h, --help           显示此帮助信息
 
 示例:
   ./deploy.sh
   ./deploy.sh --port 15722
-  ./deploy.sh --binary ./cc-switch --headless
+  ./deploy.sh --binary ./cc-switch-cli --headless
 
 环境变量:
   CC_SWITCH_PORT       代理服务端口
@@ -123,27 +122,25 @@ parse_arguments() {
         esac
     done
 
-    # 设置默认值（优先级：命令行参数 > 环境变量 > 默认值）
     PROXY_PORT="${PROXY_PORT:-${CC_SWITCH_PORT:-$DEFAULT_PROXY_PORT}}"
     PROXY_HOST="${PROXY_HOST:-${CC_SWITCH_HOST:-$DEFAULT_PROXY_HOST}}"
     WEB_PORT="${WEB_PORT:-${CC_SWITCH_WEB_PORT:-$DEFAULT_WEB_PORT}}"
     WEB_BIND="${WEB_BIND:-${CC_SWITCH_WEB_BIND:-$DEFAULT_WEB_BIND}}"
-}
 
-# 检测GUI环境
-detect_gui() {
-    if [ -n "${DISPLAY:-}" ] || [ -n "${WAYLAND_DISPLAY:-}" ]; then
-        HAS_GUI=true
-        echo -e "${BLUE}✓ 检测到 GUI 环境${NC}"
-    else
-        HAS_GUI=false
-        echo -e "${BLUE}✓ 检测到无头环境${NC}"
+    # 检查冲突的参数
+    if [ "$FORCE_CLI" = "true" ] && [ "$FORCE_GUI" = "true" ]; then
+        error "不能同时指定 --headless 和 --gui 参数"
     fi
 }
 
 # 确定部署模式
 determine_mode() {
-    # 统一使用 CLI 无头模式
+    # 当前仅支持 CLI 无头模式
+    # GUI 模式的支持正在开发中
+    if [ "$FORCE_GUI" = "true" ]; then
+        echo -e "${YELLOW}⚠ 注意: GUI 模式尚未完全实现，将使用 CLI 模式${NC}"
+    fi
+
     CLI_MODE=true
     echo -e "${CYAN}▸ 模式: CLI（无头后台服务）${NC}"
 }
@@ -175,7 +172,7 @@ download_binary() {
     echo -e "${CYAN}下载地址: https://github.com/Aaroen/cc-switch-cli/releases/latest/download/cc-switch-cli-linux-x86_64.tar.gz${NC}" >&2
 
     # 清理旧文件
-    rm -rf cc-switch-cli-linux-x86_64 cc-switch 2>/dev/null || true
+    rm -rf cc-switch-cli-linux-x86_64 cc-switch-cli 2>/dev/null || true
 
     # 下载并解压
     if ! curl -fsSL "https://github.com/Aaroen/cc-switch-cli/releases/latest/download/cc-switch-cli-linux-x86_64.tar.gz" | tar -xz; then
@@ -183,14 +180,18 @@ download_binary() {
   https://github.com/Aaroen/cc-switch-cli/releases/latest"
     fi
 
-    # 查找解压后的二进制文件
+    # 查找解压后的二进制文件 - 优先查找 cc-switch-cli
     local binary=""
-    if [ -f "cc-switch-cli-linux-x86_64/cc-switch" ]; then
+    if [ -f "cc-switch-cli-linux-x86_64/cc-switch-cli" ]; then
+        binary="$download_dir/cc-switch-cli-linux-x86_64/cc-switch-cli"
+    elif [ -f "cc-switch-cli" ]; then
+        binary="$download_dir/cc-switch-cli"
+    elif [ -f "cc-switch-cli-linux-x86_64/cc-switch" ]; then
         binary="$download_dir/cc-switch-cli-linux-x86_64/cc-switch"
     elif [ -f "cc-switch" ]; then
         binary="$download_dir/cc-switch"
     else
-        error "下载的文件中未找到 cc-switch 二进制"
+        error "下载的文件中未找到 cc-switch-cli 或 cc-switch 二进制"
     fi
 
     chmod +x "$binary"
@@ -220,21 +221,21 @@ find_binary() {
         fi
     fi
 
-    # 优先级2：编译输出目录
-    if [ -z "$binary" ] && [ -f "src-tauri/target/release/cc-switch" ]; then
-        binary="src-tauri/target/release/cc-switch"
+    # 优先级2：编译输出目录 - 查找 cc-switch-cli
+    if [ -z "$binary" ] && [ -f "src-tauri/target/release/cc-switch-cli" ]; then
+        binary="src-tauri/target/release/cc-switch-cli"
     fi
 
     # 优先级3：当前目录
-    if [ -z "$binary" ] && [ -f "./cc-switch" ]; then
-        binary="./cc-switch"
+    if [ -z "$binary" ] && [ -f "./cc-switch-cli" ]; then
+        binary="./cc-switch-cli"
     fi
 
     # 优先级4：脚本同级目录
     if [ -z "$binary" ]; then
         local script_dir="$(cd "$(dirname "$0")" && pwd)"
-        if [ -f "$script_dir/cc-switch" ]; then
-            binary="$script_dir/cc-switch"
+        if [ -f "$script_dir/cc-switch-cli" ]; then
+            binary="$script_dir/cc-switch-cli"
         fi
     fi
 
@@ -265,13 +266,14 @@ verify_binary() {
 }
 
 # 检测端口是否被占用
+# 返回值：0=端口可用，1=端口被占用
 check_port_available() {
     local port="$1"
     if command -v netstat &>/dev/null; then
-        # 被占用返回 0（true），可用返回 1（false）
+        # grep成功（端口被占用）则返回1，否则返回0（端口可用）
         netstat -tuln 2>/dev/null | grep -q ":$port " && return 1 || return 0
     elif command -v ss &>/dev/null; then
-        # 被占用返回 0（true），可用返回 1（false）
+        # grep成功（端口被占用）则返回1，否则返回0（端口可用）
         ss -tuln 2>/dev/null | grep -q ":$port " && return 1 || return 0
     else
         # 无法检测，假设可用
@@ -287,7 +289,6 @@ resolve_port_conflict() {
     local attempt=0
 
     # check_port_available: 可用返回0，占用返回1
-    # 所以这里用 ! 取反：如果占用（返回1）则进入循环
     while ! check_port_available "$port_value"; do
         attempt=$((attempt + 1))
         if [ $attempt -gt $MAX_PORT_RETRY ]; then
@@ -317,7 +318,8 @@ check_ports() {
 stop_old_service() {
     echo -e "${BLUE}检查运行中的服务...${NC}"
 
-    if ! pgrep -f "cc-switch|ccs server" >/dev/null 2>&1; then
+    # 更精确的进程匹配：使用完整路径或特定命令模式
+    if ! pgrep -f "cc-switch-cli.*server|/ccs.*server" >/dev/null 2>&1; then
         echo -e "${GREEN}✓ 无运行中的服务${NC}"
         return 0
     fi
@@ -326,19 +328,19 @@ stop_old_service() {
 
     # 优先使用 ccs 命令
     if command -v ccs &>/dev/null; then
-        ccs server stop 2>/dev/null || pkill -f "cc-switch|ccs server"
+        ccs server stop 2>/dev/null || pkill -f "cc-switch-cli.*server|/ccs.*server"
     else
-        pkill -f "cc-switch|ccs server"
+        pkill -f "cc-switch-cli.*server|/ccs.*server"
     fi
 
     # 等待进程退出（最多10秒）
     local count=0
-    while pgrep -f "cc-switch|ccs server" >/dev/null 2>&1; do
+    while pgrep -f "cc-switch-cli.*server|/ccs.*server" >/dev/null 2>&1; do
         sleep 1
         count=$((count + 1))
         if [ $count -gt 10 ]; then
             echo -e "${YELLOW}⚠ 进程未响应，强制结束...${NC}"
-            pkill -9 -f "cc-switch|ccs server"
+            pkill -9 -f "cc-switch-cli.*server|/ccs.*server"
             sleep 1
             break
         fi
@@ -409,6 +411,13 @@ configure_claude() {
     echo -e "${BLUE}配置 Claude Code CLI...${NC}"
     mkdir -p "$HOME/.claude"
 
+    # 备份配置文件
+    if [ -f "$settings_file" ]; then
+        local backup="$settings_file.bak-$(date +%Y%m%d-%H%M%S)"
+        cp "$settings_file" "$backup"
+        echo -e "${GREEN}✓ 已备份配置: $(basename "$backup")${NC}"
+    fi
+
     if [ ! -f "$settings_file" ]; then
         # 文件不存在，创建
         cat > "$settings_file" <<JSON
@@ -432,8 +441,9 @@ base_url = sys.argv[2]
 try:
     with open(settings_file, 'r') as f:
         data = json.load(f)
-except:
-    data = {}
+except Exception as e:
+    print(f"错误：无法读取配置文件: {e}", file=sys.stderr)
+    sys.exit(1)
 
 if 'env' not in data:
     data['env'] = {}
@@ -441,10 +451,18 @@ if 'env' not in data:
 data['env']['ANTHROPIC_BASE_URL'] = base_url
 data['env']['ANTHROPIC_API_KEY'] = 'sk-ant-cc-switch-placeholder'
 
-with open(settings_file, 'w') as f:
-    json.dump(data, f, indent=2)
+try:
+    with open(settings_file, 'w') as f:
+        json.dump(data, f, indent=2)
+except Exception as e:
+    print(f"错误：无法写入配置文件: {e}", file=sys.stderr)
+    sys.exit(1)
 PYEOF
-        echo -e "${GREEN}✓ 已更新配置（仅修改 2 个字段）${NC}"
+        if [ $? -eq 0 ]; then
+            echo -e "${GREEN}✓ 已更新配置（仅修改 2 个字段）${NC}"
+        else
+            error "配置文件更新失败"
+        fi
     fi
 }
 
@@ -459,6 +477,11 @@ configure_codex_config() {
 
     echo -e "${BLUE}配置 Codex CLI (config.toml)...${NC}"
 
+    # 备份配置文件
+    local backup="$config_file.bak-$(date +%Y%m%d-%H%M%S)"
+    cp "$config_file" "$backup"
+    echo -e "${GREEN}✓ 已备份配置: $(basename "$backup")${NC}"
+
     python3 - "$config_file" "$base_url" <<'PYEOF'
 import re
 import sys
@@ -466,8 +489,12 @@ import sys
 config_file = sys.argv[1]
 base_url = sys.argv[2]
 
-with open(config_file, 'r') as f:
-    content = f.read()
+try:
+    with open(config_file, 'r') as f:
+        content = f.read()
+except Exception as e:
+    print(f"错误：无法读取配置文件: {e}", file=sys.stderr)
+    sys.exit(1)
 
 # 只替换 base_url 行
 updated = re.sub(
@@ -476,10 +503,18 @@ updated = re.sub(
     content
 )
 
-with open(config_file, 'w') as f:
-    f.write(updated)
+try:
+    with open(config_file, 'w') as f:
+        f.write(updated)
+except Exception as e:
+    print(f"错误：无法写入配置文件: {e}", file=sys.stderr)
+    sys.exit(1)
 PYEOF
-    echo -e "${GREEN}✓ 已更新 base_url${NC}"
+    if [ $? -eq 0 ]; then
+        echo -e "${GREEN}✓ 已更新 base_url${NC}"
+    else
+        error "配置文件更新失败"
+    fi
 }
 
 # 配置 Codex CLI - auth.json
@@ -492,6 +527,11 @@ configure_codex_auth() {
 
     echo -e "${BLUE}配置 Codex CLI (auth.json)...${NC}"
 
+    # 备份配置文件
+    local backup="$auth_file.bak-$(date +%Y%m%d-%H%M%S)"
+    cp "$auth_file" "$backup"
+    echo -e "${GREEN}✓ 已备份配置: $(basename "$backup")${NC}"
+
     python3 - "$auth_file" <<'PYEOF'
 import json
 import sys
@@ -501,42 +541,75 @@ auth_file = sys.argv[1]
 try:
     with open(auth_file, 'r') as f:
         data = json.load(f)
-except:
-    data = {}
+except Exception as e:
+    print(f"错误：无法读取配置文件: {e}", file=sys.stderr)
+    sys.exit(1)
 
 # 最小侵入修改密钥
 if 'api_key' in data:
     data['api_key'] = 'sk-ant-cc-switch-placeholder'
 
-with open(auth_file, 'w') as f:
-    json.dump(data, f, indent=2)
+try:
+    with open(auth_file, 'w') as f:
+        json.dump(data, f, indent=2)
+except Exception as e:
+    print(f"错误：无法写入配置文件: {e}", file=sys.stderr)
+    sys.exit(1)
 PYEOF
-    echo -e "${GREEN}✓ 已更新密钥${NC}"
+    if [ $? -eq 0 ]; then
+        echo -e "${GREEN}✓ 已更新密钥${NC}"
+    else
+        error "配置文件更新失败"
+    fi
 }
 
 # 启动服务
 start_service() {
     echo -e "${BLUE}启动 CC Switch 服务...${NC}"
 
+    # 使用绝对路径确保能找到命令
+    local ccs_bin="$HOME/.local/bin/ccs"
+    if [ ! -x "$ccs_bin" ]; then
+        ccs_bin="ccs"  # fallback to PATH
+    fi
+
     if [ "$CLI_MODE" = "true" ]; then
         # CLI 模式（无头），启用 Web 控制台
-        local cmd="ccs server start"
+        local cmd="$ccs_bin server start"
         cmd="$cmd --port $PROXY_PORT"
         cmd="$cmd --host $PROXY_HOST"
         cmd="$cmd --web-port $WEB_PORT"
         cmd="$cmd --web-bind $WEB_BIND"
 
         echo -e "${CYAN}执行: $cmd${NC}"
+
+        # 临时禁用 errexit 以处理启动失败
+        set +e
         $cmd
+        local start_exit_code=$?
+        set -e
 
-        sleep 3
-
-        # 使用 ccs status 验证服务状态
-        if ccs server status >/dev/null 2>&1; then
-            echo -e "${GREEN}✓ 服务启动成功${NC}"
-        else
-            error "服务启动失败"
+        if [ $start_exit_code -ne 0 ]; then
+            echo -e "${YELLOW}⚠ 启动命令返回非零退出码: $start_exit_code${NC}"
         fi
+
+        # 等待服务启动，最多等待10秒
+        local wait_count=0
+        local max_wait=10
+        echo -e "${CYAN}等待服务启动...${NC}"
+        sleep 2
+
+        while [ $wait_count -lt $max_wait ]; do
+            if "$ccs_bin" server status >/dev/null 2>&1; then
+                echo -e "${GREEN}✓ 服务启动成功${NC}"
+                return 0
+            fi
+            sleep 1
+            wait_count=$((wait_count + 1))
+        done
+
+        # 超时仍未启动
+        error "服务启动失败：状态检查超时"
     else
         # GUI 模式
         echo -e "${CYAN}启动 GUI 应用...${NC}"
@@ -550,14 +623,16 @@ start_service() {
 configure_weight_round_robin() {
     echo -e "${BLUE}配置权重轮询（默认启用）...${NC}"
 
-    sleep 3  # 等待服务完全启动
+    sleep 2  # 确保服务完全启动
 
     for app in claude codex gemini; do
-        ccs config set weight_round_robin_enabled true --app $app 2>/dev/null && \
-            echo -e "${GREEN}✓ 已为 $app 启用权重轮询${NC}"
-
-        ccs config set load_balance_strategy frequency --app $app 2>/dev/null && \
-            echo -e "${GREEN}✓ 已为 $app 设置负载均衡策略${NC}"
+        # 使用 config loadbalance 命令一次性设置开关和策略
+        # 注意：config set 不支持这些 key，必须使用 loadbalance 子命令
+        if ccs config loadbalance --app "$app" --enabled true --strategy frequency >/dev/null 2>&1; then
+            echo -e "${GREEN}✓ 已为 $app 启用权重轮询（策略: frequency）${NC}"
+        else
+            echo -e "${YELLOW}⚠ 警告: 为 $app 配置权重轮询失败${NC}"
+        fi
     done
 }
 
@@ -565,17 +640,27 @@ configure_weight_round_robin() {
 verify_deployment() {
     echo -e "${BLUE}验证部署...${NC}"
 
-    if ! pgrep -f "ccs server|cc-switch-gui" >/dev/null 2>&1; then
+    # 检查CLI服务进程
+    if ! pgrep -f "cc-switch-cli.*server|/ccs.*server" >/dev/null 2>&1; then
         error "服务未运行"
     fi
 
     # 验证端口
     if command -v netstat &>/dev/null || command -v ss &>/dev/null; then
         sleep 1
+        # 端口被占用说明正在监听
         if ! check_port_available "$PROXY_PORT"; then
             echo -e "${GREEN}✓ 代理端口 $PROXY_PORT 正在监听${NC}"
         else
             echo -e "${YELLOW}⚠ 警告: 代理端口 $PROXY_PORT 未监听${NC}"
+        fi
+
+        if [ "$CLI_MODE" = "true" ]; then
+            if ! check_port_available "$WEB_PORT"; then
+                echo -e "${GREEN}✓ Web控制台端口 $WEB_PORT 正在监听${NC}"
+            else
+                echo -e "${YELLOW}⚠ 警告: Web控制台端口 $WEB_PORT 未监听${NC}"
+            fi
         fi
     fi
 
