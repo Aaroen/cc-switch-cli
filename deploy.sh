@@ -13,7 +13,7 @@
 # 环境变量：
 #   CC_SWITCH_PORT=端口号         # 代理服务端口（默认: 15721）
 #   CC_SWITCH_HOST=监听地址       # 代理监听地址（默认: 0.0.0.0）
-#   CC_SWITCH_WEB_PORT=端口号     # Web控制台端口（默认: 15720）
+#   CC_SWITCH_WEB_PORT=端口号     # Web控制台端口（默认: 8888）
 #   CC_SWITCH_WEB_BIND=监听地址   # Web控制台监听地址（默认: 0.0.0.0）
 
 set -Eeuo pipefail
@@ -28,7 +28,7 @@ NC='\033[0m'
 
 # 默认配置
 DEFAULT_PROXY_PORT=15721
-DEFAULT_WEB_PORT=15720
+DEFAULT_WEB_PORT=8888
 DEFAULT_PROXY_HOST="0.0.0.0"
 DEFAULT_WEB_BIND="0.0.0.0"
 MAX_PORT_RETRY=3
@@ -143,19 +143,9 @@ detect_gui() {
 
 # 确定部署模式
 determine_mode() {
-    if [ "$FORCE_CLI" = "true" ]; then
-        CLI_MODE=true
-        echo -e "${CYAN}▸ 模式: CLI（强制）${NC}"
-    elif [ "$FORCE_GUI" = "true" ]; then
-        CLI_MODE=false
-        echo -e "${CYAN}▸ 模式: GUI（强制）${NC}"
-    elif [ "$HAS_GUI" = "false" ]; then
-        CLI_MODE=true
-        echo -e "${CYAN}▸ 模式: CLI（自动检测）${NC}"
-    else
-        CLI_MODE=false
-        echo -e "${CYAN}▸ 模式: GUI（自动检测）${NC}"
-    fi
+    # 统一使用 CLI 无头模式
+    CLI_MODE=true
+    echo -e "${CYAN}▸ 模式: CLI（无头后台服务）${NC}"
 }
 
 # 检测Python
@@ -278,12 +268,14 @@ verify_binary() {
 check_port_available() {
     local port="$1"
     if command -v netstat &>/dev/null; then
-        netstat -tuln 2>/dev/null | grep -q ":$port " && return 0 || return 1
+        # 被占用返回 0（true），可用返回 1（false）
+        netstat -tuln 2>/dev/null | grep -q ":$port " && return 1 || return 0
     elif command -v ss &>/dev/null; then
-        ss -tuln 2>/dev/null | grep -q ":$port " && return 0 || return 1
+        # 被占用返回 0（true），可用返回 1（false）
+        ss -tuln 2>/dev/null | grep -q ":$port " && return 1 || return 0
     else
         # 无法检测，假设可用
-        return 1
+        return 0
     fi
 }
 
@@ -294,14 +286,16 @@ resolve_port_conflict() {
     local original_port="$port_value"
     local attempt=0
 
-    while check_port_available "$port_value"; do
+    # check_port_available: 可用返回0，占用返回1
+    # 所以这里用 ! 取反：如果占用（返回1）则进入循环
+    while ! check_port_available "$port_value"; do
         attempt=$((attempt + 1))
         if [ $attempt -gt $MAX_PORT_RETRY ]; then
             error "端口 $original_port 被占用，尝试了 $MAX_PORT_RETRY 次仍无可用端口"
         fi
 
+        echo -e "${YELLOW}⚠ 端口 $port_value 被占用，尝试 $(($port_value + 1)) ...${NC}"
         port_value=$((port_value + 1))
-        echo -e "${YELLOW}⚠ 端口 $(($port_value - 1)) 被占用，尝试 $port_value ...${NC}"
     done
 
     if [ "$port_value" != "$original_port" ]; then
@@ -624,7 +618,6 @@ main() {
     echo ""
 
     parse_arguments "$@"
-    detect_gui
     determine_mode
     check_python
 
