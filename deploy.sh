@@ -535,9 +535,10 @@ start_service() {
         echo -e "${CYAN}执行: $cmd${NC}"
         $cmd
 
-        sleep 2
+        sleep 3
 
-        if pgrep -f "ccs server" >/dev/null 2>&1; then
+        # 使用 ccs status 验证服务状态
+        if ccs server status >/dev/null 2>&1; then
             echo -e "${GREEN}✓ 服务启动成功${NC}"
         else
             error "服务启动失败"
