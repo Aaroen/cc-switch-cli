@@ -13,11 +13,7 @@ jobs:
   stale:
     runs-on: ubuntu-latest
     steps:
-<<<<<<< HEAD
       - uses: actions/stale@v10
-=======
-      - uses: actions/stale@v9
->>>>>>> origin/cc-switch-cli
         with:
           # --- Timing ---
           days-before-stale: 60
