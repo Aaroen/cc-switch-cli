@@ -15,7 +15,7 @@
 
 ## 快速安装
 
-### Linux (无头 CLI)
+### Linux
 
 **一键部署**（自动下载最新 release 并部署）：
 
@@ -40,19 +40,11 @@ source ~/.bashrc  # 或 source ~/.zshrc
 **常用命令**：
 
 ```bash
-ccs server status           # 查看运行状态
-ccs server stop             # 停止服务
-ccs server restart          # 重启服务
+ccs status           # 查看运行状态
+ccs stop             # 停止服务
+ccs restart          # 重启服务
 ```
 
-### Windows / macOS (图形界面)
-
-从 [Releases](https://github.com/Aaroen/cc-switch-cli/releases) 下载对应安装包:
-
-- **Windows**: `CC-Switch-*-Windows.msi` (含 WebView2 离线运行时,中国网络友好)
-- **macOS**: `CC-Switch-*-macOS-universal.dmg` (Intel + Apple Silicon 通用)
-
-安装后启动图形界面,在 `设置 -> 供应商` 中添加你的 API Key 即可。
 
 ## 核心命令速查
 
@@ -104,19 +96,19 @@ ccs provider hp remove --app opencode --id <ID> --path <路径>
 ### 服务控制
 
 ```bash
-ccs server start --host 0.0.0.0 --port 15721            # 启动(允许局域网)
-ccs server start --web-port 8888 --web-bind 0.0.0.0    # 启动 + Web 控制台
-ccs server stop
-ccs server status
-ccs server restart
+ccs start --host 0.0.0.0 --port 15721            # 启动(允许局域网)
+ccs start --web-port 8888 --web-bind 0.0.0.0    # 启动 + Web 控制台
+ccs stop
+ccs status
+ccs restart
 ```
 
 ## 配置与日志
 
-- **数据库**: `~/.cc-switch/cc-switch.db` (SQLite,含供应商/权重/用量统计)
-- **日志**: `~/.cc-switch/logs/server.log` (代理请求与故障转移日志,自动轮转,默认 50MB/保留 5 份)
-- **崩溃日志**: `~/.cc-switch/crash.log` (Windows 闪退诊断用)
-- **CLI 原生配置**: `~/.claude/` / `~/.codex/` / `~/.gemini/` 等(与官方 CLI 兼容)
+- **数据库**: `~/.cc-switch/cc-switch.db` 
+- **日志**: `~/.cc-switch/logs/server.log`
+- **崩溃日志**: `~/.cc-switch/crash.log` 
+- **CLI 原生配置**: `~/.claude/` / `~/.codex/` / `~/.gemini/` 等
 
 ## 客户端配置
 
@@ -128,17 +120,6 @@ ccs server restart
 
 详见各客户端官方文档。
 
-## 从源码构建
-
-需 Rust 1.83+ / Node.js 20+ / pnpm 10+。
-
-```bash
-git clone https://github.com/Aaroen/cc-switch-cli.git
-cd cc-switch-cli
-./install-ccs.sh          # CLI 模式(自动安装依赖并编译)
-./install-ccs.sh --gui    # GUI 模式(需 GTK3/WebKit2GTK)
-```
-
 ## 上游与许可证
 
 本项目基于 [farion1231/cc-switch](https://github.com/farion1231/cc-switch) fork,持续贴近上游并强化 CLI/无头运行能力。上游原始 README 见 [README_UPSTREAM.md](./README_UPSTREAM.md)。
@@ -148,7 +129,3 @@ cd cc-switch-cli
 ## 问题反馈
 
 遇到问题请提 [Issue](https://github.com/Aaroen/cc-switch-cli/issues),附上:
-- 操作系统与版本
-- `ccs server status` 输出
-- `~/.cc-switch/logs/server.log` 最后 50 行
-- Windows 闪退请附 `%USERPROFILE%\.cc-switch\crash.log`
