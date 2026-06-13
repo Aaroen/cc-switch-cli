@@ -97,9 +97,58 @@ impl FileLogger {
     /// 写入日志行
     pub fn write(&self, line: &str) {
         if let Ok(mut guard) = self.file.lock() {
-            if let Some(file) = guard.as_mut() {
-                let _ = writeln!(file, "{}", line);
-                let _ = file.flush();
+            // 尝试写入
+            let write_result = if let Some(file) = guard.as_mut() {
+                writeln!(file, "{}", line).and_then(|_| file.flush())
+            } else {
+                Err(std::io::Error::new(
+                    std::io::ErrorKind::NotFound,
+                    "日志文件未打开",
+                ))
+            };
+
+            // 如果写入失败，尝试重新打开文件
+            if let Err(e) = write_result {
+                log::warn!(
+                    "日志写入失败 ({}): {}, 尝试重新打开文件",
+                    self.log_path.display(),
+                    e
+                );
+
+                // 重新打开文件
+                if let Some(parent) = self.log_path.parent() {
+                    let _ = std::fs::create_dir_all(parent);
+                }
+                match std::fs::OpenOptions::new()
+                    .create(true)
+                    .append(true)
+                    .open(&self.log_path)
+                {
+                    Ok(new_file) => {
+                        *guard = Some(new_file);
+                        // 重试写入
+                        if let Some(file) = guard.as_mut() {
+                            if let Err(retry_err) =
+                                writeln!(file, "{}", line).and_then(|_| file.flush())
+                            {
+                                log::error!(
+                                    "重新打开后写入仍失败: {} - {}",
+                                    self.log_path.display(),
+                                    retry_err
+                                );
+                            } else {
+                                log::info!("日志文件重新打开成功: {}", self.log_path.display());
+                            }
+                        }
+                    }
+                    Err(open_err) => {
+                        log::error!(
+                            "无法重新打开日志文件: {} - {}",
+                            self.log_path.display(),
+                            open_err
+                        );
+                    }
+                }
             }
         }
 

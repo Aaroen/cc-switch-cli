@@ -339,20 +339,38 @@ pub async fn restart_server(port: u16) -> Result<(), String> {
         tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
     }
 
-    // 再启动（继承已持久化的 Web 控制台端口）
-    let (web_port, web_bind) = crate::database::Database::init()
-        .ok()
-        .map(|db| {
+    // 从数据库读取实际配置的端口（优先于命令行参数）
+    let (actual_port, web_port, web_bind) = match crate::database::Database::init() {
+        Ok(db) => {
+            // 直接从数据库查询 listen_port
+            let listen_port = db
+                .conn
+                .lock()
+                .unwrap()
+                .query_row(
+                    "SELECT listen_port FROM proxy_config WHERE app_type='claude' LIMIT 1",
+                    [],
+                    |row| row.get::<_, i64>(0),
+                )
+                .ok()
+                .map(|p| p.clamp(1024, 65535) as u16);
+
             let web_port = db.get_web_panel_port().ok().flatten();
             let web_bind = db
                 .get_web_panel_bind()
                 .ok()
                 .flatten()
                 .unwrap_or_else(|| "0.0.0.0".to_string());
-            (web_port, web_bind)
-        })
-        .unwrap_or_else(|| (None, "0.0.0.0".to_string()));
-    start_headless_server("127.0.0.1".to_string(), port, true, web_port, web_bind).await
+
+            (listen_port, web_port, web_bind)
+        }
+        Err(_) => (None, None, "0.0.0.0".to_string()),
+    };
+
+    // 使用数据库中的端口，如果数据库读取失败则使用命令行参数
+    let final_port = actual_port.unwrap_or(port);
+
+    start_headless_server("127.0.0.1".to_string(), final_port, true, web_port, web_bind).await
 }
 
 // ============================================================================

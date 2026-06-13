@@ -17,36 +17,43 @@
 
 ### Linux (无头 CLI)
 
-**一键安装**(预构建二进制,无需编译,约 25MB):
+**一键部署**（从最新 release 自动下载并部署）：
 
 ```bash
-curl -fsSL https://github.com/Aaroen/cc-switch-cli/releases/latest/download/cc-switch-cli-linux-x86_64.tar.gz | tar -xz && cd cc-switch-cli-linux-x86_64 && ./install-ccs.sh
+curl -fsSL https://raw.githubusercontent.com/Aaroen/cc-switch-cli/main/deploy.sh | bash
 ```
 
-安装脚本会自动:
-- 检测图形/无头环境,选择对应模式
-- 询问是否启用 Web 控制台(浏览器管理)
-- 安装到 `~/.local/bin` 并配置环境变量
-- 无头模式自动启动后台代理服务
+或手动下载后部署：
 
-安装完成后重载环境变量:
+```bash
+# 1. 下载并解压
+curl -fsSL https://github.com/Aaroen/cc-switch-cli/releases/latest/download/cc-switch-cli-linux-x86_64.tar.gz | tar -xz
+cd cc-switch-cli-linux-x86_64
+
+# 2. 部署
+./deploy.sh
+```
+
+部署脚本会自动：
+- 检测 GUI/无头环境，选择对应模式
+- 查找已编译的二进制文件（无需重复编译）
+- 安装到 `~/.local/bin` 并配置 PATH
+- 配置 Claude Code CLI 和 Codex CLI（最小侵入）
+- 无头模式自动启动后台服务 + Web 控制台（局域网可访问）
+- 默认启用权重轮询
+
+部署完成后重载环境变量：
 
 ```bash
 source ~/.bashrc  # 或 source ~/.zshrc
 ```
 
-**启动服务**:
+**常用命令**：
 
 ```bash
-ccs server start            # 默认 127.0.0.1:15721
 ccs server status           # 查看运行状态
-```
-
-**启用 Web 控制台**(可选,浏览器管理):
-
-```bash
-ccs server stop
-ccs server start --web-port 8888 --web-bind 0.0.0.0  # 局域网可访问 http://<IP>:8888
+ccs server stop             # 停止服务
+ccs server restart          # 重启服务
 ```
 
 ### Windows / macOS (图形界面)

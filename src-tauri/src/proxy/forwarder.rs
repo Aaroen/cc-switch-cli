@@ -470,7 +470,26 @@ impl RequestForwarder {
                 (permit.allowed, permit.used_half_open_permit)
             };
 
+            // 无论是否 allowed，都必须增加计数器，避免在被熔断的供应商上无限循环
+            attempted_providers += 1;
+
             if !allowed {
+                log::debug!(
+                    "[{app_type_str}] Provider '{}' ({}/{}) 被熔断器阻塞，跳过",
+                    provider.name,
+                    attempted_providers,
+                    self.max_attempts
+                );
+
+                // 如果已经遍历完所有供应商且全部被熔断，提前退出
+                if attempted_providers >= providers.len() {
+                    log::warn!(
+                        "[{app_type_str}] 已尝试所有 {} 个供应商，全部被熔断或不可用",
+                        providers.len()
+                    );
+                    // 继续循环以支持 max_attempts > providers.len() 的场景（允许熔断恢复后重试）
+                }
+
                 continue;
             }
 
@@ -489,8 +508,6 @@ impl RequestForwarder {
                 } else {
                     body.clone()
                 };
-
-            attempted_providers += 1;
 
             // 更新状态中的当前 Provider 信息（per-attempt 维度的标识）
             //
