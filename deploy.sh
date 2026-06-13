@@ -167,7 +167,7 @@ check_python() {
 
 # 下载最新的二进制文件
 download_binary() {
-    echo -e "${BLUE}未找到本地二进制文件，正在从 GitHub Release 下载...${NC}"
+    echo -e "${BLUE}未找到本地二进制文件，正在从 GitHub Release 下载...${NC}" >&2
 
     # 检测架构
     local arch="$(uname -m)"
@@ -182,7 +182,7 @@ download_binary() {
     mkdir -p "$download_dir"
     cd "$download_dir" || error "无法创建下载目录"
 
-    echo -e "${CYAN}下载地址: https://github.com/Aaroen/cc-switch-cli/releases/latest/download/cc-switch-cli-linux-x86_64.tar.gz${NC}"
+    echo -e "${CYAN}下载地址: https://github.com/Aaroen/cc-switch-cli/releases/latest/download/cc-switch-cli-linux-x86_64.tar.gz${NC}" >&2
 
     # 清理旧文件
     rm -rf cc-switch-cli-linux-x86_64 cc-switch 2>/dev/null || true
@@ -210,8 +210,10 @@ download_binary() {
         cp "cc-switch-cli-linux-x86_64/deploy.sh" "$download_dir/deploy.sh" 2>/dev/null || true
     fi
 
-    echo -e "${GREEN}✓ 下载完成: $binary${NC}"
-    echo -e "${GREEN}✓ 文件保存在: $download_dir${NC}"
+    echo -e "${GREEN}✓ 下载完成: $binary${NC}" >&2
+    echo -e "${GREEN}✓ 文件保存在: $download_dir${NC}" >&2
+
+    # 只输出二进制路径到 stdout（供 find_binary 捕获）
     echo "$binary"
 }
 
