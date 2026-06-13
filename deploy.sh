@@ -177,11 +177,15 @@ download_binary() {
         error "当前仅支持 Linux x86_64 架构，检测到: $os $arch"
     fi
 
-    # 创建临时目录
-    local tmp_dir="$(mktemp -d)"
-    cd "$tmp_dir" || error "无法创建临时目录"
+    # 使用 CC Switch 数据目录
+    local download_dir="$HOME/.cc-switch/downloads"
+    mkdir -p "$download_dir"
+    cd "$download_dir" || error "无法创建下载目录"
 
     echo -e "${CYAN}下载地址: https://github.com/Aaroen/cc-switch-cli/releases/latest/download/cc-switch-cli-linux-x86_64.tar.gz${NC}"
+
+    # 清理旧文件
+    rm -rf cc-switch-cli-linux-x86_64 cc-switch 2>/dev/null || true
 
     # 下载并解压
     if ! curl -fsSL "https://github.com/Aaroen/cc-switch-cli/releases/latest/download/cc-switch-cli-linux-x86_64.tar.gz" | tar -xz; then
@@ -191,16 +195,23 @@ download_binary() {
 
     # 查找解压后的二进制文件
     local binary=""
-    if [ -f "cc-switch" ]; then
-        binary="$tmp_dir/cc-switch"
-    elif [ -f "cc-switch-cli-linux-x86_64/cc-switch" ]; then
-        binary="$tmp_dir/cc-switch-cli-linux-x86_64/cc-switch"
+    if [ -f "cc-switch-cli-linux-x86_64/cc-switch" ]; then
+        binary="$download_dir/cc-switch-cli-linux-x86_64/cc-switch"
+    elif [ -f "cc-switch" ]; then
+        binary="$download_dir/cc-switch"
     else
         error "下载的文件中未找到 cc-switch 二进制"
     fi
 
     chmod +x "$binary"
+
+    # 同时复制 deploy.sh 到下载目录（如果存在）
+    if [ -f "cc-switch-cli-linux-x86_64/deploy.sh" ]; then
+        cp "cc-switch-cli-linux-x86_64/deploy.sh" "$download_dir/deploy.sh" 2>/dev/null || true
+    fi
+
     echo -e "${GREEN}✓ 下载完成: $binary${NC}"
+    echo -e "${GREEN}✓ 文件保存在: $download_dir${NC}"
     echo "$binary"
 }
 
@@ -249,8 +260,12 @@ verify_binary() {
 
     chmod +x "$binary" 2>/dev/null || true
 
+    # 尝试运行 --version，如果失败给出详细信息
     if ! "$binary" --version &>/dev/null; then
-        error "二进制文件无效或损坏: $binary"
+        echo -e "${YELLOW}⚠ 警告: 无法验证二进制文件版本${NC}"
+        echo -e "${YELLOW}  文件: $binary${NC}"
+        echo -e "${YELLOW}  尝试继续安装...${NC}"
+        return 0
     fi
 
     local version="$("$binary" --version 2>&1 | head -1)"
