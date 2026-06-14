@@ -321,6 +321,7 @@ impl Database {
                     circuit_timeout_seconds = ?10,
                     circuit_error_rate_threshold = ?11,
                     circuit_min_requests = ?12,
+                    weight_round_robin_enabled = ?13,
                     updated_at = datetime('now')
                  WHERE app_type = ?1",
                 rusqlite::params![
@@ -336,11 +337,13 @@ impl Database {
                     config.circuit_timeout_seconds as i32,
                     config.circuit_error_rate_threshold,
                     config.circuit_min_requests as i32,
+                    if config.weight_round_robin_enabled { 1 } else { 0 },
                 ],
             )
             .map_err(|e| AppError::Database(e.to_string()))?;
         }
 
+        // 同时也更新settings表中的值，保持双重存储一致性
         self.set_weight_round_robin_enabled(&config.app_type, config.weight_round_robin_enabled)?;
 
         Ok(())

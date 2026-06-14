@@ -1917,11 +1917,19 @@ impl RequestForwarder {
             }
         }
 
-        // 确定超时
-        let timeout = if self.non_streaming_timeout.is_zero() {
-            std::time::Duration::from_secs(600) // 默认 600 秒
+        // 确定超时时间：流式请求使用首包超时，非流式使用总超时
+        let timeout = if request_is_streaming {
+            if self.streaming_first_byte_timeout.is_zero() {
+                std::time::Duration::from_secs(60) // 默认 60 秒
+            } else {
+                self.streaming_first_byte_timeout
+            }
         } else {
-            self.non_streaming_timeout
+            if self.non_streaming_timeout.is_zero() {
+                std::time::Duration::from_secs(600) // 默认 600 秒
+            } else {
+                self.non_streaming_timeout
+            }
         };
 
         // 获取全局代理 URL
@@ -1975,7 +1983,15 @@ impl RequestForwarder {
                         ))
                     })?
             } else {
-                send.await
+                // 非流式请求也需要超时保护
+                tokio::time::timeout(timeout, send)
+                    .await
+                    .map_err(|_| {
+                        ProxyError::Timeout(format!(
+                            "非流式请求超时: {}s（上游未返回响应）",
+                            timeout.as_secs()
+                        ))
+                    })?
             };
             let reqwest_resp = send_result.map_err(map_reqwest_send_error)?;
             ProxyResponse::Reqwest(reqwest_resp)
