@@ -393,7 +393,6 @@ configure_path() {
         if [ -f "$rc" ]; then
             if ! grep -q "export PATH=\"$bin_dir:\$PATH\"" "$rc" 2>/dev/null; then
                 echo "export PATH=\"$bin_dir:\$PATH\"" >> "$rc"
-                echo -e "${GREEN}✓ 已添加到 $(basename "$rc")${NC}"
             fi
         fi
     done
@@ -414,7 +413,6 @@ configure_claude() {
     if [ -f "$settings_file" ]; then
         local backup="$settings_file.bak-$(date +%Y%m%d-%H%M%S)"
         cp "$settings_file" "$backup"
-        echo -e "${GREEN}✓ 已备份配置: $(basename "$backup")${NC}"
     fi
 
     if [ ! -f "$settings_file" ]; then
@@ -427,7 +425,6 @@ configure_claude() {
   }
 }
 JSON
-        echo -e "${GREEN}✓ 已创建配置文件${NC}"
     else
         # 文件存在，最小侵入修改
         python3 - "$settings_file" "$base_url" <<'PYEOF'
@@ -458,7 +455,6 @@ except Exception as e:
     sys.exit(1)
 PYEOF
         if [ $? -eq 0 ]; then
-            echo -e "${GREEN}✓ 已更新配置（仅修改 2 个字段）${NC}"
         else
             error "配置文件更新失败"
         fi
@@ -479,7 +475,6 @@ configure_codex_config() {
     # 备份配置文件
     local backup="$config_file.bak-$(date +%Y%m%d-%H%M%S)"
     cp "$config_file" "$backup"
-    echo -e "${GREEN}✓ 已备份配置: $(basename "$backup")${NC}"
 
     python3 - "$config_file" "$base_url" <<'PYEOF'
 import re
@@ -510,13 +505,13 @@ except Exception as e:
     sys.exit(1)
 PYEOF
     if [ $? -eq 0 ]; then
-        echo -e "${GREEN}✓ 已更新 base_url${NC}"
     else
         error "配置文件更新失败"
     fi
 }
 
 # 配置 Codex CLI - auth.json
+# 配置 Codex CLI auth.json
 configure_codex_auth() {
     local auth_file="$HOME/.codex/auth.json"
 
@@ -524,12 +519,9 @@ configure_codex_auth() {
         return 0
     fi
 
-    echo -e "${BLUE}配置 Codex CLI (auth.json)...${NC}"
-
     # 备份配置文件
     local backup="$auth_file.bak-$(date +%Y%m%d-%H%M%S)"
     cp "$auth_file" "$backup"
-    echo -e "${GREEN}✓ 已备份配置: $(basename "$backup")${NC}"
 
     python3 - "$auth_file" <<'PYEOF'
 import json
@@ -544,9 +536,9 @@ except Exception as e:
     print(f"错误：无法读取配置文件: {e}", file=sys.stderr)
     sys.exit(1)
 
-# 最小侵入修改密钥
-if 'api_key' in data:
-    data['api_key'] = 'sk-ant-cc-switch-placeholder'
+# Codex使用OPENAI_API_KEY格式
+if 'OPENAI_API_KEY' in data:
+    data['OPENAI_API_KEY'] = 'sk-ant-cc-switch-placeholder'
 
 try:
     with open(auth_file, 'w') as f:
@@ -555,9 +547,7 @@ except Exception as e:
     print(f"错误：无法写入配置文件: {e}", file=sys.stderr)
     sys.exit(1)
 PYEOF
-    if [ $? -eq 0 ]; then
-        echo -e "${GREEN}✓ 已更新密钥${NC}"
-    else
+    if [ $? -ne 0 ]; then
         error "配置文件更新失败"
     fi
 }
