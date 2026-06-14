@@ -88,6 +88,12 @@ CC Switch 快速部署脚本
   CC_SWITCH_WEB_PORT     Web控制台端口
   CC_SWITCH_WEB_BIND     Web控制台监听地址
   CC_SWITCH_REMOTE_PROXY 远程代理地址
+  CC_SWITCH_CONFIG_ONLY  设为true启用仅配置模式
+
+一行命令示例:
+  # 仅配置指向远程代理
+  CC_SWITCH_CONFIG_ONLY=true CC_SWITCH_REMOTE_PROXY=10.0.0.1:15722 \\
+    curl -fsSL https://raw.githubusercontent.com/Aaroen/cc-switch-cli/main/deploy.sh | bash
 EOF
 }
 
@@ -146,6 +152,11 @@ parse_arguments() {
     WEB_PORT="${WEB_PORT:-${CC_SWITCH_WEB_PORT:-$DEFAULT_WEB_PORT}}"
     WEB_BIND="${WEB_BIND:-${CC_SWITCH_WEB_BIND:-$DEFAULT_WEB_BIND}}"
     REMOTE_PROXY="${REMOTE_PROXY:-${CC_SWITCH_REMOTE_PROXY:-}}"
+
+    # 环境变量支持
+    if [ "${CC_SWITCH_CONFIG_ONLY:-false}" = "true" ]; then
+        CONFIG_ONLY=true
+    fi
 
     # 检查冲突的参数
     if [ "$FORCE_CLI" = "true" ] && [ "$FORCE_GUI" = "true" ]; then
