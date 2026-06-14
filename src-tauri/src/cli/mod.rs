@@ -50,13 +50,13 @@ pub enum Commands {
 
     /// 启动代理服务器（`server start` 的简写）
     Start {
-        /// 监听端口（默认15721）
-        #[arg(short, long, default_value = "15721")]
-        port: u16,
+        /// 监听端口（不指定则继承上次配置，默认15721）
+        #[arg(short, long)]
+        port: Option<u16>,
 
-        /// 监听地址（默认127.0.0.1）
-        #[arg(short = 'H', long, default_value = "127.0.0.1")]
-        host: String,
+        /// 监听地址（不指定则继承上次配置，默认127.0.0.1）
+        #[arg(short = 'H', long)]
+        host: Option<String>,
 
         /// 前台运行（默认后台启动；需要查看实时输出/调试时使用）
         #[arg(short = 'f', long)]
@@ -83,9 +83,9 @@ pub enum Commands {
 
     /// 重启服务器（`server restart` 的简写）
     Restart {
-        /// 监听端口
-        #[arg(short, long, default_value = "15721")]
-        port: u16,
+        /// 监听端口（不指定则继承上次配置）
+        #[arg(short, long)]
+        port: Option<u16>,
     },
 
     /// 供应商管理（增删改查/权重设置）
@@ -105,13 +105,13 @@ pub enum Commands {
 pub enum ServerCommands {
     /// 启动代理服务器（无头模式）
     Start {
-        /// 监听端口（默认15721）
-        #[arg(short, long, default_value = "15721")]
-        port: u16,
+        /// 监听端口（不指定则继承上次配置，默认15721）
+        #[arg(short, long)]
+        port: Option<u16>,
 
-        /// 监听地址（默认127.0.0.1）
-        #[arg(short = 'H', long, default_value = "127.0.0.1")]
-        host: String,
+        /// 监听地址（不指定则继承上次配置，默认127.0.0.1）
+        #[arg(short = 'H', long)]
+        host: Option<String>,
 
         /// 前台运行（默认后台启动；需要查看实时输出/调试时使用）
         #[arg(short = 'f', long)]

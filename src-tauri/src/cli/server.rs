@@ -10,15 +10,36 @@ use tokio::time::{sleep, timeout, Duration, Instant};
 
 /// 启动无头代理服务器
 pub async fn start_headless_server(
-    host: String,
-    port: u16,
+    host: Option<String>,
+    port: Option<u16>,
     daemon: bool,
     web_port: Option<u16>,
     web_bind: String,
 ) -> Result<(), String> {
+    // 先初始化数据库以读取配置
+    let db_for_config = match crate::database::Database::init() {
+        Ok(db) => db,
+        Err(e) => {
+            crate::cli::output::error(&format!("数据库初始化失败: {}", e));
+            return Err(e.to_string());
+        }
+    };
+
+    // 从数据库读取默认值（如果用户未指定）
+    let (actual_host, actual_port) = match db_for_config.get_global_proxy_config().await {
+        Ok(config) => (
+            host.unwrap_or(config.listen_address),
+            port.unwrap_or(config.listen_port),
+        ),
+        Err(_) => (
+            host.unwrap_or_else(|| "127.0.0.1".to_string()),
+            port.unwrap_or(15721),
+        ),
+    };
+
     // 默认后台启动：父进程负责拉起子进程并退出，子进程在后台常驻。
     if daemon && !is_daemon_child() {
-        return start_headless_server_daemon(host, port, web_port, web_bind).await;
+        return start_headless_server_daemon(actual_host, actual_port, web_port, web_bind).await;
     }
 
     // 防御性：确保 rustls CryptoProvider 已安装。run_from_env 已在入口安装，此处幂等兜底，
@@ -30,7 +51,10 @@ pub async fn start_headless_server(
     // 安装，确保数据库迁移/启动日志亦可见；待 DB 就绪后再按 LogConfig 调整级别。
     crate::cli::headless_log::init(log::LevelFilter::Info);
 
-    crate::cli::output::info(&format!("正在启动代理服务器 {}:{}...", host, port));
+    crate::cli::output::info(&format!(
+        "正在启动代理服务器 {}:{}...",
+        actual_host, actual_port
+    ));
 
     // 初始化数据库（使用默认路径）
     let db = match crate::database::Database::init() {
@@ -51,8 +75,8 @@ pub async fn start_headless_server(
 
     // 将 CLI 传入的 host/port 写入数据库配置，确保本次启动使用该监听地址。
     if let Ok(mut cfg) = app_state.db.get_proxy_config().await {
-        cfg.listen_address = host.clone();
-        cfg.listen_port = port;
+        cfg.listen_address = actual_host.clone();
+        cfg.listen_port = actual_port;
         if let Err(e) = app_state.db.update_proxy_config(cfg).await {
             crate::cli::output::warning(&format!("更新代理监听地址失败（将使用已有配置）: {e}"));
         }
@@ -149,8 +173,14 @@ pub async fn start_headless_server(
             save_pid_file().map_err(|e| format!("保存PID失败: {}", e))?;
 
             // 启动 Web 控制台（如配置）。绑定失败为非致命：记录后继续运行代理。
-            let mut panel =
-                start_web_panel_if_configured(&app_state, web_port, web_bind, port, daemon).await;
+            let mut panel = start_web_panel_if_configured(
+                &app_state,
+                web_port,
+                web_bind,
+                actual_port,
+                daemon,
+            )
+            .await;
 
             if daemon {
                 // 后台子进程：等待 SIGTERM/SIGINT，便于 stop/restart 时优雅退出并清理 PID。
@@ -288,34 +318,29 @@ pub async fn server_status() -> Result<(), String> {
         if let Ok(db) = crate::database::Database::init() {
             if let Ok(config) = db.get_global_proxy_config().await {
                 let mut info = vec![
-                    (
-                        "监听地址",
-                        format!("{}:{}", config.listen_address, config.listen_port),
-                    ),
-                    ("启用应用", {
-                        let apps = get_enabled_apps(&db).await;
-                        if apps.is_empty() {
-                            "(无)".to_string()
-                        } else {
-                            apps.join(", ")
-                        }
-                    }),
+                    ("监听地址", config.listen_address.clone()),
+                    ("服务端口", config.listen_port.to_string()),
                 ];
 
-                // 添加 web 控制台信息
+                // 添加 web 控制台端口信息
                 if let Ok(Some(web_port)) = db.get_web_panel_port() {
-                    let web_bind = db.get_web_panel_bind().ok().flatten().unwrap_or_else(|| "0.0.0.0".to_string());
-
-                    // 本机访问地址
-                    info.push(("✓ 本机访问", format!("http://127.0.0.1:{}", web_port)));
-
-                    // 局域网访问地址（仅当 web_bind 为 0.0.0.0 时显示）
-                    if web_bind == "0.0.0.0" {
-                        if let Some(local_ip) = local_ipaddress::get() {
-                            info.push(("✓ 局域网访问", format!("http://{}:{}", local_ip, web_port)));
-                        }
-                    }
+                    let web_bind = db
+                        .get_web_panel_bind()
+                        .ok()
+                        .flatten()
+                        .unwrap_or_else(|| "0.0.0.0".to_string());
+                    info.push(("Web控制端口", format!("{}:{}", web_bind, web_port)));
                 }
+
+                // 添加启用应用
+                info.push(("启用应用", {
+                    let apps = get_enabled_apps(&db).await;
+                    if apps.is_empty() {
+                        "(无)".to_string()
+                    } else {
+                        apps.join(", ")
+                    }
+                }));
 
                 crate::cli::output::key_value(info);
             }
@@ -330,7 +355,7 @@ pub async fn server_status() -> Result<(), String> {
 }
 
 /// 重启服务器
-pub async fn restart_server(port: u16) -> Result<(), String> {
+pub async fn restart_server(port: Option<u16>) -> Result<(), String> {
     crate::cli::output::info("正在重启服务器...");
 
     // 先停止
@@ -339,21 +364,26 @@ pub async fn restart_server(port: u16) -> Result<(), String> {
         tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
     }
 
-    // 从数据库读取实际配置的端口（优先于命令行参数）
-    let (actual_port, web_port, web_bind) = match crate::database::Database::init() {
+    // 从数据库读取配置（优先于命令行参数）
+    let (actual_host, actual_port, web_port, web_bind) = match crate::database::Database::init() {
         Ok(db) => {
-            // 直接从数据库查询 listen_port
-            let listen_port = db
+            // 从数据库查询 listen_address 和 listen_port
+            let config = db
                 .conn
                 .lock()
                 .unwrap()
                 .query_row(
-                    "SELECT listen_port FROM proxy_config WHERE app_type='claude' LIMIT 1",
+                    "SELECT listen_address, listen_port FROM proxy_config WHERE app_type='claude' LIMIT 1",
                     [],
-                    |row| row.get::<_, i64>(0),
+                    |row| {
+                        Ok((
+                            row.get::<_, String>(0).ok(),
+                            row.get::<_, i64>(1).ok().map(|p| p.clamp(1024, 65535) as u16),
+                        ))
+                    },
                 )
                 .ok()
-                .map(|p| p.clamp(1024, 65535) as u16);
+                .unwrap_or((None, None));
 
             let web_port = db.get_web_panel_port().ok().flatten();
             let web_bind = db
@@ -362,15 +392,16 @@ pub async fn restart_server(port: u16) -> Result<(), String> {
                 .flatten()
                 .unwrap_or_else(|| "0.0.0.0".to_string());
 
-            (listen_port, web_port, web_bind)
+            (config.0, config.1, web_port, web_bind)
         }
-        Err(_) => (None, None, "0.0.0.0".to_string()),
+        Err(_) => (None, None, None, "0.0.0.0".to_string()),
     };
 
-    // 使用数据库中的端口，如果数据库读取失败则使用命令行参数
-    let final_port = actual_port.unwrap_or(port);
+    // 使用数据库中的配置，如果数据库读取失败则使用命令行参数或默认值
+    let final_host = actual_host.or_else(|| Some("127.0.0.1".to_string()));
+    let final_port = port.or(actual_port);
 
-    start_headless_server("127.0.0.1".to_string(), final_port, true, web_port, web_bind).await
+    start_headless_server(final_host, final_port, true, web_port, web_bind).await
 }
 
 // ============================================================================

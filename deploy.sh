@@ -328,9 +328,7 @@ stop_old_service() {
 
     # 优先使用 ccs 命令
     if command -v ccs &>/dev/null; then
-        ccs server stop 2>/dev/null || pkill -f "cc-switch-cli.*server|/ccs.*server"
-    else
-        pkill -f "cc-switch-cli.*server|/ccs.*server"
+        ccs server stop 2>/dev/null || true
     fi
 
     # 等待进程退出（最多10秒）
@@ -339,14 +337,20 @@ stop_old_service() {
         sleep 1
         count=$((count + 1))
         if [ $count -gt 10 ]; then
-            echo -e "${YELLOW}⚠ 进程未响应，强制结束...${NC}"
-            pkill -9 -f "cc-switch-cli.*server|/ccs.*server"
+            echo -e "${YELLOW}⚠ 进程未响应，尝试强制结束...${NC}"
+            # 忽略权限错误，有些进程可能属于其他用户
+            pkill -9 -f "cc-switch-cli.*server|/ccs.*server" 2>/dev/null || true
             sleep 1
             break
         fi
     done
 
-    echo -e "${GREEN}✓ 旧服务已停止${NC}"
+    # 最终检查
+    if pgrep -f "cc-switch-cli.*server|/ccs.*server" >/dev/null 2>&1; then
+        echo -e "${YELLOW}⚠ 仍有进程未停止（可能属于其他用户），继续部署...${NC}"
+    else
+        echo -e "${GREEN}✓ 旧服务已停止${NC}"
+    fi
 }
 
 # 安装二进制文件
