@@ -92,8 +92,12 @@ CC Switch 快速部署脚本
 
 一行命令示例:
   # 仅配置指向远程代理
-  CC_SWITCH_CONFIG_ONLY=true CC_SWITCH_REMOTE_PROXY=10.0.0.1:15722 \\
-    curl -fsSL https://raw.githubusercontent.com/Aaroen/cc-switch-cli/main/deploy.sh | bash
+  curl -fsSL https://raw.githubusercontent.com/Aaroen/cc-switch-cli/main/deploy.sh | \\
+    env CC_SWITCH_CONFIG_ONLY=true CC_SWITCH_REMOTE_PROXY=10.0.0.1:15722 bash
+
+  # 完整部署 + 配置指向远程
+  curl -fsSL https://raw.githubusercontent.com/Aaroen/cc-switch-cli/main/deploy.sh | \\
+    env CC_SWITCH_REMOTE_PROXY=10.0.0.1:15722 bash
 EOF
 }
 
