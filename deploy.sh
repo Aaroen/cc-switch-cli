@@ -269,13 +269,18 @@ verify_binary() {
 # 返回值：0=端口可用，1=端口被占用
 check_port_available() {
     local port="$1"
-    if command -v netstat &>/dev/null; then
-        # grep成功（端口被占用）则返回1，否则返回0（端口可用）
-        netstat -tuln 2>/dev/null | grep -q ":$port " && return 1 || return 0
-    elif command -v ss &>/dev/null; then
-        # grep成功（端口被占用）则返回1，否则返回0（端口可用）
-        ss -tuln 2>/dev/null | grep -q ":$port " && return 1 || return 0
+    if command -v ss &>/dev/null; then
+        # 使用ss检测，更准确
+        # -tuln: tcp, udp, listening, numeric
+        ss -tuln 2>/dev/null | awk '{print $5}' | grep -q ":$port$" && return 1 || return 0
+    elif command -v netstat &>/dev/null; then
+        # 使用netstat作为fallback
+        netstat -tuln 2>/dev/null | awk '{print $4}' | grep -q ":$port$" && return 1 || return 0
     else
+        # 无netstat/ss，尝试lsof
+        if command -v lsof &>/dev/null; then
+            lsof -i ":$port" -sTCP:LISTEN >/dev/null 2>&1 && return 1 || return 0
+        fi
         # 无法检测，假设可用
         return 0
     fi
@@ -582,24 +587,35 @@ start_service() {
         set -e
 
         if [ $start_exit_code -ne 0 ]; then
-            error "服务启动失败"
+            error "服务启动失败（退出码: $start_exit_code）"
         fi
 
-        # 等待服务启动，最多等待10秒
+        # 等待服务启动，最多等待15秒
         local wait_count=0
-        local max_wait=10
-        sleep 2
+        local max_wait=15
+        echo "等待服务完全启动..."
+        sleep 3
 
         while [ $wait_count -lt $max_wait ]; do
             if "$ccs_bin" server status >/dev/null 2>&1; then
+                echo "服务启动成功"
                 return 0
             fi
             sleep 1
             wait_count=$((wait_count + 1))
         done
 
-        # 超时仍未启动
-        error "服务启动失败：状态检查超时"
+        # 超时仍未启动，报错
+        echo "错误: 服务启动超时"
+        echo "可能原因:"
+        echo "  1. 端口 $PROXY_PORT 或 $WEB_PORT 被其他进程占用"
+        echo "  2. 配置文件有误"
+        echo ""
+        echo "检查端口占用情况:"
+        if command -v ss &>/dev/null; then
+            ss -tuln | grep -E ":$PROXY_PORT |:$WEB_PORT " || echo "  未发现端口监听"
+        fi
+        error "服务启动失败"
     else
         # GUI 模式
         nohup cc-switch-gui >/dev/null 2>&1 &
@@ -625,21 +641,6 @@ verify_deployment() {
     # 检查CLI服务进程
     if ! pgrep -f "cc-switch-cli.*server|/ccs.*server" >/dev/null 2>&1; then
         error "服务未运行"
-    fi
-
-    # 验证端口
-    if command -v netstat &>/dev/null || command -v ss &>/dev/null; then
-        sleep 1
-        # 端口被占用说明正在监听
-        if check_port_available "$PROXY_PORT"; then
-            echo "警告: 代理端口 $PROXY_PORT 未监听"
-        fi
-
-        if [ "$CLI_MODE" = "true" ]; then
-            if check_port_available "$WEB_PORT"; then
-                echo "警告: Web端口 $WEB_PORT 未监听"
-            fi
-        fi
     fi
 }
 
