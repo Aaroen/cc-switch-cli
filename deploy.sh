@@ -356,12 +356,14 @@ install_binary() {
     # 备份旧版本
     if [ -f "$dest" ]; then
         local backup="$dest.bak-$(date +%Y%m%d-%H%M%S)"
-        cp "$dest" "$backup"
+        cp "$dest" "$backup" 2>/dev/null || true
     fi
 
-    # 复制新二进制
-    cp "$src" "$dest"
-    chmod +x "$dest"
+    # 复制新二进制（避免源和目标相同时报错）
+    if [ "$(realpath "$src")" != "$(realpath "$dest")" ]; then
+        cp "$src" "$dest"
+        chmod +x "$dest"
+    fi
 
     # 创建软链接
     ln -sf "$dest" "$dest_dir/ccs"
