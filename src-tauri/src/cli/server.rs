@@ -324,12 +324,7 @@ pub async fn server_status() -> Result<(), String> {
 
                 // 添加 web 控制台端口信息
                 if let Ok(Some(web_port)) = db.get_web_panel_port() {
-                    let web_bind = db
-                        .get_web_panel_bind()
-                        .ok()
-                        .flatten()
-                        .unwrap_or_else(|| "0.0.0.0".to_string());
-                    info.push(("Web控制端口", format!("{}:{}", web_bind, web_port)));
+                    info.push(("Web端口", web_port.to_string()));
                 }
 
                 // 添加启用应用
@@ -550,7 +545,7 @@ async fn start_headless_server_daemon(
         .await
         .is_ok()
         {
-            crate::cli::output::success("代理服务器启动成功（后台运行）");
+            crate::cli::output::success("代理服务器启动成功");
             // 端口可用不代表 PID 文件已写入（子进程写 PID 在启动逻辑后段），稍等一会儿避免“状态不一致”
             for _ in 0..25 {
                 if pid_file.exists() {
@@ -583,17 +578,13 @@ async fn start_headless_server_daemon(
                     }
                     sleep(Duration::from_millis(80)).await;
                 }
-                if panel_ready {
-                    print_web_panel_urls(&eff_web_bind, wp);
-                    crate::cli::output::hint("首次访问 Web 控制台时请设置访问密码");
-                } else {
+                if !panel_ready {
                     crate::cli::output::warning(&format!(
                         "Web 控制台尚未在预期时间内响应，请查看日志: {}",
                         log_path.display()
                     ));
                 }
             }
-            crate::cli::output::hint("使用 'ccs server stop' 停止服务");
             return Ok(());
         }
 
@@ -648,9 +639,6 @@ async fn start_web_panel_if_configured(
         Ok(()) => {
             if daemon {
                 crate::cli::output::info("Web 控制台已启动");
-            } else {
-                print_web_panel_urls(&eff_bind, eff_port);
-                crate::cli::output::hint("首次访问 Web 控制台时请设置访问密码");
             }
             Some(server)
         }

@@ -292,22 +292,19 @@ resolve_port_conflict() {
     while ! check_port_available "$port_value"; do
         attempt=$((attempt + 1))
         if [ $attempt -gt $MAX_PORT_RETRY ]; then
-            error "端口 $original_port 被占用，尝试了 $MAX_PORT_RETRY 次仍无可用端口"
+            error "端口 $original_port 及后续 $MAX_PORT_RETRY 个端口均被占用"
         fi
-
-        echo -e "${YELLOW}⚠ 端口 $port_value 被占用，尝试 $(($port_value + 1)) ...${NC}"
         port_value=$((port_value + 1))
     done
 
     if [ "$port_value" != "$original_port" ]; then
-        echo -e "${GREEN}✓ 使用端口: $port_value ${YELLOW}(原端口 $original_port 被占用)${NC}"
+        echo "端口 $original_port 被占用，使用 $port_value"
         eval "$port_var_name=$port_value"
     fi
 }
 
 # 检测所有端口
 check_ports() {
-    echo -e "${BLUE}检查端口可用性...${NC}"
     resolve_port_conflict "PROXY_PORT"
     if [ "$CLI_MODE" = "true" ]; then
         resolve_port_conflict "WEB_PORT"
@@ -316,15 +313,12 @@ check_ports() {
 
 # 停止旧服务
 stop_old_service() {
-    echo -e "${BLUE}检查运行中的服务...${NC}"
-
     # 更精确的进程匹配：使用完整路径或特定命令模式
     if ! pgrep -f "cc-switch-cli.*server|/ccs.*server" >/dev/null 2>&1; then
-        echo -e "${GREEN}✓ 无运行中的服务${NC}"
         return 0
     fi
 
-    echo -e "${YELLOW}发现运行中的服务，正在停止...${NC}"
+    echo "停止运行中的服务..."
 
     # 优先使用 ccs 命令
     if command -v ccs &>/dev/null; then
@@ -337,7 +331,6 @@ stop_old_service() {
         sleep 1
         count=$((count + 1))
         if [ $count -gt 10 ]; then
-            echo -e "${YELLOW}⚠ 进程未响应，尝试强制结束...${NC}"
             # 忽略权限错误，有些进程可能属于其他用户
             pkill -9 -f "cc-switch-cli.*server|/ccs.*server" 2>/dev/null || true
             sleep 1
@@ -347,9 +340,7 @@ stop_old_service() {
 
     # 最终检查
     if pgrep -f "cc-switch-cli.*server|/ccs.*server" >/dev/null 2>&1; then
-        echo -e "${YELLOW}⚠ 仍有进程未停止（可能属于其他用户），继续部署...${NC}"
-    else
-        echo -e "${GREEN}✓ 旧服务已停止${NC}"
+        echo "注意: 部分进程属于其他用户，无法停止"
     fi
 }
 
@@ -359,14 +350,18 @@ install_binary() {
     local dest_dir="$HOME/.local/bin"
     local dest="$dest_dir/cc-switch-cli"
 
-    echo -e "${BLUE}安装二进制文件...${NC}"
+# 安装二进制文件
+install_binary() {
+    local src="$1"
+    local dest_dir="$HOME/.local/bin"
+    local dest="$dest_dir/cc-switch-cli"
+
     mkdir -p "$dest_dir"
 
     # 备份旧版本
     if [ -f "$dest" ]; then
         local backup="$dest.bak-$(date +%Y%m%d-%H%M%S)"
         cp "$dest" "$backup"
-        echo -e "${GREEN}✓ 已备份旧版本: $(basename "$backup")${NC}"
     fi
 
     # 复制新二进制
@@ -381,7 +376,7 @@ install_binary() {
         error "安装失败：二进制文件无法运行"
     fi
 
-    echo -e "${GREEN}✓ 安装成功: $dest${NC}"
+    echo "已安装到 $dest"
 }
 
 # 配置PATH
@@ -568,8 +563,9 @@ PYEOF
 }
 
 # 启动服务
+# 启动服务
 start_service() {
-    echo -e "${BLUE}启动 CC Switch 服务...${NC}"
+    echo "启动服务..."
 
     # 使用绝对路径确保能找到命令
     local ccs_bin="$HOME/.local/bin/ccs"
@@ -585,8 +581,6 @@ start_service() {
         cmd="$cmd --web-port $WEB_PORT"
         cmd="$cmd --web-bind $WEB_BIND"
 
-        echo -e "${CYAN}执行: $cmd${NC}"
-
         # 临时禁用 errexit 以处理启动失败
         set +e
         $cmd
@@ -594,18 +588,16 @@ start_service() {
         set -e
 
         if [ $start_exit_code -ne 0 ]; then
-            echo -e "${YELLOW}⚠ 启动命令返回非零退出码: $start_exit_code${NC}"
+            error "服务启动失败"
         fi
 
         # 等待服务启动，最多等待10秒
         local wait_count=0
         local max_wait=10
-        echo -e "${CYAN}等待服务启动...${NC}"
         sleep 2
 
         while [ $wait_count -lt $max_wait ]; do
             if "$ccs_bin" server status >/dev/null 2>&1; then
-                echo -e "${GREEN}✓ 服务启动成功${NC}"
                 return 0
             fi
             sleep 1
@@ -616,34 +608,26 @@ start_service() {
         error "服务启动失败：状态检查超时"
     else
         # GUI 模式
-        echo -e "${CYAN}启动 GUI 应用...${NC}"
         nohup cc-switch-gui >/dev/null 2>&1 &
         sleep 1
-        echo -e "${GREEN}✓ GUI 已启动${NC}"
     fi
 }
 
 # 配置权重轮询
 configure_weight_round_robin() {
-    echo -e "${BLUE}配置权重轮询（默认启用）...${NC}"
+    echo "配置权重轮询..."
 
     sleep 2  # 确保服务完全启动
 
     for app in claude codex gemini; do
-        # 使用 config loadbalance 命令一次性设置开关和策略
-        # 注意：config set 不支持这些 key，必须使用 loadbalance 子命令
         if ccs config loadbalance --app "$app" --enabled true --strategy frequency >/dev/null 2>&1; then
-            echo -e "${GREEN}✓ 已为 $app 启用权重轮询（策略: frequency）${NC}"
-        else
-            echo -e "${YELLOW}⚠ 警告: 为 $app 配置权重轮询失败${NC}"
+            echo "已为 $app 启用权重轮询"
         fi
     done
 }
 
 # 验证部署
 verify_deployment() {
-    echo -e "${BLUE}验证部署...${NC}"
-
     # 检查CLI服务进程
     if ! pgrep -f "cc-switch-cli.*server|/ccs.*server" >/dev/null 2>&1; then
         error "服务未运行"
@@ -653,57 +637,39 @@ verify_deployment() {
     if command -v netstat &>/dev/null || command -v ss &>/dev/null; then
         sleep 1
         # 端口被占用说明正在监听
-        if ! check_port_available "$PROXY_PORT"; then
-            echo -e "${GREEN}✓ 代理端口 $PROXY_PORT 正在监听${NC}"
-        else
-            echo -e "${YELLOW}⚠ 警告: 代理端口 $PROXY_PORT 未监听${NC}"
+        if check_port_available "$PROXY_PORT"; then
+            echo "警告: 代理端口 $PROXY_PORT 未监听"
         fi
 
         if [ "$CLI_MODE" = "true" ]; then
-            if ! check_port_available "$WEB_PORT"; then
-                echo -e "${GREEN}✓ Web控制台端口 $WEB_PORT 正在监听${NC}"
-            else
-                echo -e "${YELLOW}⚠ 警告: Web控制台端口 $WEB_PORT 未监听${NC}"
+            if check_port_available "$WEB_PORT"; then
+                echo "警告: Web端口 $WEB_PORT 未监听"
             fi
         fi
     fi
-
-    echo -e "${GREEN}✓ 验证通过${NC}"
 }
 
 # 显示部署摘要
 show_summary() {
     echo ""
-    echo -e "${GREEN}========================================${NC}"
-    echo -e "${GREEN}  ✓ CC Switch 部署完成${NC}"
-    echo -e "${GREEN}========================================${NC}"
+    echo "部署完成"
     echo ""
-    echo -e "${CYAN}服务信息:${NC}"
-    echo -e "  模式: $([ "$CLI_MODE" = "true" ] && echo "CLI（无头）" || echo "GUI")"
-    echo -e "  代理服务: ${BLUE}http://$PROXY_HOST:$PROXY_PORT${NC}"
-
+    echo "服务信息:"
+    echo "  代理端口: $PROXY_PORT"
     if [ "$CLI_MODE" = "true" ]; then
-        echo -e "  Web 控制台: ${BLUE}http://$WEB_BIND:$WEB_PORT${NC}"
-        echo -e "    ${YELLOW}(首次访问需设置密码)${NC}"
+        echo "  Web端口: $WEB_PORT"
     fi
-
     echo ""
-    echo -e "${CYAN}常用命令:${NC}"
-    echo -e "  ${GREEN}ccs server status${NC}   - 查看状态"
-    echo -e "  ${GREEN}ccs server stop${NC}     - 停止服务"
-    echo -e "  ${GREEN}ccs server restart${NC}  - 重启服务"
-    echo ""
-    echo -e "${CYAN}测试 CLI:${NC}"
-    echo -e "  ${GREEN}claude \"你好\"${NC}"
-    echo -e "  ${GREEN}codex \"你好\"${NC}"
+    echo "常用命令:"
+    echo "  ccs status    - 查看状态"
+    echo "  ccs stop      - 停止服务"
+    echo "  ccs restart   - 重启服务"
     echo ""
 }
 
 # 主流程
 main() {
-    echo -e "${CYAN}========================================${NC}"
-    echo -e "${CYAN}  CC Switch 快速部署${NC}"
-    echo -e "${CYAN}========================================${NC}"
+    echo "CC Switch 部署"
     echo ""
 
     parse_arguments "$@"
