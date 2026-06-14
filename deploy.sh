@@ -42,6 +42,8 @@ WEB_BIND=""
 FORCE_CLI=false
 FORCE_GUI=false
 CLI_MODE=false
+CONFIG_ONLY=false
+REMOTE_PROXY=""
 
 # 错误处理
 error() {
@@ -58,25 +60,34 @@ CC Switch 快速部署脚本
   ./deploy.sh [选项]
 
 选项:
-  --binary <path>      指定二进制文件路径
-  --port <port>        代理服务端口（默认: 15721）
-  --host <addr>        代理监听地址（默认: 0.0.0.0）
-  --web-port <port>    Web控制台端口（默认: 8888）
-  --web-bind <addr>    Web控制台监听地址（默认: 0.0.0.0）
-  --headless           强制无头模式（当前为默认模式）
-  --gui                强制GUI模式（尚未完全实现）
-  -h, --help           显示此帮助信息
+  --binary <path>        指定二进制文件路径
+  --port <port>          代理服务端口（默认: 15721）
+  --host <addr>          代理监听地址（默认: 0.0.0.0）
+  --web-port <port>      Web控制台端口（默认: 8888）
+  --web-bind <addr>      Web控制台监听地址（默认: 0.0.0.0）
+  --remote-proxy <url>   远程代理地址（如: 100.106.96.110:15722）
+  --config-only          仅修改配置文件，不安装服务
+  --headless             强制无头模式（当前为默认模式）
+  --gui                  强制GUI模式（尚未完全实现）
+  -h, --help             显示此帮助信息
+
+模式说明:
+  默认模式: 下载/安装二进制 + 启动本地服务 + 配置CLI指向本地
+  --config-only: 仅修改Claude/Codex配置文件
+  --remote-proxy: 配置CLI指向远程代理服务器
 
 示例:
-  ./deploy.sh
-  ./deploy.sh --port 15722
-  ./deploy.sh --binary ./cc-switch-cli --headless
+  ./deploy.sh                                         # 完整部署本地服务
+  ./deploy.sh --port 15722                            # 使用不同端口
+  ./deploy.sh --config-only --remote-proxy 10.0.0.1:15722   # 仅配置指向远程
+  ./deploy.sh --remote-proxy 10.0.0.1:15722           # 本地服务 + 指向远程
 
 环境变量:
-  CC_SWITCH_PORT       代理服务端口
-  CC_SWITCH_HOST       代理监听地址
-  CC_SWITCH_WEB_PORT   Web控制台端口
-  CC_SWITCH_WEB_BIND   Web控制台监听地址
+  CC_SWITCH_PORT         代理服务端口
+  CC_SWITCH_HOST         代理监听地址
+  CC_SWITCH_WEB_PORT     Web控制台端口
+  CC_SWITCH_WEB_BIND     Web控制台监听地址
+  CC_SWITCH_REMOTE_PROXY 远程代理地址
 EOF
 }
 
@@ -104,6 +115,14 @@ parse_arguments() {
                 WEB_BIND="$2"
                 shift 2
                 ;;
+            --remote-proxy)
+                REMOTE_PROXY="$2"
+                shift 2
+                ;;
+            --config-only)
+                CONFIG_ONLY=true
+                shift
+                ;;
             --headless)
                 FORCE_CLI=true
                 shift
@@ -126,10 +145,15 @@ parse_arguments() {
     PROXY_HOST="${PROXY_HOST:-${CC_SWITCH_HOST:-$DEFAULT_PROXY_HOST}}"
     WEB_PORT="${WEB_PORT:-${CC_SWITCH_WEB_PORT:-$DEFAULT_WEB_PORT}}"
     WEB_BIND="${WEB_BIND:-${CC_SWITCH_WEB_BIND:-$DEFAULT_WEB_BIND}}"
+    REMOTE_PROXY="${REMOTE_PROXY:-${CC_SWITCH_REMOTE_PROXY:-}}"
 
     # 检查冲突的参数
     if [ "$FORCE_CLI" = "true" ] && [ "$FORCE_GUI" = "true" ]; then
         error "不能同时指定 --headless 和 --gui 参数"
+    fi
+
+    if [ "$CONFIG_ONLY" = "true" ] && [ -z "$REMOTE_PROXY" ]; then
+        error "--config-only 必须配合 --remote-proxy 使用"
     fi
 }
 
@@ -405,7 +429,14 @@ configure_path() {
 
 # 配置 Claude Code CLI
 configure_claude() {
-    local base_url="http://127.0.0.1:${PROXY_PORT}"
+    # 使用远程代理或本地代理
+    local base_url
+    if [ -n "$REMOTE_PROXY" ]; then
+        base_url="http://${REMOTE_PROXY}"
+    else
+        base_url="http://127.0.0.1:${PROXY_PORT}"
+    fi
+
     local settings_file="$HOME/.claude/settings.json"
 
     mkdir -p "$HOME/.claude"
@@ -463,7 +494,14 @@ PYEOF
 
 # 配置 Codex CLI - config.toml
 configure_codex_config() {
-    local base_url="http://127.0.0.1:${PROXY_PORT}/v1"
+    # 使用远程代理或本地代理
+    local base_url
+    if [ -n "$REMOTE_PROXY" ]; then
+        base_url="http://${REMOTE_PROXY}/v1"
+    else
+        base_url="http://127.0.0.1:${PROXY_PORT}/v1"
+    fi
+
     local config_file="$HOME/.codex/config.toml"
 
     if [ ! -f "$config_file" ]; then
@@ -651,24 +689,53 @@ main() {
 
     parse_arguments "$@"
     determine_mode
-    check_python
 
+    # config-only模式：仅修改配置文件
+    if [ "$CONFIG_ONLY" = "true" ]; then
+        echo "[1/2] 配置CLI工具..."
+        check_python
+        configure_claude
+        configure_codex_config
+        configure_codex_auth
+
+        echo "[2/2] 完成"
+        echo ""
+        echo "配置完成"
+        echo ""
+        echo "已配置Claude Code和Codex CLI指向: $REMOTE_PROXY"
+        return 0
+    fi
+
+    # 完整部署模式
+    echo "[1/8] 查找二进制文件..."
     BINARY=$(find_binary)
     verify_binary "$BINARY"
 
-    check_ports
+    echo "[2/8] 停止旧服务..."
     stop_old_service
+
+    echo "[3/8] 检测端口..."
+    check_ports
+
+    echo "[4/8] 安装二进制..."
     install_binary "$BINARY"
     configure_path
 
+    echo "[5/8] 配置CLI工具..."
+    check_python
     configure_claude
     configure_codex_config
     configure_codex_auth
 
+    echo "[6/8] 启动服务..."
     start_service
+
+    echo "[7/8] 配置权重轮询..."
     configure_weight_round_robin
 
+    echo "[8/8] 验证部署..."
     verify_deployment
+
     show_summary
 }
 
