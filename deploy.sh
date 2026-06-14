@@ -353,17 +353,26 @@ install_binary() {
 
     mkdir -p "$dest_dir"
 
+    # 如果源和目标是同一文件，跳过
+    if [ "$(realpath "$src" 2>/dev/null)" = "$(realpath "$dest" 2>/dev/null)" ]; then
+        echo "二进制文件已在目标位置"
+        # 仍然需要创建软链接和验证
+        ln -sf "$dest" "$dest_dir/ccs"
+        if ! "$dest" --version &>/dev/null; then
+            error "二进制文件无法运行"
+        fi
+        return 0
+    fi
+
     # 备份旧版本
     if [ -f "$dest" ]; then
         local backup="$dest.bak-$(date +%Y%m%d-%H%M%S)"
         cp "$dest" "$backup" 2>/dev/null || true
     fi
 
-    # 复制新二进制（避免源和目标相同时报错）
-    if [ "$(realpath "$src")" != "$(realpath "$dest")" ]; then
-        cp "$src" "$dest"
-        chmod +x "$dest"
-    fi
+    # 复制新二进制
+    cp "$src" "$dest"
+    chmod +x "$dest"
 
     # 创建软链接
     ln -sf "$dest" "$dest_dir/ccs"
