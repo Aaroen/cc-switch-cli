@@ -142,7 +142,6 @@ determine_mode() {
     fi
 
     CLI_MODE=true
-    echo -e "${CYAN}▸ 模式: CLI（无头后台服务）${NC}"
 }
 
 # 检测Python
@@ -154,7 +153,6 @@ check_python() {
 
 # 下载最新的二进制文件
 download_binary() {
-    echo -e "${BLUE}未找到本地二进制文件，正在从 GitHub Release 下载...${NC}" >&2
 
     # 检测架构
     local arch="$(uname -m)"
@@ -169,7 +167,6 @@ download_binary() {
     mkdir -p "$download_dir"
     cd "$download_dir" || error "无法创建下载目录"
 
-    echo -e "${CYAN}下载地址: https://github.com/Aaroen/cc-switch-cli/releases/latest/download/cc-switch-cli-linux-x86_64.tar.gz${NC}" >&2
 
     # 清理旧文件
     rm -rf cc-switch-cli-linux-x86_64 cc-switch-cli 2>/dev/null || true
@@ -201,8 +198,6 @@ download_binary() {
         cp "cc-switch-cli-linux-x86_64/deploy.sh" "$download_dir/deploy.sh" 2>/dev/null || true
     fi
 
-    echo -e "${GREEN}✓ 下载完成: $binary${NC}" >&2
-    echo -e "${GREEN}✓ 文件保存在: $download_dir${NC}" >&2
 
     # 只输出二进制路径到 stdout（供 find_binary 捕获）
     echo "$binary"
@@ -262,7 +257,6 @@ verify_binary() {
     fi
 
     local version="$("$binary" --version 2>&1 | head -1)"
-    echo -e "${GREEN}✓ 检测到版本: ${version}${NC}"
 }
 
 # 检测端口是否被占用
@@ -323,7 +317,6 @@ stop_old_service() {
         return 0
     fi
 
-    echo "停止运行中的服务..."
 
     # 优先使用 ccs 命令
     if command -v ccs &>/dev/null; then
@@ -387,7 +380,6 @@ install_binary() {
         error "安装失败：二进制文件无法运行"
     fi
 
-    echo "已安装到 $dest"
 }
 
 # 配置PATH
@@ -398,7 +390,6 @@ configure_path() {
         return 0
     fi
 
-    echo -e "${BLUE}配置 PATH...${NC}"
 
     for rc in ~/.bashrc ~/.zshrc ~/.profile; do
         if [ -f "$rc" ]; then
@@ -417,7 +408,6 @@ configure_claude() {
     local base_url="http://127.0.0.1:${PROXY_PORT}"
     local settings_file="$HOME/.claude/settings.json"
 
-    echo -e "${BLUE}配置 Claude Code CLI...${NC}"
     mkdir -p "$HOME/.claude"
 
     # 备份配置文件
@@ -480,7 +470,6 @@ configure_codex_config() {
         return 0
     fi
 
-    echo -e "${BLUE}配置 Codex CLI (config.toml)...${NC}"
 
     # 备份配置文件
     local backup="$config_file.bak-$(date +%Y%m%d-%H%M%S)"
@@ -564,7 +553,6 @@ PYEOF
 # 启动服务
 # 启动服务
 start_service() {
-    echo "启动服务..."
 
     # 使用绝对路径确保能找到命令
     local ccs_bin="$HOME/.local/bin/ccs"
@@ -593,12 +581,10 @@ start_service() {
         # 等待服务启动，最多等待15秒
         local wait_count=0
         local max_wait=15
-        echo "等待服务完全启动..."
         sleep 3
 
         while [ $wait_count -lt $max_wait ]; do
             if "$ccs_bin" server status >/dev/null 2>&1; then
-                echo "服务启动成功"
                 return 0
             fi
             sleep 1
@@ -625,14 +611,10 @@ start_service() {
 
 # 配置权重轮询
 configure_weight_round_robin() {
-    echo "配置权重轮询..."
-
     sleep 2  # 确保服务完全启动
 
     for app in claude codex gemini; do
-        if ccs config loadbalance --app "$app" --enabled true --strategy frequency >/dev/null 2>&1; then
-            echo "已为 $app 启用权重轮询"
-        fi
+        ccs config loadbalance --app "$app" --enabled true --strategy frequency >/dev/null 2>&1
     done
 }
 
