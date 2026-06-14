@@ -345,11 +345,6 @@ stop_old_service() {
 }
 
 # 安装二进制文件
-install_binary() {
-    local src="$1"
-    local dest_dir="$HOME/.local/bin"
-    local dest="$dest_dir/cc-switch-cli"
-
 # 安装二进制文件
 install_binary() {
     local src="$1"
@@ -454,8 +449,7 @@ except Exception as e:
     print(f"错误：无法写入配置文件: {e}", file=sys.stderr)
     sys.exit(1)
 PYEOF
-        if [ $? -eq 0 ]; then
-        else
+        if [ $? -ne 0 ]; then
             error "配置文件更新失败"
         fi
     fi
@@ -504,8 +498,7 @@ except Exception as e:
     print(f"错误：无法写入配置文件: {e}", file=sys.stderr)
     sys.exit(1)
 PYEOF
-    if [ $? -eq 0 ]; then
-    else
+    if [ $? -ne 0 ]; then
         error "配置文件更新失败"
     fi
 }
