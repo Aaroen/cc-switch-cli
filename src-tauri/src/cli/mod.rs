@@ -138,9 +138,9 @@ pub enum ServerCommands {
 
     /// 重启服务器
     Restart {
-        /// 监听端口
-        #[arg(short, long, default_value = "15721")]
-        port: u16,
+        /// 监听端口（不指定则继承上次配置）
+        #[arg(short, long)]
+        port: Option<u16>,
     },
 }
 
